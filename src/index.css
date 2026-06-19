@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #6366f1; /* High-end Bento Indigo */
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1e1b4b;
+  --color-on-primary-container: #c7d2fe;
+  --color-secondary: #10b981; /* Precise Emerald green for status indicators and active states */
+  --color-secondary-container: #064e3b;
+  --color-on-secondary-container: #a7f3d0;
+  --color-background: #0A0A0A; /* Premium dark background */
+  --color-on-background: #ffffff;
+  --color-surface: #141414; /* Standard deep card color */
+  --color-on-surface: #f4f4f5;
+  --color-on-surface-variant: #9ca3af;
+  --color-outline-variant: rgba(255, 255, 255, 0.08); /* Subtle dark border lines */
+  --color-outline: #6b7280;
+  --color-error: #f43f5e; /* Vibrant rose/red for warning */
+  --color-error-container: #4c0519;
+  --color-on-error-container: #fecdd3;
+  
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-on-background);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Light Theme Variables Overrides */
+.light-theme {
+  --color-background: #F9F9FB;
+  --color-on-background: #09090B;
+  --color-surface: #FFFFFF;
+  --color-on-surface: #09090B;
+  --color-on-surface-variant: #64748B;
+  --color-outline-variant: rgba(0, 0, 0, 0.08);
+  --color-outline: #94A3B8;
+  --color-primary-container: #EEF2F6;
+  --color-on-primary-container: #1E293B;
+  --color-secondary-container: #E2F8F0;
+  --color-on-secondary-container: #064E3B;
+}
+
+/* Custom Scrollbar to integrate smoothly with the dark Bento theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0A0A0A;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Animations helpers */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scale-up {
+  animation: scaleUp 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

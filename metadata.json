@@ -1,0 +1,6 @@
+{
+  "name": "Hico-Cleaning",
+  "description": "Système de Recensement des Parcelles et de Gestion des Abonnés pour Hico-Cleaning. Permet de gérer les communes, les avenues, les recensements de parcelles et de ménages, et d'enregistrer automatiquement les abonnés.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
