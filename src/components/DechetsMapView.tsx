@@ -1,0 +1,660 @@
+import React, { useState, useMemo } from 'react';
+import { 
+  PoubelleSignal, 
+  Eboueur, 
+  Commune, 
+  Avenue, 
+  Parcelle, 
+  Abonne 
+} from '../types';
+import { 
+  Trash2, 
+  MapPin, 
+  Truck, 
+  UserCheck, 
+  Bell, 
+  Send, 
+  CheckCircle2, 
+  Clock, 
+  Navigation, 
+  Map as MapIcon, 
+  Radio, 
+  AlertTriangle,
+  Play,
+  Layers
+} from 'lucide-react';
+
+interface DechetsMapViewProps {
+  signals: PoubelleSignal[];
+  eboueurs: Eboueur[];
+  communes: Commune[];
+  avenues: Avenue[];
+  parcelles: Parcelle[];
+  abonnes: Abonne[];
+  onAssignMission: (signalId: string, eboueurId: string) => void;
+  onSimulateSignal: (parcelleId: string) => void;
+}
+
+export default function DechetsMapView({
+  signals,
+  eboueurs,
+  communes,
+  avenues,
+  parcelles,
+  abonnes,
+  onAssignMission,
+  onSimulateSignal
+}: DechetsMapViewProps) {
+  const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
+  const [selectedEboueurId, setSelectedEboueurId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'assigned' | 'completed'>('all');
+  const [simulationCommuneId, setSimulationCommuneId] = useState<string>('');
+  const [simulationAvenueId, setSimulationAvenueId] = useState<string>('');
+  const [simulationParcelleId, setSimulationParcelleId] = useState<string>('');
+
+  // Communes list for simulation dropdown
+  const simulationAvenues = useMemo(() => {
+    if (!simulationCommuneId) return [];
+    return avenues.filter(a => a.commune_id === simulationCommuneId);
+  }, [avenues, simulationCommuneId]);
+
+  const simulationParcelles = useMemo(() => {
+    if (!simulationAvenueId) return [];
+    return parcelles.filter(p => p.avenue_id === simulationAvenueId);
+  }, [parcelles, simulationAvenueId]);
+
+  // Filter signals based on active tab
+  const filteredSignals = useMemo(() => {
+    if (activeTab === 'all') return signals;
+    return signals.filter(s => s.status === activeTab);
+  }, [signals, activeTab]);
+
+  // Selected signal details
+  const selectedSignal = useMemo(() => {
+    return signals.find(s => s.id === selectedSignalId);
+  }, [signals, selectedSignalId]);
+
+  // Find parcels with GPS to plot on map
+  const parcelGpsPoints = useMemo(() => {
+    return parcelles.filter(p => p.latitude != null && p.longitude != null);
+  }, [parcelles]);
+
+  // Get coordinates for signals
+  const getSignalCoords = (signal: PoubelleSignal) => {
+    const p = parcelles.find(pa => pa.id === signal.parcelle_id);
+    if (p && p.latitude && p.longitude) {
+      return { lat: p.latitude, lng: p.longitude };
+    }
+    // Fallback coordinates based on hash for demo
+    const hash = signal.id.charCodeAt(0) + signal.id.charCodeAt(1);
+    return {
+      lat: -4.33 + (hash % 100) * 0.001,
+      lng: 15.31 + (hash % 80) * 0.001
+    };
+  };
+
+  // Helper to calculate Euclidean distance (simulated km for simple UI display)
+  const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const d = Math.sqrt(Math.pow(lat1 - lat2, 2) + Math.pow(lng1 - lng2, 2));
+    // scale factor to make it look like real-world kilometers in Kinshasa
+    return parseFloat((d * 111.12).toFixed(2));
+  };
+
+  // Find nearest collector for selected signal
+  const nearestCollectors = useMemo(() => {
+    if (!selectedSignal) return [];
+    const signalCoords = getSignalCoords(selectedSignal);
+    
+    return eboueurs
+      .filter(eb => eb.gps_active)
+      .map(eb => {
+        const dist = calculateDistance(signalCoords.lat, signalCoords.lng, eb.latitude, eb.longitude);
+        return {
+          ...eb,
+          distance: dist
+        };
+      })
+      .sort((a, b) => a.distance - b.distance);
+  }, [selectedSignal, eboueurs]);
+
+  const handleSimulate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!simulationParcelleId) return;
+    onSimulateSignal(simulationParcelleId);
+    setSimulationParcelleId('');
+    alert("Signal de poubelle pleine envoyé avec succès pour cette parcelle !");
+  };
+
+  return (
+    <div className="flex flex-col gap-6 animate-fade-in text-on-background">
+      {/* Header block */}
+      <div className="flex flex-col gap-1.5 border-b border-outline-variant/40 pb-4">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-error/15 rounded-xl text-error">
+            <Trash2 size={24} className="animate-pulse" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-on-background font-sans">
+              Gestion de la Salubrité & Éboueurs
+            </h2>
+            <p className="text-sm text-on-surface-variant font-medium">
+              Suivi en temps réel des alertes de poubelles pleines et géolocalisation des agents collecteurs.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Grid: Map on Left, Sidebar on Right */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Column 1 & 2: Interactive Simulated Map */}
+        <div className="lg:col-span-2 flex flex-col gap-4">
+          
+          <div className="bg-surface rounded-3xl border border-outline-variant overflow-hidden shadow-lg flex flex-col h-[500px]">
+            {/* Map Controls Header */}
+            <div className="bg-background/80 px-4 py-3 border-b border-outline-variant flex justify-between items-center z-10 backdrop-blur-sm">
+              <span className="text-xs font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                <Layers size={14} className="text-secondary" />
+                Carte interactive de Kinshasa
+              </span>
+              <div className="flex gap-2 items-center text-[10px] text-on-surface-variant font-bold">
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 bg-error rounded-full animate-ping"></span>
+                  <span>Alertes ({signals.filter(s => s.status === 'pending').length})</span>
+                </span>
+                <span className="flex items-center gap-1 ml-2">
+                  <span className="w-2.5 h-2.5 bg-[#10b981] rounded-full"></span>
+                  <span>Éboueurs Actifs ({eboueurs.filter(e => e.gps_active).length})</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Simulated Vector Grid Map */}
+            <div className="flex-grow bg-[#090909] relative overflow-hidden flex items-center justify-center p-4">
+              
+              {/* Grid Background overlay */}
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(40,40,60,0.15),transparent)] pointer-events-none" />
+              <div 
+                className="absolute inset-0 opacity-15" 
+                style={{
+                  backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                  backgroundSize: '24px 24px'
+                }} 
+              />
+
+              {/* Kinshasa River / Map contours mockup representation inside SVG */}
+              <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" viewBox="0 0 800 500">
+                {/* Congo River winding */}
+                <path d="M -100,50 Q 200,80 300,180 T 600,280 T 900,250" fill="none" stroke="#2563eb" strokeWidth="48" strokeLinecap="round" />
+                <path d="M -100,50 Q 200,80 300,180 T 600,280 T 900,250" fill="none" stroke="#3b82f6" strokeWidth="12" strokeLinecap="round" />
+                {/* Simulated Roads/Avenues */}
+                <path d="M 100,0 L 100,500 M 350,0 L 350,500 M 600,0 L 600,500 M 0,200 L 800,200 M 0,350 L 800,350" fill="none" stroke="#333333" strokeWidth="1.5" />
+                {/* Communes Boundaries label markers */}
+                <text x="250" y="140" fill="#ffffff" fontSize="12" fontWeight="bold">Gombe</text>
+                <text x="140" y="320" fill="#ffffff" fontSize="12" fontWeight="bold">Bandal</text>
+                <text x="450" y="240" fill="#ffffff" fontSize="12" fontWeight="bold">Limete</text>
+                <text x="320" y="420" fill="#ffffff" fontSize="12" fontWeight="bold">Lemba</text>
+                <text x="620" y="380" fill="#ffffff" fontSize="12" fontWeight="bold">Masina</text>
+              </svg>
+
+              {/* PLOTTING PIN 1: Active Signals (full bins) */}
+              {signals.map((sig) => {
+                const coords = getSignalCoords(sig);
+                // Convert coords into percentage layout safely
+                const mapY = Math.max(5, Math.min(95, ((coords.lat - -4.36) / -0.06) * 100));
+                const mapX = Math.max(5, Math.min(95, ((coords.lng - 15.26) / 0.12) * 100));
+
+                const isSelected = selectedSignalId === sig.id;
+                const isPending = sig.status === 'pending';
+                const isAssigned = sig.status === 'assigned';
+
+                return (
+                  <button
+                    key={sig.id}
+                    onClick={() => {
+                      setSelectedSignalId(sig.id);
+                      setSelectedEboueurId(null); // Clear other selected
+                    }}
+                    className="absolute group z-20 cursor-pointer focus:outline-none transition-transform"
+                    style={{ top: `${mapY}%`, left: `${mapX}%` }}
+                  >
+                    <div className="relative flex items-center justify-center">
+                      {/* Alert ping for pending */}
+                      {isPending && (
+                        <span className="absolute inline-flex h-8 w-8 rounded-full bg-error/30 animate-ping" />
+                      )}
+                      
+                      {/* Main pin marker icon */}
+                      <div className={`p-2.5 rounded-full border-2 shadow-lg transition-all duration-300 ${
+                        isSelected 
+                          ? 'bg-error scale-125 border-white text-white z-30' 
+                          : isPending
+                            ? 'bg-[#121212] border-error text-error scale-110 hover:scale-120'
+                            : isAssigned
+                              ? 'bg-[#121212] border-yellow-500 text-yellow-500 hover:scale-110'
+                              : 'bg-[#121212] border-outline text-[#10b981] hover:scale-110'
+                      }`}>
+                        <Trash2 size={15} className={isPending ? 'animate-bounce' : ''} />
+                      </div>
+
+                      {/* Info Tooltip on Hover */}
+                      <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col bg-[#141414] border border-outline-variant p-2.5 rounded-xl shadow-2xl text-left w-48 pointer-events-none text-white text-[10px] leading-normal z-40">
+                        <span className="font-extrabold text-primary">N° {sig.numero_parcelle}, Av. {sig.avenue_nom}</span>
+                        <span className="text-gray-400">Bailleur : {sig.bailleur_nom}</span>
+                        <span className="font-mono text-gray-500 mt-1">{sig.reported_at.substring(11, 16)} • {sig.commune_nom}</span>
+                        <div className="mt-1 flex items-center gap-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            isPending ? 'bg-error' : isAssigned ? 'bg-yellow-500' : 'bg-[#10b981]'
+                          }`} />
+                          <span className="font-bold uppercase tracking-wider text-[8px]">
+                            {sig.status === 'pending' ? 'Poubelle Pleine 🚨' : sig.status === 'assigned' ? 'Assigné 🚚' : 'Vidé ✔'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {/* PLOTTING PIN 2: Collectors (eboueurs trucks) */}
+              {eboueurs.filter(eb => eb.gps_active).map((eb) => {
+                // Convert coords into percentage layout safely
+                const mapY = Math.max(5, Math.min(95, ((eb.latitude - -4.36) / -0.06) * 100));
+                const mapX = Math.max(5, Math.min(95, ((eb.longitude - 15.26) / 0.12) * 100));
+
+                const isSelected = selectedEboueurId === eb.id;
+                const isBusy = eb.status === 'en_mission';
+
+                return (
+                  <button
+                    key={eb.id}
+                    onClick={() => {
+                      setSelectedEboueurId(eb.id);
+                      setSelectedSignalId(null); // Clear other selected
+                    }}
+                    className="absolute group z-20 cursor-pointer focus:outline-none transition-transform"
+                    style={{ top: `${mapY}%`, left: `${mapX}%` }}
+                  >
+                    <div className="relative flex items-center justify-center">
+                      {/* Light glow for active collectors */}
+                      <span className={`absolute inline-flex h-7 w-7 rounded-full bg-secondary/20 ${!isBusy ? 'animate-pulse' : ''}`} />
+                      
+                      {/* Truck container */}
+                      <div className={`p-2 rounded-xl border shadow-lg transition-all duration-300 ${
+                        isSelected 
+                          ? 'bg-secondary text-white border-white scale-125 z-30' 
+                          : isBusy
+                            ? 'bg-[#141414] border-yellow-500 text-yellow-500 scale-100 hover:scale-115'
+                            : 'bg-[#141414] border-secondary text-secondary scale-110 hover:scale-120'
+                      }`}>
+                        <Truck size={14} />
+                      </div>
+
+                      {/* Tooltip on hover */}
+                      <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col bg-[#141414] border border-outline-variant p-2 rounded-xl shadow-2xl text-left w-40 pointer-events-none text-white text-[10px] leading-normal z-40">
+                        <span className="font-extrabold text-secondary">{eb.nom}</span>
+                        <span className="text-gray-400">{eb.telephone}</span>
+                        <div className="mt-1 flex items-center gap-1 text-[9px]">
+                          <span className={`w-1.5 h-1.5 rounded-full ${isBusy ? 'bg-yellow-500' : 'bg-[#10b981]'}`} />
+                          <span className="font-bold">
+                            {isBusy ? 'En mission 🚚' : 'Libre / Disponible 🔋'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {/* Compass Calibration Helper Graphic overlay */}
+              <div className="absolute bottom-4 right-4 bg-background/80 border border-outline-variant p-2.5 rounded-2xl flex items-center gap-2 text-[10px] font-mono font-bold text-on-surface-variant backdrop-blur-sm shadow-md">
+                <Navigation size={14} className="text-secondary rotate-45 shrink-0" />
+                <span>Zone Rapprochée : Kinshasa-Centre</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Simulation Trigger for testing */}
+          <div className="bg-surface rounded-2xl border border-outline-variant p-4 flex flex-col gap-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-on-surface flex items-center gap-1.5">
+              <Radio size={14} className="text-error animate-pulse" />
+              Simuler l'alerte d'un Abonné (Test Express)
+            </h4>
+            <form onSubmit={handleSimulate} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-on-surface-variant font-bold uppercase">Commune</span>
+                <select
+                  value={simulationCommuneId}
+                  onChange={(e) => {
+                    setSimulationCommuneId(e.target.value);
+                    setSimulationAvenueId('');
+                    setSimulationParcelleId('');
+                  }}
+                  className="bg-background border border-outline-variant text-xs h-9 rounded-xl pl-2 text-on-surface cursor-pointer"
+                  required
+                >
+                  <option value="">Sélectionner</option>
+                  {communes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-on-surface-variant font-bold uppercase">Avenue</span>
+                <select
+                  value={simulationAvenueId}
+                  onChange={(e) => {
+                    setSimulationAvenueId(e.target.value);
+                    setSimulationParcelleId('');
+                  }}
+                  className="bg-background border border-outline-variant text-xs h-9 rounded-xl pl-2 text-on-surface cursor-pointer"
+                  disabled={!simulationCommuneId}
+                  required
+                >
+                  <option value="">Sélectionner</option>
+                  {simulationAvenues.map(a => <option key={a.id} value={a.id}>Av. {a.nom}</option>)}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-on-surface-variant font-bold uppercase">Parcelle & Bailleur</span>
+                <select
+                  value={simulationParcelleId}
+                  onChange={(e) => setSimulationParcelleId(e.target.value)}
+                  className="bg-background border border-outline-variant text-xs h-9 rounded-xl pl-2 text-on-surface cursor-pointer"
+                  disabled={!simulationAvenueId}
+                  required
+                >
+                  <option value="">Sélectionner</option>
+                  {simulationParcelles.map(p => {
+                    const o = abonnes.find(ab => ab.parcelle_id === p.id);
+                    return (
+                      <option key={p.id} value={p.id}>
+                        N° {p.numero_parcelle} - {o ? o.nom_complet : 'Bailleur inconnu'}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                disabled={!simulationParcelleId}
+                className="bg-error text-white text-xs font-bold h-9 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Play size={12} />
+                <span>Déclencher l'alerte</span>
+              </button>
+            </form>
+          </div>
+
+        </div>
+
+        {/* Column 3: Sidebar Mission Center */}
+        <div className="flex flex-col gap-4">
+          
+          {/* Section A: Selection detail & assignment action */}
+          <div className="bg-surface border border-outline-variant rounded-2xl p-4 shadow-md">
+            {selectedSignal ? (
+              <div className="flex flex-col gap-4 animate-fade-in">
+                <div className="flex justify-between items-start gap-2 border-b border-outline-variant/40 pb-3">
+                  <div>
+                    <span className="text-[9px] px-2 py-0.5 bg-error/15 text-error font-extrabold uppercase rounded-full border border-error/20">
+                      Alerte active 🚨
+                    </span>
+                    <h3 className="text-base font-extrabold text-on-surface mt-1.5">
+                      Parcelle N° {selectedSignal.numero_parcelle}
+                    </h3>
+                    <p className="text-xs text-on-surface-variant">
+                      Avenue {selectedSignal.avenue_nom}, {selectedSignal.commune_nom}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedSignalId(null)}
+                    className="text-on-surface-variant hover:text-on-surface p-1 rounded"
+                  >
+                    Close ✕
+                  </button>
+                </div>
+
+                {/* Bailleur info block */}
+                <div className="bg-background/50 border border-outline-variant/60 p-3 rounded-xl flex flex-col gap-1 text-xs">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant">
+                    Bailleur Signalant
+                  </span>
+                  <span className="font-extrabold text-on-surface">{selectedSignal.bailleur_nom}</span>
+                  <span className="font-mono text-on-surface-variant">{selectedSignal.bailleur_telephone}</span>
+                  <span className="text-[10px] text-on-surface-variant mt-1.5 flex items-center gap-1 italic">
+                    <Clock size={11} /> Signalé à {selectedSignal.reported_at.substring(11, 16)} le {selectedSignal.reported_at.substring(0, 10)}
+                  </span>
+                </div>
+
+                {/* Dispatch & Closest Collector Section */}
+                {selectedSignal.status === 'pending' ? (
+                  <div className="flex flex-col gap-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-secondary flex items-center gap-1.5">
+                      <Truck size={14} />
+                      Éboueurs géolocalisés à proximité
+                    </h4>
+
+                    {nearestCollectors.length === 0 ? (
+                      <p className="text-xs text-on-surface-variant italic p-2 bg-background/50 rounded-lg text-center">
+                        Aucun éboueur n'a activé son GPS actuellement. Demandez aux agents d'activer leur traceur GPS.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+                        {nearestCollectors.map((eb) => (
+                          <div 
+                            key={eb.id}
+                            className={`p-2.5 border rounded-xl flex justify-between items-center bg-background/40 hover:bg-background/80 transition-colors cursor-pointer ${
+                              eb.status === 'en_mission' ? 'opacity-65 border-outline-variant/40' : 'border-outline-variant'
+                            }`}
+                          >
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs font-bold text-on-surface flex items-center gap-1">
+                                {eb.nom}
+                                {eb.status === 'en_mission' && (
+                                  <span className="text-[8px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1 rounded">
+                                    En mission
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-[10px] text-on-surface-variant">
+                                Distance : <strong className="text-secondary">{eb.distance} km</strong>
+                              </span>
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                onAssignMission(selectedSignal.id, eb.id);
+                                setSelectedSignalId(null);
+                                alert(`Mission envoyée à l'éboueur ${eb.nom} ! Un SMS/Notification lui a été transmis.`);
+                              }}
+                              className="px-2.5 py-1.5 bg-[#10b981] hover:bg-[#10b981]/90 text-white font-extrabold text-[10px] rounded-lg shadow-sm flex items-center gap-1 cursor-pointer"
+                            >
+                              <Send size={10} />
+                              <span>Assigner</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-[#10b981]/10 border border-[#10b981]/25 rounded-xl text-xs text-[#10b981] flex flex-col gap-1">
+                    <span className="font-bold flex items-center gap-1">
+                      <CheckCircle2 size={14} /> Mission assignée / traitée
+                    </span>
+                    {selectedSignal.status === 'assigned' && (
+                      <p className="text-on-surface-variant">
+                        L'éboueur est actuellement en route pour vider la poubelle de cette adresse.
+                      </p>
+                    )}
+                    {selectedSignal.status === 'completed' && (
+                      <p className="text-on-surface-variant">
+                        Mission accomplie le {selectedSignal.completed_at?.substring(11, 16)} avec succès.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+              </div>
+            ) : selectedEboueurId ? (() => {
+              const eb = eboueurs.find(e => e.id === selectedEboueurId);
+              if (!eb) return null;
+              const activeMission = signals.find(s => s.assigned_eboueur_id === eb.id && s.status === 'assigned');
+              return (
+                <div className="flex flex-col gap-4 animate-fade-in">
+                  <div className="flex justify-between items-start gap-2 border-b border-outline-variant/40 pb-3">
+                    <div>
+                      <span className="text-[9px] px-2 py-0.5 bg-secondary/15 text-secondary font-extrabold uppercase rounded-full border border-secondary/20">
+                        Profil Éboueur 🚚
+                      </span>
+                      <h3 className="text-base font-extrabold text-on-surface mt-1.5">{eb.nom}</h3>
+                      <p className="text-xs text-on-surface-variant">{eb.telephone}</p>
+                    </div>
+                    <button 
+                      onClick={() => setSelectedEboueurId(null)}
+                      className="text-on-surface-variant hover:text-on-surface p-1 rounded"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-2.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-on-surface-variant">Statut GPS :</span>
+                      <span className={`font-bold ${eb.gps_active ? 'text-[#10b981]' : 'text-error'}`}>
+                        {eb.gps_active ? '● Actif / En ligne' : '○ Inactif'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-on-surface-variant">Coordonnées :</span>
+                      <span className="font-mono text-on-surface-variant">{eb.latitude.toFixed(5)}, {eb.longitude.toFixed(5)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-outline-variant/30 pt-2">
+                      <span className="text-on-surface-variant">Statut de mission :</span>
+                      <span className={`font-bold ${eb.status === 'en_mission' ? 'text-yellow-500' : 'text-[#10b981]'}`}>
+                        {eb.status === 'en_mission' ? 'En mission active' : 'Libre / En attente'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {activeMission && (
+                    <div className="mt-2 bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-xl flex flex-col gap-1.5 text-xs text-on-surface">
+                      <span className="font-bold text-yellow-500 flex items-center gap-1">
+                        <AlertTriangle size={13} /> Mission assignée en cours :
+                      </span>
+                      <p className="font-medium text-xs leading-relaxed">
+                        Vider la poubelle de <strong>{activeMission.bailleur_nom}</strong> au <strong>N° {activeMission.numero_parcelle}, Av. {activeMission.avenue_nom} ({activeMission.commune_nom})</strong>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })() : (
+              <div className="text-center py-10 text-on-surface-variant text-xs italic">
+                Cliquez sur un signal (poubelle pleine) ou sur un camion d'éboueur sur la carte pour gérer les opérations.
+              </div>
+            )}
+          </div>
+
+          {/* Section B: Signal Logs / Mission Feed */}
+          <div className="bg-surface border border-outline-variant rounded-2xl flex flex-col h-[280px]">
+            {/* Header / Tabs */}
+            <div className="p-3 border-b border-outline-variant/50 flex flex-col gap-2 shrink-0">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1">
+                <Bell size={12} className="text-error" /> Journal des alertes
+              </span>
+              <div className="flex bg-background border border-outline-variant p-0.5 rounded-lg text-[10px] font-bold">
+                <button
+                  onClick={() => setActiveTab('all')}
+                  className={`flex-1 py-1 rounded transition-all cursor-pointer ${activeTab === 'all' ? 'bg-secondary text-white' : 'text-on-surface-variant hover:text-on-surface'}`}
+                >
+                  Tous ({signals.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('pending')}
+                  className={`flex-1 py-1 rounded transition-all cursor-pointer ${activeTab === 'pending' ? 'bg-secondary text-white' : 'text-on-surface-variant hover:text-on-surface'}`}
+                >
+                  Pleines ({signals.filter(s => s.status === 'pending').length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('assigned')}
+                  className={`flex-1 py-1 rounded transition-all cursor-pointer ${activeTab === 'assigned' ? 'bg-secondary text-white' : 'text-on-surface-variant hover:text-on-surface'}`}
+                >
+                  En cours
+                </button>
+              </div>
+            </div>
+
+            {/* List area */}
+            <div className="flex-grow overflow-y-auto p-2 flex flex-col gap-1.5">
+              {filteredSignals.length === 0 ? (
+                <div className="text-center py-12 text-xs text-on-surface-variant italic">
+                  Aucun signalement trouvé.
+                </div>
+              ) : (
+                filteredSignals.map((sig) => {
+                  const isPending = sig.status === 'pending';
+                  const isAssigned = sig.status === 'assigned';
+                  return (
+                    <button
+                      key={sig.id}
+                      onClick={() => {
+                        setSelectedSignalId(sig.id);
+                        setSelectedEboueurId(null);
+                      }}
+                      className={`w-full p-2.5 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                        selectedSignalId === sig.id 
+                          ? 'bg-secondary/10 border-secondary' 
+                          : 'bg-background/35 border-outline-variant/40 hover:bg-background/80'
+                      }`}
+                    >
+                      <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                        isPending 
+                          ? 'bg-error/15 text-error animate-pulse' 
+                          : isAssigned 
+                            ? 'bg-yellow-500/15 text-yellow-500' 
+                            : 'bg-[#10b981]/15 text-[#10b981]'
+                      }`}>
+                        <Trash2 size={13} />
+                      </div>
+
+                      <div className="flex-grow min-w-0">
+                        <div className="flex justify-between items-start gap-1">
+                          <span className="text-[11px] font-black text-on-surface truncate">
+                            N° {sig.numero_parcelle}, Av. {sig.avenue_nom}
+                          </span>
+                          <span className="text-[8px] font-mono text-on-surface-variant shrink-0 font-bold">
+                            {sig.reported_at.substring(11, 16)}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-on-surface-variant truncate">
+                          Bailleur : {sig.bailleur_nom} • {sig.commune_nom}
+                        </p>
+                        
+                        <div className="mt-1 flex items-center justify-between text-[8px] font-extrabold uppercase">
+                          <span className={`${isPending ? 'text-error' : isAssigned ? 'text-yellow-500' : 'text-[#10b981]'}`}>
+                            {isPending ? 'En attente' : isAssigned ? 'Assigné' : 'Terminé'}
+                          </span>
+                          {isAssigned && (
+                            <span className="text-on-surface-variant font-mono">
+                              éboueur : {eboueurs.find(e => e.id === sig.assigned_eboueur_id)?.nom.split(' ')[0]}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  );
+}

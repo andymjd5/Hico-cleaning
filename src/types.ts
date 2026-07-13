@@ -39,8 +39,9 @@ export interface Agent {
   id: string;
   nom: string;
   telephone: string;
-  role: 'admin' | 'agent';
+  role: 'admin' | 'agent' | 'abonne' | 'eboueur';
   created_at: string;
+  parcelle_id?: string; // used for role === 'abonne' to link their specific parcel
 }
 
 export type Screen = 
@@ -53,4 +54,41 @@ export type Screen =
   | 'abonne_detail'
   | 'rapports'
   | 'profil'
-  | 'commune_explorer';
+  | 'commune_explorer'
+  | 'dechets_map'
+  | 'abonne_space'
+  | 'eboueur_space';
+
+export interface PoubelleSignal {
+  id: string;
+  parcelle_id: string;
+  commune_id: string;
+  avenue_id: string;
+  commune_nom: string;
+  avenue_nom: string;
+  numero_parcelle: string;
+  bailleur_nom: string;
+  bailleur_telephone: string;
+  status: 'pending' | 'assigned' | 'completed';
+  assigned_eboueur_id?: string;
+  reported_at: string;
+  completed_at?: string;
+}
+
+export interface Eboueur {
+  id: string;
+  nom: string;
+  telephone: string;
+  latitude: number;
+  longitude: number;
+  status: 'idle' | 'en_mission';
+  gps_active: boolean;
+}
+
+export interface InboxMessage {
+  id: string;
+  sender: string;
+  content: string;
+  sent_at: string;
+  read: boolean;
+}

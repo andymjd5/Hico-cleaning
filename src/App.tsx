@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Agent, Commune, Avenue, Parcelle, Abonne, Screen } from './types';
+import { Agent, Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur, InboxMessage } from './types';
 import { 
   INITIAL_AGENTS, 
   INITIAL_COMMUNES, 
@@ -20,9 +20,12 @@ import AbonnesView from './components/AbonnesView';
 import RapportsView from './components/RapportsView';
 import ProfilView from './components/ProfilView';
 import CommuneExplorer from './components/CommuneExplorer';
+import DechetsMapView from './components/DechetsMapView';
+import AbonneSpaceView from './components/AbonneSpaceView';
+import EboueurSpaceView from './components/EboueurSpaceView';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -61,6 +64,181 @@ export default function App() {
   const [avenues, setAvenues] = useState<Avenue[]>([]);
   const [parcelles, setParcelles] = useState<Parcelle[]>([]);
   const [abonnes, setAbonnes] = useState<Abonne[]>([]);
+
+  // 4.2. Waste management and collector tracking states
+  const [poubelleSignals, setPoubelleSignals] = useState<PoubelleSignal[]>(() => {
+    const saved = localStorage.getItem('hico_poubelle_signals');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'sig-1',
+        parcelle_id: 'p-demo-1',
+        commune_id: 'c-gombe',
+        avenue_id: 'ave-gombe-1',
+        commune_nom: 'Gombe',
+        avenue_nom: 'Boulevard du 30 Juin',
+        numero_parcelle: '24',
+        bailleur_nom: 'Papa Mavula',
+        bailleur_telephone: '0821111111',
+        status: 'pending',
+        reported_at: new Date(Date.now() - 30 * 60000).toISOString()
+      },
+      {
+        id: 'sig-2',
+        parcelle_id: 'p-demo-2',
+        commune_id: 'c-lemba',
+        avenue_id: 'ave-lemba-1',
+        commune_nom: 'Lemba',
+        avenue_nom: 'Université',
+        numero_parcelle: '112',
+        bailleur_nom: 'Maman Sifa',
+        bailleur_telephone: '0815555555',
+        status: 'assigned',
+        assigned_eboueur_id: 'eb-2',
+        reported_at: new Date(Date.now() - 90 * 60000).toISOString()
+      }
+    ];
+  });
+
+  const [eboueurs, setEboueurs] = useState<Eboueur[]>(() => {
+    const saved = localStorage.getItem('hico_eboueurs');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'eb-1',
+        nom: 'Chauffeur Kabeya',
+        telephone: '0892222222',
+        latitude: -4.32111,
+        longitude: 15.30555,
+        status: 'idle',
+        gps_active: true
+      },
+      {
+        id: 'eb-2',
+        nom: 'Chauffeur Mutombo',
+        telephone: '0893333333',
+        latitude: -4.35444,
+        longitude: 15.31222,
+        status: 'en_mission',
+        gps_active: true
+      },
+      {
+        id: 'eb-3',
+        nom: 'Chauffeur Ngalula',
+        telephone: '0894444444',
+        latitude: -4.33999,
+        longitude: 15.28999,
+        status: 'idle',
+        gps_active: false
+      }
+    ];
+  });
+
+  const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>(() => {
+    const saved = localStorage.getItem('hico_inbox_messages');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'msg-1',
+        sender: 'Hico-Cleaning',
+        content: 'Bienvenue sur votre espace de salubrité Hico-Cleaning ! Retrouvez ici vos factures, vos signalements de poubelles pleines et les alertes d\'assainissement.',
+        sent_at: 'Hier, 14:00',
+        read: false
+      },
+      {
+        id: 'msg-2',
+        sender: 'Autorités Urbaines',
+        content: 'Directive Kinshasa Bopeto : Tous les bailleurs sont tenus de dégager les trottoirs devant leurs parcelles sous peine d\'amende administrative de l\'Hôtel de Ville.',
+        sent_at: 'Hier, 09:30',
+        read: false
+      }
+    ];
+  });
+
+  // Local Storage Synchronization for waste management
+  useEffect(() => {
+    localStorage.setItem('hico_poubelle_signals', JSON.stringify(poubelleSignals));
+  }, [poubelleSignals]);
+
+  useEffect(() => {
+    localStorage.setItem('hico_eboueurs', JSON.stringify(eboueurs));
+  }, [eboueurs]);
+
+  useEffect(() => {
+    localStorage.setItem('hico_inbox_messages', JSON.stringify(inboxMessages));
+  }, [inboxMessages]);
+
+  // Seeding Gombe demo structures to avoid blank dashboards
+  useEffect(() => {
+    if (communes.length > 0) {
+      const hasGombeAve = avenues.some(a => a.commune_id === 'c-gombe');
+      if (!hasGombeAve) {
+        const demoAve: Avenue = {
+          id: 'ave-gombe-1',
+          commune_id: 'c-gombe',
+          nom: 'Boulevard du 30 Juin',
+          created_at: new Date().toISOString()
+        };
+        const demoAve2: Avenue = {
+          id: 'ave-lemba-1',
+          commune_id: 'c-lemba',
+          nom: 'Université',
+          created_at: new Date().toISOString()
+        };
+        setAvenues(prev => {
+          const updated = [demoAve, demoAve2, ...prev];
+          localStorage.setItem('hico_db_avenues', JSON.stringify(updated));
+          return updated;
+        });
+
+        const demoParc: Parcelle = {
+          id: 'p-demo-1',
+          avenue_id: 'ave-gombe-1',
+          numero_parcelle: '24',
+          type_logement: 'maison_basse',
+          presence_locataire: 'oui',
+          nombre_menages: 7, // 7 households
+          created_by: 'admin-1',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          latitude: -4.31234,
+          longitude: 15.29876
+        };
+        const demoParc2: Parcelle = {
+          id: 'p-demo-2',
+          avenue_id: 'ave-lemba-1',
+          numero_parcelle: '112',
+          type_logement: 'appartement',
+          presence_locataire: 'oui',
+          nombre_menages: 4,
+          created_by: 'admin-1',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          latitude: -4.35411,
+          longitude: 15.31122
+        };
+        setParcelles(prev => {
+          const updated = [demoParc, demoParc2, ...prev];
+          localStorage.setItem('hico_db_parcelles', JSON.stringify(updated));
+          return updated;
+        });
+
+        const demoAb: Abonne = {
+          id: 'abonne-demo',
+          parcelle_id: 'p-demo-1',
+          nom_complet: 'Papa Mavula',
+          telephone_principal: '0821111111',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        setAbonnes(prev => {
+          const updated = [demoAb, ...prev];
+          localStorage.setItem('hico_db_abonnes', JSON.stringify(updated));
+          return updated;
+        });
+      }
+    }
+  }, [communes, avenues]);
 
   // 5. Supabase connection feedback state
   const [dbStatus, setDbStatus] = useState<'loading' | 'connected' | 'error_missing_tables' | 'offline'>('loading');
@@ -310,6 +488,166 @@ export default function App() {
     }
   };
 
+  // ==========================================
+  // GESTION DES DECHETS ET EBOUEURS HANDLERS
+  // ==========================================
+  const handleReportTrashFull = () => {
+    // Find active Abonne profile associated with the user
+    const ab = abonnes.find(a => a.telephone_principal === currentUser?.telephone || a.id === 'abonne-demo');
+    if (!ab) {
+      alert("Erreur: Profil abonné de démonstration introuvable !");
+      return;
+    }
+    const parc = parcelles.find(p => p.id === ab.parcelle_id);
+    if (!parc) {
+      alert("Erreur: Parcelle d'abonné introuvable !");
+      return;
+    }
+    const ave = avenues.find(a => a.id === parc.avenue_id);
+    const com = communes.find(c => c.id === ave?.commune_id);
+
+    // Create a new signal
+    const newSignal: PoubelleSignal = {
+      id: 'sig-' + Math.random().toString(36).substring(2, 11),
+      parcelle_id: parc.id,
+      commune_id: com?.id || 'c-gombe',
+      avenue_id: ave?.id || 'ave-gombe-1',
+      commune_nom: com?.nom || 'Gombe',
+      avenue_nom: ave?.nom || 'Boulevard du 30 Juin',
+      numero_parcelle: parc.numero_parcelle,
+      bailleur_nom: ab.nom_complet,
+      bailleur_telephone: ab.telephone_principal,
+      status: 'pending',
+      reported_at: new Date().toISOString()
+    };
+
+    setPoubelleSignals(prev => [newSignal, ...prev]);
+  };
+
+  const handleAssignEboueur = (signalId: string, eboueurId: string) => {
+    setPoubelleSignals(prev => prev.map(sig => {
+      if (sig.id === signalId) {
+        return {
+          ...sig,
+          status: 'assigned',
+          assigned_eboueur_id: eboueurId
+        };
+      }
+      return sig;
+    }));
+
+    setEboueurs(prev => prev.map(eb => {
+      if (eb.id === eboueurId) {
+        return {
+          ...eb,
+          status: 'en_mission'
+        };
+      }
+      return eb;
+    }));
+  };
+
+  const handleCompleteMission = (signalId: string) => {
+    let assignedEbId: string | undefined;
+
+    setPoubelleSignals(prev => prev.map(sig => {
+      if (sig.id === signalId) {
+        assignedEbId = sig.assigned_eboueur_id;
+        return {
+          ...sig,
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        };
+      }
+      return sig;
+    }));
+
+    if (assignedEbId) {
+      setEboueurs(prev => prev.map(eb => {
+        if (eb.id === assignedEbId) {
+          return {
+            ...eb,
+            status: 'idle'
+          };
+        }
+        return eb;
+      }));
+    } else {
+      // Fallback matching current logged-in driver
+      const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone || e.id === 'eboueur-demo');
+      if (currentEb) {
+        setEboueurs(prev => prev.map(eb => {
+          if (eb.id === currentEb.id) {
+            return {
+              ...eb,
+              status: 'idle'
+            };
+          }
+          return eb;
+        }));
+      }
+    }
+  };
+
+  const handleToggleEboueurGps = () => {
+    const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone || e.id === 'eboueur-demo');
+    if (!currentEb) return;
+
+    setEboueurs(prev => prev.map(eb => {
+      if (eb.id === currentEb.id) {
+        const nextGpsState = !eb.gps_active;
+        const newLat = nextGpsState ? eb.latitude + (Math.random() - 0.5) * 0.002 : eb.latitude;
+        const newLng = nextGpsState ? eb.longitude + (Math.random() - 0.5) * 0.002 : eb.longitude;
+        return {
+          ...eb,
+          gps_active: nextGpsState,
+          latitude: newLat,
+          longitude: newLng
+        };
+      }
+      return eb;
+    }));
+  };
+
+  const handleSendInboxMessage = (sender: string, content: string) => {
+    const newMsg: InboxMessage = {
+      id: 'msg-' + Math.random().toString(36).substring(2, 11),
+      sender,
+      content,
+      sent_at: 'À l\'instant',
+      read: false
+    };
+    setInboxMessages(prev => [newMsg, ...prev]);
+  };
+
+  const handleSimulateSignal = (parcelleId: string) => {
+    const parc = parcelles.find(p => p.id === parcelleId);
+    if (!parc) return;
+    const ab = abonnes.find(a => a.parcelle_id === parcelleId) || {
+      id: 'ab-sim-' + Math.random().toString(36).substring(2, 7),
+      nom_complet: 'Bailleur Anonyme',
+      telephone_principal: '0812345678'
+    };
+    const ave = avenues.find(a => a.id === parc.avenue_id);
+    const com = communes.find(c => c.id === ave?.commune_id);
+
+    const newSignal: PoubelleSignal = {
+      id: 'sig-' + Math.random().toString(36).substring(2, 11),
+      parcelle_id: parc.id,
+      commune_id: com?.id || 'c-gombe',
+      avenue_id: ave?.id || 'ave-gombe-1',
+      commune_nom: com?.nom || 'Gombe',
+      avenue_nom: ave?.nom || 'Boulevard du 30 Juin',
+      numero_parcelle: parc.numero_parcelle,
+      bailleur_nom: ab.nom_complet,
+      bailleur_telephone: ab.telephone_principal,
+      status: 'pending',
+      reported_at: new Date().toISOString()
+    };
+
+    setPoubelleSignals(prev => [newSignal, ...prev]);
+  };
+
   // Switch between back hierarchy safely
   const handlePageBack = () => {
     if (currentScreen === 'avenues') {
@@ -425,70 +763,118 @@ export default function App() {
                 Menu Principal
               </div>
               
-              {/* Dashboard tab */}
-              <button 
-                onClick={() => setCurrentScreen('dashboard')}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                  currentScreen === 'dashboard'
-                    ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                    : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                }`}
-              >
-                <LayoutDashboard size={18} />
-                <span>Dashboard</span>
-              </button>
+              {/* === ABONNE EXCLUSIVE MENU === */}
+              {currentUser?.role === 'abonne' && (
+                <button 
+                  onClick={() => setCurrentScreen('abonne_space')}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                    currentScreen === 'abonne_space'
+                      ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                      : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                  }`}
+                >
+                  <Trash2 size={18} />
+                  <span>Mon Espace Abonné</span>
+                </button>
+              )}
 
-              {/* Recensement pathway (Communes / Avenues index) */}
-              <button 
-                onClick={() => setCurrentScreen('communes')}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                  currentScreen === 'communes' || currentScreen === 'avenues' || currentScreen === 'recensement_form'
-                    ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                    : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                }`}
-              >
-                <FileText size={18} />
-                <span>Recensement</span>
-              </button>
+              {/* === EBOUEUR EXCLUSIVE MENU === */}
+              {currentUser?.role === 'eboueur' && (
+                <button 
+                  onClick={() => setCurrentScreen('eboueur_space')}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                    currentScreen === 'eboueur_space'
+                      ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                      : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                  }`}
+                >
+                  <Truck size={18} />
+                  <span>Missions Éboueur</span>
+                </button>
+              )}
 
-              {/* Abonnés tab */}
-              <button 
-                onClick={() => setCurrentScreen('abonne_list')}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                  currentScreen === 'abonne_list' || currentScreen === 'abonne_detail'
-                    ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                    : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                }`}
-              >
-                <Users size={18} />
-                <span>Abonnés</span>
-              </button>
+              {/* === ADMIN & AGENT MENU === */}
+              {currentUser?.role !== 'abonne' && currentUser?.role !== 'eboueur' && (
+                <>
+                  {/* Dashboard tab */}
+                  <button 
+                    onClick={() => setCurrentScreen('dashboard')}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                      currentScreen === 'dashboard'
+                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                    }`}
+                  >
+                    <LayoutDashboard size={18} />
+                    <span>Dashboard</span>
+                  </button>
 
-              {/* Explorateur GPS tab */}
-              <button 
-                onClick={() => setCurrentScreen('commune_explorer')}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                  currentScreen === 'commune_explorer'
-                    ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                    : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                }`}
-              >
-                <Compass size={18} />
-                <span>Explorateur GPS</span>
-              </button>
+                  {/* Recensement pathway (Communes / Avenues index) */}
+                  <button 
+                    onClick={() => setCurrentScreen('communes')}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                      currentScreen === 'communes' || currentScreen === 'avenues' || currentScreen === 'recensement_form'
+                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                    }`}
+                  >
+                    <FileText size={18} />
+                    <span>Recensement</span>
+                  </button>
 
-              {/* Rapports tab */}
-              <button 
-                onClick={() => setCurrentScreen('rapports')}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                  currentScreen === 'rapports'
-                    ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                    : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                }`}
-              >
-                <BarChart3 size={18} />
-                <span>Rapports</span>
-              </button>
+                  {/* Abonnés tab */}
+                  <button 
+                    onClick={() => setCurrentScreen('abonne_list')}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                      currentScreen === 'abonne_list' || currentScreen === 'abonne_detail'
+                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                    }`}
+                  >
+                    <Users size={18} />
+                    <span>Abonnés</span>
+                  </button>
+
+                  {/* Explorateur GPS tab */}
+                  <button 
+                    onClick={() => setCurrentScreen('commune_explorer')}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                      currentScreen === 'commune_explorer'
+                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                    }`}
+                  >
+                    <Compass size={18} />
+                    <span>Explorateur GPS</span>
+                  </button>
+
+                  {/* Waste Signals Map View */}
+                  <button 
+                    onClick={() => setCurrentScreen('dechets_map')}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                      currentScreen === 'dechets_map'
+                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                    }`}
+                  >
+                    <Trash2 size={18} />
+                    <span>Poubelles & Éboueurs</span>
+                  </button>
+
+                  {/* Rapports tab */}
+                  <button 
+                    onClick={() => setCurrentScreen('rapports')}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                      currentScreen === 'rapports'
+                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                    }`}
+                  >
+                    <BarChart3 size={18} />
+                    <span>Rapports</span>
+                  </button>
+                </>
+              )}
 
               {/* Profile tab */}
               <button 
@@ -500,7 +886,9 @@ export default function App() {
                 }`}
               >
                 <User size={18} />
-                <span>Profil Recenseur</span>
+                <span>
+                  {currentUser?.role === 'abonne' ? 'Mon Profil Abonné' : currentUser?.role === 'eboueur' ? 'Mon Profil Éboueur' : 'Profil Recenseur'}
+                </span>
               </button>
 
               {/* Quick logout anchor at the bottom of the sidebar */}
@@ -617,6 +1005,80 @@ export default function App() {
                 />
               )}
 
+              {currentScreen === 'dechets_map' && (
+                <DechetsMapView 
+                  signals={poubelleSignals}
+                  eboueurs={eboueurs}
+                  communes={communes}
+                  avenues={avenues}
+                  parcelles={parcelles}
+                  abonnes={abonnes}
+                  onAssignMission={handleAssignEboueur}
+                  onSimulateSignal={handleSimulateSignal}
+                />
+              )}
+
+              {currentScreen === 'abonne_space' && (() => {
+                const ab = abonnes.find(a => a.telephone_principal === currentUser?.telephone || a.id === 'abonne-demo');
+                const defaultCommune: Commune = communes.find(c => c.id === 'c-gombe') || { id: 'c-gombe', nom: 'Gombe', created_at: '' };
+                const defaultAvenue: Avenue = avenues.find(a => a.id === 'ave-gombe-1') || { id: 'ave-gombe-1', commune_id: 'c-gombe', nom: 'Boulevard du 30 Juin', created_at: '' };
+                const defaultParcelle: Parcelle = parcelles.find(p => p.id === 'p-demo-1') || {
+                  id: 'p-demo-1',
+                  avenue_id: 'ave-gombe-1',
+                  numero_parcelle: '24',
+                  type_logement: 'maison_basse',
+                  presence_locataire: 'oui',
+                  nombre_menages: 7,
+                  created_by: 'admin-1',
+                  created_at: '',
+                  updated_at: '',
+                  latitude: -4.31234,
+                  longitude: 15.29876
+                };
+
+                const userAbonne = ab || {
+                  id: 'abonne-demo',
+                  parcelle_id: 'p-demo-1',
+                  nom_complet: currentUser?.nom || 'Papa Mavula',
+                  telephone_principal: currentUser?.telephone || '0821111111',
+                  created_at: '',
+                  updated_at: ''
+                };
+
+                const userParcelle = parcelles.find(p => p.id === userAbonne.parcelle_id) || defaultParcelle;
+                const userAvenue = avenues.find(a => a.id === userParcelle.avenue_id) || defaultAvenue;
+                const userCommune = communes.find(c => c.id === userAvenue.commune_id) || defaultCommune;
+
+                return (
+                  <AbonneSpaceView 
+                    currentAbonne={userAbonne}
+                    currentParcelle={userParcelle}
+                    commune={userCommune}
+                    avenue={userAvenue}
+                    activeSignals={poubelleSignals}
+                    onReportTrashFull={handleReportTrashFull}
+                    messages={inboxMessages}
+                    onSendMessage={handleSendInboxMessage}
+                  />
+                );
+              })()}
+
+              {currentScreen === 'eboueur_space' && (() => {
+                const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone || e.id === 'eboueur-demo') || eboueurs[0];
+                const myAssignedMissions = poubelleSignals.filter(s => s.assigned_eboueur_id === currentEb.id && s.status === 'assigned');
+                const myCompletedMissions = poubelleSignals.filter(s => s.assigned_eboueur_id === currentEb.id && s.status === 'completed');
+
+                return (
+                  <EboueurSpaceView 
+                    currentEboueur={currentEb}
+                    assignedMissions={myAssignedMissions}
+                    completedMissions={myCompletedMissions}
+                    onToggleGps={handleToggleEboueurGps}
+                    onCompleteMission={handleCompleteMission}
+                  />
+                );
+              })()}
+
               {currentScreen === 'profil' && currentUser && (
                 <ProfilView 
                   currentAgent={currentUser}
@@ -633,6 +1095,7 @@ export default function App() {
           {/* 3. BottomNavBar visible only on screens smaller than md */}
           <BottomNavBar 
             currentScreen={currentScreen} 
+            userRole={currentUser?.role}
             onScreenChange={(screenId) => {
               // Clear temporary selection indices when moving randomly through footer
               if (screenId !== 'avenues' && screenId !== 'recensement_form') {
