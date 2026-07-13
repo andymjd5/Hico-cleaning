@@ -3,7 +3,7 @@ import { Commune, Avenue, Parcelle, Abonne } from '../types';
 import { 
   Building2, 
   MapPin, 
-  Map, 
+  Map as MapLucide, 
   Users, 
   Compass, 
   Search, 
@@ -292,7 +292,7 @@ export default function CommuneExplorer({
                   : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
-              <Map size={14} />
+              <MapLucide size={14} />
               <span>Vue par Avenue 🗂️</span>
             </button>
           </div>
@@ -433,7 +433,7 @@ export default function CommuneExplorer({
                                     N° {parcelle.numero_parcelle}
                                   </span>
                                   <span className="text-[11px] text-on-surface-variant font-medium flex items-center gap-1">
-                                    <Map size={11} className="shrink-0" />
+                                    <MapLucide size={11} className="shrink-0" />
                                     Avenue {avenueNom}
                                   </span>
                                   <span className="text-[10px] text-on-surface-variant opacity-85">
@@ -545,7 +545,7 @@ export default function CommuneExplorer({
                                 Parcelle N° {parcelle.numero_parcelle}
                               </span>
                               <span className="text-xs text-on-surface-variant font-bold flex items-center gap-1">
-                                <Map size={12} /> Av. {avenueNom}
+                                <MapLucide size={12} /> Av. {avenueNom}
                               </span>
                             </div>
                             <span className="text-[9px] px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded font-bold uppercase">
@@ -661,7 +661,7 @@ export default function CommuneExplorer({
                           className="w-full px-4 py-3.5 flex justify-between items-center bg-background hover:bg-outline-variant/10 text-left transition-colors cursor-pointer"
                         >
                           <div className="flex items-center gap-2">
-                            <Map size={16} className="text-on-surface-variant" />
+                            <MapLucide size={16} className="text-on-surface-variant" />
                             <div>
                               <span className="text-sm font-bold text-on-surface">Avenue {ave.nom}</span>
                               <span className="text-[10px] ml-2 px-2 py-0.5 bg-outline-variant/30 rounded-full font-semibold text-on-surface-variant">

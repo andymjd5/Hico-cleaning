@@ -1277,6 +1277,15 @@ export default function App() {
                         onClick={() => {
                           navigator.clipboard.writeText(`-- Créer les tables pour Hico-Cleaning
 
+-- 0. Table des agents (recenseurs, éboueurs, administrateurs, abonnés)
+CREATE TABLE IF NOT EXISTS agents (
+  id TEXT PRIMARY KEY,
+  nom TEXT NOT NULL,
+  telephone TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'agent', 'abonne', 'eboueur')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 1. Table des communes
 CREATE TABLE IF NOT EXISTS communes (
   id TEXT PRIMARY KEY,
@@ -1322,7 +1331,61 @@ CREATE TABLE IF NOT EXISTS abonnes (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Insérer par défaut les 24 communes de Kinshasa si vides
+-- 5. Extension des rôles utilisateurs
+-- (On assume que la table existante des agents ou profils dispose d'une colonne 'role')
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS role VARCHAR(30) DEFAULT 'recenseur'; 
+-- Valeurs possibles : 'admin', 'recenseur', 'bailleur', 'eboueur'
+
+-- 6. Table pour l'état GPS en temps réel des éboueurs
+CREATE TABLE IF NOT EXISTS eboueurs_gps (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  en_service BOOLEAN DEFAULT FALSE,
+  derniere_mise_a_jour TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Table des signaux de poubelles pleines
+CREATE TABLE IF NOT EXISTS signaux_poubelles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
+  bailleur_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
+  statut VARCHAR(20) DEFAULT 'en_attente', -- 'en_attente', 'assigne', 'collecte'
+  eboueur_assigne_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ
+);
+
+-- 8. Table de suivi des règlements par locataire (pour le calcul du montant)
+CREATE TABLE IF NOT EXISTS validations_locataires (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bailleur_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
+  mois_annee VARCHAR(7) NOT NULL, -- Format 'YYYY-MM'
+  locataires_payes INTEGER DEFAULT 0, -- Nombre de ménages ayant payé le mois en cours
+  paiement_effectue BOOLEAN DEFAULT FALSE, -- Statut global de la facture du bailleur (x $)
+  validated_at TIMESTAMPTZ
+);
+
+-- 9. Table des messages des autorités et de Hico-Cleaning
+CREATE TABLE IF NOT EXISTS messages_plateforme (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  expediteur VARCHAR(50) DEFAULT 'Hico-Cleaning', -- 'Hico-Cleaning' ou 'Autorités'
+  titre VARCHAR(100) NOT NULL,
+  contenu TEXT NOT NULL,
+  destinataire_role VARCHAR(20) DEFAULT 'bailleur', -- Pour cibler tout le monde, ou un bailleur spécifique
+  destinataire_id TEXT REFERENCES abonnes(id) ON DELETE SET NULL, -- Si message ciblé
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insérer par défaut des agents et communes de Kinshasa si vides
+INSERT INTO agents (id, nom, telephone, role, created_at) VALUES
+('agent-1', 'Jean Malonga', '0612345678', 'agent', NOW()),
+('admin-1', 'Hico Admin', '0600000000', 'admin', NOW()),
+('abonne-demo', 'Papa Mavula', '0821111111', 'abonne', NOW()),
+('eboueur-demo', 'Chauffeur Kabeya', '0892222222', 'eboueur', NOW())
+ON CONFLICT (telephone) DO NOTHING;
+
 INSERT INTO communes (id, nom) VALUES
 ('c-bandalungwa', 'Bandalungwa'),
 ('c-barumbu', 'Barumbu'),
@@ -1357,7 +1420,16 @@ ON CONFLICT (nom) DO NOTHING;`);
                       </button>
                     </div>
                     <pre className="p-4 bg-black rounded-b-xl border border-outline-variant text-[11px] text-[#10b981] font-mono overflow-x-auto max-h-[250px] leading-relaxed">
-{`-- 1. Table des communes
+{`-- 0. Table des agents (recenseurs, éboueurs, administrateurs, abonnés)
+CREATE TABLE IF NOT EXISTS agents (
+  id TEXT PRIMARY KEY,
+  nom TEXT NOT NULL,
+  telephone TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'agent', 'abonne', 'eboueur')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 1. Table des communes
 CREATE TABLE IF NOT EXISTS communes (
   id TEXT PRIMARY KEY,
   nom TEXT NOT NULL UNIQUE,
@@ -1398,7 +1470,52 @@ CREATE TABLE IF NOT EXISTS abonnes (
   telephone_principal TEXT NOT NULL,
   telephone_secondaire TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
-);`}
+);
+
+-- 5. Extension des rôles utilisateurs
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS role VARCHAR(30) DEFAULT 'recenseur'; 
+
+-- 6. Table pour l'état GPS en temps réel des éboueurs
+CREATE TABLE IF NOT EXISTS eboueurs_gps (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  en_service BOOLEAN DEFAULT FALSE,
+  derniere_mise_a_jour TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Table des signaux de poubelles pleines
+CREATE TABLE IF NOT EXISTS signaux_poubelles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
+  bailleur_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
+  statut VARCHAR(20) DEFAULT 'en_attente',
+  eboueur_assigne_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ
+);
+
+-- 8. Table de suivi des règlements par locataire
+CREATE TABLE IF NOT EXISTS validations_locataires (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bailleur_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
+  mois_annee VARCHAR(7) NOT NULL,
+  locataires_payes INTEGER DEFAULT 0,
+  paiement_effectue BOOLEAN DEFAULT FALSE,
+  validated_at TIMESTAMPTZ
+);
+
+-- 9. Table des messages des autorités et de Hico-Cleaning
+CREATE TABLE IF NOT EXISTS messages_plateforme (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  expediteur VARCHAR(50) DEFAULT 'Hico-Cleaning',
+  titre VARCHAR(100) NOT NULL,
+  contenu TEXT NOT NULL,
+  destinataire_role VARCHAR(20) DEFAULT 'bailleur',
+  destinataire_id TEXT REFERENCES abonnes(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);`},TargetContent:
                     </pre>
                   </div>
 
