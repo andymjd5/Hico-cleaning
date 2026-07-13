@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle, Home, UserPlus, FileText, Check, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Home, UserPlus, FileText, Check, Plus, MapPin, Navigation, RefreshCw } from 'lucide-react';
 import { Commune, Avenue, Parcelle, Abonne } from '../types';
 
 interface RecensementFormProps {
@@ -30,6 +30,50 @@ export default function RecensementForm({
   const [typeLogement, setTypeLogement] = useState<'maison_basse' | 'appartement'>('maison_basse');
   const [presenceLocataire, setPresenceLocataire] = useState<'oui' | 'non'>('non');
   const [nombreMenages, setNombreMenages] = useState<number>(1);
+
+  // GPS coordinates state
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [isFetchingGps, setIsFetchingGps] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+
+  // Retrieve high-accuracy GPS coordinates using Web Geolocation API (bridges to Android app frame)
+  const handleGetGpsCoordinates = () => {
+    setIsFetchingGps(true);
+    setGpsError(null);
+    
+    if (!navigator.geolocation) {
+      setGpsError("La géolocalisation n'est pas prise en charge par votre appareil ou navigateur.");
+      setIsFetchingGps(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLatitude(position.coords.latitude);
+        setLongitude(position.coords.longitude);
+        setIsFetchingGps(false);
+      },
+      (error) => {
+        console.error("Erreur de géolocalisation :", error);
+        let msg = "Impossible de récupérer les coordonnées.";
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = "Autorisation de localisation refusée. Veuillez accorder la permission GPS à l'application.";
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = "Position GPS indisponible. Vérifiez que la puce GPS/Localisation est activée sur votre appareil Android.";
+        } else if (error.code === error.TIMEOUT) {
+          msg = "Le délai d'attente pour obtenir la position GPS a expiré.";
+        }
+        setGpsError(msg);
+        setIsFetchingGps(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0
+      }
+    );
+  };
 
   // Errors state
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
@@ -114,8 +158,8 @@ export default function RecensementForm({
     }
 
     // Assemble Parcelle
-    const newParcelleId = 'p-' + Math.random().toString(36).substr(2, 9);
-    const newAbonneId = 'ab-' + Math.random().toString(36).substr(2, 9);
+    const newParcelleId = 'p-' + Math.random().toString(36).substring(2, 11);
+    const newAbonneId = 'ab-' + Math.random().toString(36).substring(2, 11);
 
     const newParcelle: Parcelle = {
       id: newParcelleId,
@@ -126,7 +170,9 @@ export default function RecensementForm({
       nombre_menages: nombreMenages,
       created_by: 'Jean Malonga',
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      latitude: latitude,
+      longitude: longitude
     };
 
     const newAbonne: Abonne = {
@@ -151,6 +197,9 @@ export default function RecensementForm({
     setTypeLogement('maison_basse');
     setPresenceLocataire('non');
     setNombreMenages(1);
+    setLatitude(null);
+    setLongitude(null);
+    setGpsError(null);
     setErrorLocal(null);
     setStep(1);
   };
@@ -238,6 +287,79 @@ export default function RecensementForm({
               <p className="text-[11px] text-on-surface-variant font-sans">
                 ⚠️ Ce numéro de parcelle doit être unique au sein de l'Avenue {avenue.nom} (Règle 5).
               </p>
+            </div>
+
+            {/* GPS Capture Block */}
+            <div className="mt-2 p-4 bg-background/50 border border-outline-variant/60 rounded-2xl flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MapPin size={18} className="text-secondary" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-on-surface">Coordonnées GPS</span>
+                </div>
+                {latitude && longitude && (
+                  <span className="text-[10px] bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                    Enregistré
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Afin de géolocaliser précisément cette parcelle dans les bases de données d'Hico-Cleaning, activez le GPS de votre appareil Android, puis cliquez sur le bouton ci-dessous.
+              </p>
+
+              {gpsError && (
+                <div className="text-xs text-error font-semibold bg-error/10 border border-error/20 p-2.5 rounded-xl">
+                  ⚠️ {gpsError}
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3 items-center">
+                <button
+                  type="button"
+                  onClick={handleGetGpsCoordinates}
+                  disabled={isFetchingGps}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-secondary text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 disabled:opacity-65 disabled:pointer-events-none transition-all flex items-center justify-center gap-2 border border-outline-variant/40 cursor-pointer shadow-sm"
+                >
+                  {isFetchingGps ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Recherche GPS...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Navigation size={14} className="animate-pulse" />
+                      <span>{latitude && longitude ? "Mettre à jour la position GPS 📍" : "Prélever la position GPS 📍"}</span>
+                    </>
+                  )}
+                </button>
+
+                {latitude && longitude && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLatitude(null);
+                      setLongitude(null);
+                      setGpsError(null);
+                    }}
+                    className="w-full sm:w-auto px-3 py-2 bg-transparent border border-outline-variant text-on-surface-variant hover:text-error hover:border-error/30 text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+                  >
+                    Effacer
+                  </button>
+                )}
+              </div>
+
+              {latitude && longitude && (
+                <div className="grid grid-cols-2 gap-3 mt-1.5 p-3 bg-surface border border-outline-variant/50 rounded-xl font-mono text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] text-on-surface-variant font-bold uppercase">Latitude</span>
+                    <span className="font-bold text-on-surface">{latitude.toFixed(7)}</span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] text-on-surface-variant font-bold uppercase">Longitude</span>
+                    <span className="font-bold text-on-surface">{longitude.toFixed(7)}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -454,6 +576,18 @@ export default function RecensementForm({
                 <div className="flex justify-between">
                   <span className="text-on-surface-variant">Nombre de ménages recensés:</span>
                   <span className="font-extrabold text-secondary">{nombreMenages}</span>
+                </div>
+                <div className="flex justify-between border-t border-outline-variant/30 pt-1.5">
+                  <span className="text-on-surface-variant">Coordonnées GPS:</span>
+                  <span className="font-bold font-mono text-xs">
+                    {latitude && longitude ? (
+                      <span className="text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded border border-[#10b981]/15">
+                        {latitude.toFixed(6)}, {longitude.toFixed(6)} 📍
+                      </span>
+                    ) : (
+                      <span className="text-on-surface-variant italic">Non renseignées (Facultatif)</span>
+                    )}
+                  </span>
                 </div>
               </div>
 

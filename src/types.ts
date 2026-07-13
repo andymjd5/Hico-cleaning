@@ -21,6 +21,8 @@ export interface Parcelle {
   created_by: string; // nom ou id de l'agent recenseur
   created_at: string;
   updated_at: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface Abonne {
@@ -50,4 +52,5 @@ export type Screen =
   | 'abonne_list'
   | 'abonne_detail'
   | 'rapports'
-  | 'profil';
+  | 'profil'
+  | 'commune_explorer';

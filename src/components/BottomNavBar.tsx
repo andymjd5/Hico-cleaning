@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Users, BarChart3, User } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, Compass } from 'lucide-react';
 import { Screen } from '../types';
 
 interface BottomNavBarProps {
@@ -10,6 +10,7 @@ export default function BottomNavBar({ currentScreen, onScreenChange }: BottomNa
   const tabs = [
     { id: 'dashboard' as Screen, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'communes' as Screen, label: 'Recensement', icon: FileText, altId: 'recensement_form' as Screen },
+    { id: 'commune_explorer' as Screen, label: 'GPS', icon: Compass },
     { id: 'abonne_list' as Screen, label: 'Abonnés', icon: Users, altId: 'abonne_detail' as Screen },
     { id: 'rapports' as Screen, label: 'Rapports', icon: BarChart3 },
     { id: 'profil' as Screen, label: 'Profil', icon: User },

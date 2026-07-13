@@ -19,9 +19,10 @@ import RecensementForm from './components/RecensementForm';
 import AbonnesView from './components/AbonnesView';
 import RapportsView from './components/RapportsView';
 import ProfilView from './components/ProfilView';
+import CommuneExplorer from './components/CommuneExplorer';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -463,6 +464,19 @@ export default function App() {
                 <span>Abonnés</span>
               </button>
 
+              {/* Explorateur GPS tab */}
+              <button 
+                onClick={() => setCurrentScreen('commune_explorer')}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                  currentScreen === 'commune_explorer'
+                    ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                    : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                }`}
+              >
+                <Compass size={18} />
+                <span>Explorateur GPS</span>
+              </button>
+
               {/* Rapports tab */}
               <button 
                 onClick={() => setCurrentScreen('rapports')}
@@ -587,6 +601,15 @@ export default function App() {
 
               {currentScreen === 'rapports' && (
                 <RapportsView 
+                  communes={communes}
+                  avenues={avenues}
+                  parcelles={parcelles}
+                  abonnes={abonnes}
+                />
+              )}
+
+              {currentScreen === 'commune_explorer' && (
+                <CommuneExplorer 
                   communes={communes}
                   avenues={avenues}
                   parcelles={parcelles}
@@ -816,8 +839,14 @@ CREATE TABLE IF NOT EXISTS parcelles (
   nombre_menages INTEGER NOT NULL DEFAULT 1,
   created_by TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION
 );
+
+-- Migration pour ajouter les colonnes GPS si les tables existaient déjà
+ALTER TABLE parcelles ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE parcelles ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 
 -- 4. Table des abonnés (responsables)
 CREATE TABLE IF NOT EXISTS abonnes (
@@ -889,8 +918,14 @@ CREATE TABLE IF NOT EXISTS parcelles (
   presence_locataire TEXT,
   nombre_menages INTEGER NOT NULL DEFAULT 1,
   created_by TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION
 );
+
+-- Migration pour ajouter les colonnes GPS si existantes
+ALTER TABLE parcelles ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE parcelles ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 
 -- 4. Table des abonnés
 CREATE TABLE IF NOT EXISTS abonnes (
