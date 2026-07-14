@@ -19,6 +19,47 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
     return val.replace(/\s+/g, '');
   };
 
+  const getAgentsList = (): Agent[] => {
+    const saved = localStorage.getItem('hico_agents');
+    if (saved) return JSON.parse(saved);
+    
+    // Fallback to initial + default demo roles
+    return [
+      {
+        id: 'admin-1',
+        nom: 'Hico Admin',
+        telephone: '0600000000',
+        role: 'admin',
+        created_at: new Date('2026-05-01').toISOString(),
+        password: 'password'
+      },
+      {
+        id: 'agent-1',
+        nom: 'Jean Malonga',
+        telephone: '0612345678',
+        role: 'agent',
+        created_at: new Date('2026-05-01').toISOString(),
+        password: 'password'
+      },
+      {
+        id: 'abonne-demo',
+        nom: 'Papa Mavula',
+        telephone: '0821111111',
+        role: 'abonne',
+        created_at: new Date().toISOString(),
+        password: 'password'
+      },
+      {
+        id: 'eboueur-demo',
+        nom: 'Chauffeur Kabeya',
+        telephone: '0892222222',
+        role: 'eboueur',
+        created_at: new Date().toISOString(),
+        password: 'password'
+      }
+    ];
+  };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -29,46 +70,19 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
       return;
     }
 
-    // Intercept demo special accounts
-    if (checkPhone === '0821111111' || checkPhone === '0821111111') {
-      onLoginSuccess({
-        id: 'abonne-demo',
-        nom: 'Papa Mavula',
-        telephone: '0821111111',
-        role: 'abonne',
-        created_at: new Date().toISOString()
-      });
-      return;
-    }
+    const allAgents = getAgentsList();
 
-    if (checkPhone === '0892222222' || checkPhone === '0892222222') {
-      onLoginSuccess({
-        id: 'eboueur-demo',
-        nom: 'Chauffeur Kabeya',
-        telephone: '0892222222',
-        role: 'eboueur',
-        created_at: new Date().toISOString()
-      });
-      return;
-    }
-
-    if (checkPhone === '0600000000') {
-      onLoginSuccess({
-        id: 'admin-1',
-        nom: 'Hico Admin',
-        telephone: '0600000000',
-        role: 'admin',
-        created_at: new Date().toISOString()
-      });
-      return;
-    }
-
-    // Find among initial agents
-    const found = INITIAL_AGENTS.find(
+    // Find if user already exists
+    const found = allAgents.find(
       (a) => cleanPhone(a.telephone) === checkPhone || a.telephone === checkPhone
     );
 
     if (found) {
+      const userPassword = found.password || 'password';
+      if (password !== userPassword) {
+        setErrorMsg('Mot de passe incorrect pour cet utilisateur.');
+        return;
+      }
       onLoginSuccess(found);
     } else {
       // Create a professional agent profile dynamically for any custom key/phone entered by the tester!
@@ -81,9 +95,17 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
         nom: dynamicName,
         telephone: safePhone,
         role: 'agent',
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        password: password || 'password',
+        isTempPassword: false
       };
       
+      // Save newly created agent to local list so they can log back in
+      const currentSaved = localStorage.getItem('hico_agents');
+      const list = currentSaved ? JSON.parse(currentSaved) : allAgents;
+      list.push(sessionAgent);
+      localStorage.setItem('hico_agents', JSON.stringify(list));
+
       onLoginSuccess(sessionAgent);
     }
   };
@@ -91,41 +113,16 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
   const handleQuickConnect = (demoPhone: string) => {
     setPhone(demoPhone);
     setPassword('password');
-    // We can directly invoke the login with a timeout or just let them click click connect
+    setErrorMsg(null);
+
     setTimeout(() => {
+      const allAgents = getAgentsList();
       const checkPhone = cleanPhone(demoPhone);
-      if (checkPhone === '0821111111') {
-        onLoginSuccess({
-          id: 'abonne-demo',
-          nom: 'Papa Mavula',
-          telephone: '0821111111',
-          role: 'abonne',
-          created_at: new Date().toISOString()
-        });
-      } else if (checkPhone === '0892222222') {
-        onLoginSuccess({
-          id: 'eboueur-demo',
-          nom: 'Chauffeur Kabeya',
-          telephone: '0892222222',
-          role: 'eboueur',
-          created_at: new Date().toISOString()
-        });
-      } else if (checkPhone === '0600000000') {
-        onLoginSuccess({
-          id: 'admin-1',
-          nom: 'Hico Admin',
-          telephone: '0600000000',
-          role: 'admin',
-          created_at: new Date().toISOString()
-        });
-      } else {
-        onLoginSuccess({
-          id: 'agent-1',
-          nom: 'Jean Malonga',
-          telephone: '0612345678',
-          role: 'agent',
-          created_at: new Date().toISOString()
-        });
+      const found = allAgents.find(
+        (a) => cleanPhone(a.telephone) === checkPhone || a.telephone === checkPhone
+      );
+      if (found) {
+        onLoginSuccess(found);
       }
     }, 100);
   };

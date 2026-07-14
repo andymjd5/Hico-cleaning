@@ -1,4 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+
+declare global {
+  interface Window {
+    L: any;
+  }
+}
 import { 
   PoubelleSignal, 
   Eboueur, 
@@ -117,6 +123,196 @@ export default function DechetsMapView({
       .sort((a, b) => a.distance - b.distance);
   }, [selectedSignal, eboueurs]);
 
+  // Map Leaflet implementation refs & states
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const markerGroupRef = useRef<any>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
+
+  // Initialize Map
+  useEffect(() => {
+    let intervalId: any;
+    
+    const initMap = () => {
+      if (!window.L) return false;
+      if (!mapContainerRef.current) return false;
+      if (mapRef.current) return true;
+
+      try {
+        const map = window.L.map(mapContainerRef.current, {
+          center: [-4.3316, 15.3139],
+          zoom: 12,
+          zoomControl: true,
+        });
+        
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        mapRef.current = map;
+        setIsMapReady(true);
+        return true;
+      } catch (err) {
+        console.error("Leaflet init error:", err);
+        return false;
+      }
+    };
+
+    if (!initMap()) {
+      intervalId = setInterval(() => {
+        if (initMap()) {
+          clearInterval(intervalId);
+        }
+      }, 500);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        setIsMapReady(false);
+      }
+    };
+  }, []);
+
+  // Update Markers dynamically when data, active states, or map is ready
+  useEffect(() => {
+    if (!isMapReady || !mapRef.current || !window.L) return;
+
+    const map = mapRef.current;
+
+    if (!markerGroupRef.current) {
+      markerGroupRef.current = window.L.layerGroup().addTo(map);
+    } else {
+      markerGroupRef.current.clearLayers();
+    }
+
+    const markerGroup = markerGroupRef.current;
+
+    // Plot Signals
+    signals.forEach((sig) => {
+      const coords = getSignalCoords(sig);
+      const isSelected = selectedSignalId === sig.id;
+      const isPending = sig.status === 'pending';
+      const isAssigned = sig.status === 'assigned';
+
+      let markerColor = 'bg-error';
+      let iconHtml = '🚨';
+      let pingHtml = isPending ? '<span class="absolute inline-flex h-8 w-8 rounded-full bg-red-500/30 animate-ping"></span>' : '';
+
+      if (isPending) {
+        markerColor = 'bg-red-600';
+        iconHtml = '🚨';
+      } else if (isAssigned) {
+        markerColor = 'bg-yellow-500';
+        iconHtml = '⏳';
+      } else {
+        markerColor = 'bg-emerald-600';
+        iconHtml = '✅';
+      }
+
+      const customIcon = window.L.divIcon({
+        className: 'custom-leaflet-marker',
+        html: `
+          <div class="relative flex items-center justify-center transition-all duration-300" style="transform: ${isSelected ? 'scale(1.25)' : 'scale(1.0)'}; z-index: ${isSelected ? '9999' : '100'};">
+            ${pingHtml}
+            <div class="p-2 rounded-full ${markerColor} text-white border-2 ${isSelected ? 'border-yellow-400 scale-110' : 'border-white'} shadow-md flex items-center justify-center font-bold" style="width: 32px; height: 32px; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+              ${iconHtml}
+            </div>
+          </div>
+        `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+
+      const marker = window.L.marker([coords.lat, coords.lng], { icon: customIcon });
+      
+      marker.bindPopup(`
+        <div class="text-xs p-1 leading-normal" style="color: #0b1c30; font-family: sans-serif;">
+          <strong class="text-primary block font-bold text-sm mb-1">Parcelle N° ${sig.numero_parcelle}</strong>
+          <strong>Avenue:</strong> ${sig.avenue_nom}<br/>
+          <strong>Commune:</strong> ${sig.commune_nom}<br/>
+          <strong>Bailleur:</strong> ${sig.bailleur_nom}<br/>
+          <strong>Signalé à:</strong> ${sig.reported_at.substring(11, 16)}<br/>
+          <div class="mt-1.5 font-bold text-[10px] uppercase inline-block px-1.5 py-0.5 rounded ${isPending ? 'bg-red-100 text-red-700' : isAssigned ? 'bg-yellow-100 text-yellow-700' : 'bg-emerald-100 text-emerald-700'}">
+            ${sig.status === 'pending' ? 'Poubelle Pleine 🚨' : sig.status === 'assigned' ? 'Assigné 🚚' : 'Vidé ✔'}
+          </div>
+        </div>
+      `);
+
+      marker.on('click', () => {
+        setSelectedSignalId(sig.id);
+        setSelectedEboueurId(null);
+      });
+
+      marker.addTo(markerGroup);
+    });
+
+    // Plot Eboueurs (collectors)
+    eboueurs.filter(eb => eb.gps_active).forEach((eb) => {
+      const isSelected = selectedEboueurId === eb.id;
+      const isBusy = eb.status === 'en_mission';
+
+      const customIcon = window.L.divIcon({
+        className: 'custom-leaflet-marker',
+        html: `
+          <div class="relative flex items-center justify-center transition-all duration-300" style="transform: ${isSelected ? 'scale(1.25)' : 'scale(1.0)'}; z-index: ${isSelected ? '9999' : '100'};">
+            <span class="absolute inline-flex h-7 w-7 rounded-full bg-blue-500/20 animate-pulse"></span>
+            <div class="p-2 rounded-full bg-blue-600 text-white border-2 ${isSelected ? 'border-yellow-400 scale-110' : 'border-white'} shadow-md flex items-center justify-center" style="width: 32px; height: 32px; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+              🚚
+            </div>
+          </div>
+        `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+
+      const marker = window.L.marker([eb.latitude, eb.longitude], { icon: customIcon });
+
+      marker.bindPopup(`
+        <div class="text-xs p-1 leading-normal" style="color: #0b1c30; font-family: sans-serif;">
+          <strong class="text-secondary block font-bold text-sm mb-1">${eb.nom}</strong>
+          <strong>Téléphone:</strong> ${eb.telephone}<br/>
+          <strong>Statut:</strong> ${isBusy ? 'En mission active 🚚' : 'Disponible 🔋'}<br/>
+          <strong>Position:</strong> ${eb.latitude.toFixed(5)}, ${eb.longitude.toFixed(5)}
+        </div>
+      `);
+
+      marker.on('click', () => {
+        setSelectedEboueurId(eb.id);
+        setSelectedSignalId(null);
+      });
+
+      marker.addTo(markerGroup);
+    });
+
+  }, [isMapReady, signals, eboueurs, selectedSignalId, selectedEboueurId]);
+
+  // Center & fly map to selected items
+  useEffect(() => {
+    if (!isMapReady || !mapRef.current || !window.L) return;
+
+    if (selectedSignalId) {
+      const sig = signals.find(s => s.id === selectedSignalId);
+      if (sig) {
+        const coords = getSignalCoords(sig);
+        mapRef.current.flyTo([coords.lat, coords.lng], 15, {
+          animate: true,
+          duration: 1.2
+        });
+      }
+    } else if (selectedEboueurId) {
+      const eb = eboueurs.find(e => e.id === selectedEboueurId);
+      if (eb && eb.gps_active) {
+        mapRef.current.flyTo([eb.latitude, eb.longitude], 15, {
+          animate: true,
+          duration: 1.2
+        });
+      }
+    }
+  }, [selectedSignalId, selectedEboueurId, isMapReady]);
+
   const handleSimulate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!simulationParcelleId) return;
@@ -169,147 +365,18 @@ export default function DechetsMapView({
               </div>
             </div>
 
-            {/* Simulated Vector Grid Map */}
-            <div className="flex-grow bg-[#090909] relative overflow-hidden flex items-center justify-center p-4">
-              
-              {/* Grid Background overlay */}
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(40,40,60,0.15),transparent)] pointer-events-none" />
+            {/* Real OpenStreetMap Leaflet Map */}
+            <div className="flex-grow relative w-full h-full bg-[#111] overflow-hidden" style={{ minHeight: '400px' }}>
               <div 
-                className="absolute inset-0 opacity-15" 
-                style={{
-                  backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                  backgroundSize: '24px 24px'
-                }} 
+                ref={mapContainerRef} 
+                className="absolute inset-0 w-full h-full"
+                style={{ zIndex: 1 }}
               />
 
-              {/* Kinshasa River / Map contours mockup representation inside SVG */}
-              <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" viewBox="0 0 800 500">
-                {/* Congo River winding */}
-                <path d="M -100,50 Q 200,80 300,180 T 600,280 T 900,250" fill="none" stroke="#2563eb" strokeWidth="48" strokeLinecap="round" />
-                <path d="M -100,50 Q 200,80 300,180 T 600,280 T 900,250" fill="none" stroke="#3b82f6" strokeWidth="12" strokeLinecap="round" />
-                {/* Simulated Roads/Avenues */}
-                <path d="M 100,0 L 100,500 M 350,0 L 350,500 M 600,0 L 600,500 M 0,200 L 800,200 M 0,350 L 800,350" fill="none" stroke="#333333" strokeWidth="1.5" />
-                {/* Communes Boundaries label markers */}
-                <text x="250" y="140" fill="#ffffff" fontSize="12" fontWeight="bold">Gombe</text>
-                <text x="140" y="320" fill="#ffffff" fontSize="12" fontWeight="bold">Bandal</text>
-                <text x="450" y="240" fill="#ffffff" fontSize="12" fontWeight="bold">Limete</text>
-                <text x="320" y="420" fill="#ffffff" fontSize="12" fontWeight="bold">Lemba</text>
-                <text x="620" y="380" fill="#ffffff" fontSize="12" fontWeight="bold">Masina</text>
-              </svg>
-
-              {/* PLOTTING PIN 1: Active Signals (full bins) */}
-              {signals.map((sig) => {
-                const coords = getSignalCoords(sig);
-                // Convert coords into percentage layout safely
-                const mapY = Math.max(5, Math.min(95, ((coords.lat - -4.36) / -0.06) * 100));
-                const mapX = Math.max(5, Math.min(95, ((coords.lng - 15.26) / 0.12) * 100));
-
-                const isSelected = selectedSignalId === sig.id;
-                const isPending = sig.status === 'pending';
-                const isAssigned = sig.status === 'assigned';
-
-                return (
-                  <button
-                    key={sig.id}
-                    onClick={() => {
-                      setSelectedSignalId(sig.id);
-                      setSelectedEboueurId(null); // Clear other selected
-                    }}
-                    className="absolute group z-20 cursor-pointer focus:outline-none transition-transform"
-                    style={{ top: `${mapY}%`, left: `${mapX}%` }}
-                  >
-                    <div className="relative flex items-center justify-center">
-                      {/* Alert ping for pending */}
-                      {isPending && (
-                        <span className="absolute inline-flex h-8 w-8 rounded-full bg-error/30 animate-ping" />
-                      )}
-                      
-                      {/* Main pin marker icon */}
-                      <div className={`p-2.5 rounded-full border-2 shadow-lg transition-all duration-300 ${
-                        isSelected 
-                          ? 'bg-error scale-125 border-white text-white z-30' 
-                          : isPending
-                            ? 'bg-[#121212] border-error text-error scale-110 hover:scale-120'
-                            : isAssigned
-                              ? 'bg-[#121212] border-yellow-500 text-yellow-500 hover:scale-110'
-                              : 'bg-[#121212] border-outline text-[#10b981] hover:scale-110'
-                      }`}>
-                        <Trash2 size={15} className={isPending ? 'animate-bounce' : ''} />
-                      </div>
-
-                      {/* Info Tooltip on Hover */}
-                      <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col bg-[#141414] border border-outline-variant p-2.5 rounded-xl shadow-2xl text-left w-48 pointer-events-none text-white text-[10px] leading-normal z-40">
-                        <span className="font-extrabold text-primary">N° {sig.numero_parcelle}, Av. {sig.avenue_nom}</span>
-                        <span className="text-gray-400">Bailleur : {sig.bailleur_nom}</span>
-                        <span className="font-mono text-gray-500 mt-1">{sig.reported_at.substring(11, 16)} • {sig.commune_nom}</span>
-                        <div className="mt-1 flex items-center gap-1">
-                          <span className={`w-1.5 h-1.5 rounded-full ${
-                            isPending ? 'bg-error' : isAssigned ? 'bg-yellow-500' : 'bg-[#10b981]'
-                          }`} />
-                          <span className="font-bold uppercase tracking-wider text-[8px]">
-                            {sig.status === 'pending' ? 'Poubelle Pleine 🚨' : sig.status === 'assigned' ? 'Assigné 🚚' : 'Vidé ✔'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-
-              {/* PLOTTING PIN 2: Collectors (eboueurs trucks) */}
-              {eboueurs.filter(eb => eb.gps_active).map((eb) => {
-                // Convert coords into percentage layout safely
-                const mapY = Math.max(5, Math.min(95, ((eb.latitude - -4.36) / -0.06) * 100));
-                const mapX = Math.max(5, Math.min(95, ((eb.longitude - 15.26) / 0.12) * 100));
-
-                const isSelected = selectedEboueurId === eb.id;
-                const isBusy = eb.status === 'en_mission';
-
-                return (
-                  <button
-                    key={eb.id}
-                    onClick={() => {
-                      setSelectedEboueurId(eb.id);
-                      setSelectedSignalId(null); // Clear other selected
-                    }}
-                    className="absolute group z-20 cursor-pointer focus:outline-none transition-transform"
-                    style={{ top: `${mapY}%`, left: `${mapX}%` }}
-                  >
-                    <div className="relative flex items-center justify-center">
-                      {/* Light glow for active collectors */}
-                      <span className={`absolute inline-flex h-7 w-7 rounded-full bg-secondary/20 ${!isBusy ? 'animate-pulse' : ''}`} />
-                      
-                      {/* Truck container */}
-                      <div className={`p-2 rounded-xl border shadow-lg transition-all duration-300 ${
-                        isSelected 
-                          ? 'bg-secondary text-white border-white scale-125 z-30' 
-                          : isBusy
-                            ? 'bg-[#141414] border-yellow-500 text-yellow-500 scale-100 hover:scale-115'
-                            : 'bg-[#141414] border-secondary text-secondary scale-110 hover:scale-120'
-                      }`}>
-                        <Truck size={14} />
-                      </div>
-
-                      {/* Tooltip on hover */}
-                      <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col bg-[#141414] border border-outline-variant p-2 rounded-xl shadow-2xl text-left w-40 pointer-events-none text-white text-[10px] leading-normal z-40">
-                        <span className="font-extrabold text-secondary">{eb.nom}</span>
-                        <span className="text-gray-400">{eb.telephone}</span>
-                        <div className="mt-1 flex items-center gap-1 text-[9px]">
-                          <span className={`w-1.5 h-1.5 rounded-full ${isBusy ? 'bg-yellow-500' : 'bg-[#10b981]'}`} />
-                          <span className="font-bold">
-                            {isBusy ? 'En mission 🚚' : 'Libre / Disponible 🔋'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-
               {/* Compass Calibration Helper Graphic overlay */}
-              <div className="absolute bottom-4 right-4 bg-background/80 border border-outline-variant p-2.5 rounded-2xl flex items-center gap-2 text-[10px] font-mono font-bold text-on-surface-variant backdrop-blur-sm shadow-md">
+              <div className="absolute bottom-4 right-4 bg-background/90 border border-outline-variant p-2.5 rounded-2xl flex items-center gap-2 text-[10px] font-mono font-bold text-on-surface-variant backdrop-blur-sm shadow-md z-[500]">
                 <Navigation size={14} className="text-secondary rotate-45 shrink-0" />
-                <span>Zone Rapprochée : Kinshasa-Centre</span>
+                <span>Région Kinshasa (Données réelles OSM)</span>
               </div>
             </div>
           </div>

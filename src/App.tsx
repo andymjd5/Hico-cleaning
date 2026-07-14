@@ -23,9 +23,10 @@ import CommuneExplorer from './components/CommuneExplorer';
 import DechetsMapView from './components/DechetsMapView';
 import AbonneSpaceView from './components/AbonneSpaceView';
 import EboueurSpaceView from './components/EboueurSpaceView';
+import AdminSettingsView from './components/AdminSettingsView';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -52,8 +53,66 @@ export default function App() {
   // 2. Active Screen state
   const [currentScreen, setCurrentScreen] = useState<Screen>(() => {
     const saved = localStorage.getItem('hico_current_user');
-    return saved ? 'dashboard' : 'login';
+    if (saved) {
+      const user = JSON.parse(saved);
+      if (user.role === 'abonne') return 'abonne_space';
+      if (user.role === 'eboueur') return 'eboueur_space';
+      return 'dashboard';
+    }
+    return 'login';
   });
+
+  // Agents list state
+  const [agents, setAgents] = useState<Agent[]>(() => {
+    const saved = localStorage.getItem('hico_agents');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'admin-1',
+        nom: 'Hico Admin',
+        telephone: '0600000000',
+        role: 'admin',
+        created_at: new Date('2026-05-01').toISOString(),
+        password: 'password'
+      },
+      {
+        id: 'agent-1',
+        nom: 'Jean Malonga',
+        telephone: '0612345678',
+        role: 'agent',
+        created_at: new Date('2026-05-01').toISOString(),
+        password: 'password'
+      },
+      {
+        id: 'abonne-demo',
+        nom: 'Papa Mavula',
+        telephone: '0821111111',
+        role: 'abonne',
+        created_at: new Date().toISOString(),
+        password: 'password'
+      },
+      {
+        id: 'eboueur-demo',
+        nom: 'Chauffeur Kabeya',
+        telephone: '0892222222',
+        role: 'eboueur',
+        created_at: new Date().toISOString(),
+        password: 'password'
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('hico_agents', JSON.stringify(agents));
+  }, [agents]);
+
+  const handleUpdatePassword = (newPassword: string) => {
+    if (!currentUser) return;
+    const updated = { ...currentUser, password: newPassword, isTempPassword: false };
+    setCurrentUser(updated);
+    localStorage.setItem('hico_current_user', JSON.stringify(updated));
+    setAgents(prev => prev.map(a => a.id === currentUser.id ? updated : a));
+  };
 
   // 3. Drill-down Context states
   const [selectedCommuneId, setSelectedCommuneId] = useState<string | null>(null);
@@ -167,6 +226,35 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('hico_inbox_messages', JSON.stringify(inboxMessages));
   }, [inboxMessages]);
+
+  // Navigation Guards to strictly prevent role leaks
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    // Get custom permissions or fallback to defaults
+    const customPermsRaw = localStorage.getItem('hico_role_permissions');
+    const perms = customPermsRaw ? JSON.parse(customPermsRaw) : {
+      admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'admin_settings'],
+      agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map'],
+      abonne: ['abonne_space'],
+      eboueur: ['eboueur_space']
+    };
+
+    const allowedScreens = perms[currentUser.role] || [];
+    // Profile, login and password changes are always implicitly allowed
+    const implicitlyAllowed = ['login', 'profil'];
+    
+    if (currentScreen !== 'login' && !allowedScreens.includes(currentScreen) && !implicitlyAllowed.includes(currentScreen)) {
+      // Send them back to their default screen
+      if (currentUser.role === 'abonne') {
+        setCurrentScreen('abonne_space');
+      } else if (currentUser.role === 'eboueur') {
+        setCurrentScreen('eboueur_space');
+      } else {
+        setCurrentScreen('dashboard');
+      }
+    }
+  }, [currentScreen, currentUser]);
 
   // Seeding Gombe demo structures to avoid blank dashboards
   useEffect(() => {
@@ -359,7 +447,13 @@ export default function App() {
   const handleLogin = (agent: Agent) => {
     setCurrentUser(agent);
     localStorage.setItem('hico_current_user', JSON.stringify(agent));
-    setCurrentScreen('dashboard');
+    if (agent.role === 'abonne') {
+      setCurrentScreen('abonne_space');
+    } else if (agent.role === 'eboueur') {
+      setCurrentScreen('eboueur_space');
+    } else {
+      setCurrentScreen('dashboard');
+    }
   };
 
   const handleLogout = () => {
@@ -873,6 +967,21 @@ export default function App() {
                     <BarChart3 size={18} />
                     <span>Rapports</span>
                   </button>
+
+                  {/* Settings tab (Admin only) */}
+                  {currentUser?.role === 'admin' && (
+                    <button 
+                      onClick={() => setCurrentScreen('admin_settings')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'admin_settings'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <Settings size={18} />
+                      <span>Paramètres Système</span>
+                    </button>
+                  )}
                 </>
               )}
 
@@ -1086,6 +1195,22 @@ export default function App() {
                   onResetDatabase={handleResetDatabase}
                   activeTheme={theme}
                   onChangeTheme={setTheme}
+                  onUpdatePassword={handleUpdatePassword}
+                />
+              )}
+
+              {currentScreen === 'admin_settings' && (
+                <AdminSettingsView 
+                  agents={agents}
+                  onAddAgent={(newAgent) => setAgents(prev => [...prev, newAgent])}
+                  onUpdateAgent={(updatedAgent) => {
+                    setAgents(prev => prev.map(a => a.id === updatedAgent.id ? updatedAgent : a));
+                    if (currentUser && currentUser.id === updatedAgent.id) {
+                      setCurrentUser(updatedAgent);
+                      localStorage.setItem('hico_current_user', JSON.stringify(updatedAgent));
+                    }
+                  }}
+                  onDeleteAgent={(agentId) => setAgents(prev => prev.filter(a => a.id !== agentId))}
                 />
               )}
 

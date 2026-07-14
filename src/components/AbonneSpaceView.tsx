@@ -77,7 +77,15 @@ export default function AbonneSpaceView({
   });
 
   const householdCount = currentParcelle.nombre_menages;
-  const subscriptionPricePerHousehold = 1; // 1$ per household
+  const subscriptionPricePerHousehold = useMemo(() => {
+    const saved = localStorage.getItem('hico_subscription_price');
+    return saved ? parseFloat(saved) : 1.0;
+  }, []);
+
+  const currencySymbol = useMemo(() => {
+    return localStorage.getItem('hico_subscription_currency') || '$';
+  }, []);
+
   const totalAmountDue = householdCount * subscriptionPricePerHousehold;
 
   // Calculate validated amount
@@ -234,10 +242,10 @@ export default function AbonneSpaceView({
           <div className="flex flex-col gap-1.5">
             <h3 className="text-base font-extrabold text-on-surface flex items-center gap-2">
               <CreditCard className="text-[#10b981]" size={20} />
-              Redevance de Salubrité ($1/ménage)
+              Redevance de Salubrité ({subscriptionPricePerHousehold}{currencySymbol}/ménage)
             </h3>
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              Le tarif réglementé est fixé à <strong>1$ par ménage</strong> par mois. Validez manuellement les ménages/locataires qui ont réglé leur part pour débloquer le bouton de paiement.
+              Le tarif réglementé est fixé à <strong>{subscriptionPricePerHousehold}{currencySymbol} par ménage</strong> par mois. Validez manuellement les ménages/locataires qui ont réglé leur part pour débloquer le bouton de paiement.
             </p>
           </div>
 
@@ -297,7 +305,7 @@ export default function AbonneSpaceView({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-[10px]">$1.00</span>
+                      <span className="font-bold text-[10px]">{subscriptionPricePerHousehold} {currencySymbol}</span>
                       <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
                         isChecked ? 'bg-[#10b981] border-[#10b981] text-white' : 'border-outline-variant/80 bg-background'
                       }`}>
@@ -331,7 +339,7 @@ export default function AbonneSpaceView({
               }`}
             >
               <CreditCard size={16} />
-              <span>Payer l'abonnement ({totalAmountDue}$)</span>
+              <span>Payer l'abonnement ({totalAmountDue} {currencySymbol})</span>
             </button>
           </div>
         </section>
@@ -464,7 +472,7 @@ export default function AbonneSpaceView({
               <form onSubmit={handleProcessCheckout} className="flex flex-col gap-4">
                 <div className="text-center bg-white/5 border border-white/5 p-3.5 rounded-2xl flex flex-col gap-1">
                   <span className="text-[10px] text-gray-400 font-bold uppercase">Montant global dû</span>
-                  <span className="text-2xl font-black text-secondary">${totalAmountDue}.00 USD</span>
+                  <span className="text-2xl font-black text-secondary">{totalAmountDue} {currencySymbol}</span>
                   <span className="text-[9px] text-gray-400">Pour les {householdCount} ménages recensés</span>
                 </div>
 

@@ -42,6 +42,8 @@ export interface Agent {
   role: 'admin' | 'agent' | 'abonne' | 'eboueur';
   created_at: string;
   parcelle_id?: string; // used for role === 'abonne' to link their specific parcel
+  password?: string;
+  isTempPassword?: boolean;
 }
 
 export type Screen = 
@@ -57,7 +59,8 @@ export type Screen =
   | 'commune_explorer'
   | 'dechets_map'
   | 'abonne_space'
-  | 'eboueur_space';
+  | 'eboueur_space'
+  | 'admin_settings';
 
 export interface PoubelleSignal {
   id: string;

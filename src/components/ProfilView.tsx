@@ -1,4 +1,5 @@
-import { User, Shield, LogOut, Database, Phone } from 'lucide-react';
+import React, { useState } from 'react';
+import { User, Shield, LogOut, Database, Phone, Key, Check } from 'lucide-react';
 import { Agent } from '../types';
 
 interface ProfilViewProps {
@@ -7,6 +8,7 @@ interface ProfilViewProps {
   onResetDatabase: () => void;
   activeTheme: 'dark' | 'light';
   onChangeTheme: (theme: 'dark' | 'light') => void;
+  onUpdatePassword: (newPassword: string) => void;
 }
 
 export default function ProfilView({
@@ -14,14 +16,29 @@ export default function ProfilView({
   onLogout,
   onResetDatabase,
   activeTheme,
-  onChangeTheme
+  onChangeTheme,
+  onUpdatePassword
 }: ProfilViewProps) {
+  const [newPassword, setNewPassword] = useState('');
+  const [successMsg, setSuccessMsg] = useState(false);
 
   const handleResetClick = () => {
     if (window.confirm("Êtes-vous sûr de vouloir réinitialiser la base de données locale ? Toutes les parcelles créées lors de cette session seront annulées.")) {
       onResetDatabase();
       alert("Base de données réinitialisée aux valeurs d'origine !");
     }
+  };
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword.trim()) {
+      alert("Veuillez saisir un mot de passe valide.");
+      return;
+    }
+    onUpdatePassword(newPassword.trim());
+    setNewPassword('');
+    setSuccessMsg(true);
+    setTimeout(() => setSuccessMsg(false), 4000);
   };
 
   return (
@@ -74,6 +91,48 @@ export default function ProfilView({
             <span className="font-bold capitalize text-right">{currentAgent.role}</span>
           </div>
         </div>
+      </div>
+
+      {/* 🔒 Section Mot de passe */}
+      <div className="bg-surface border border-outline-variant rounded-2xl p-5 shadow-lg flex flex-col gap-3" id="password_section_profile">
+        <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant pb-1.5 select-none flex items-center gap-1">
+          🔒 Sécurité & Mot de passe
+        </h3>
+        {currentAgent.isTempPassword && (
+          <div className="p-3 bg-amber-500/15 border border-amber-500/25 rounded-xl flex items-start gap-2 text-xs text-amber-500 font-sans" id="temp_pass_alert">
+            <span className="text-base leading-none">⚠️</span>
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold">Mot de passe temporaire actif !</span>
+              <span>Veuillez changer votre mot de passe immédiatement ci-dessous pour sécuriser votre accès permanent.</span>
+            </div>
+          </div>
+        )}
+        <p className="text-xs text-on-surface-variant leading-relaxed font-sans mb-1">
+          Modifiez votre mot de passe pour sécuriser l'accès à votre espace de travail.
+        </p>
+        <form onSubmit={handlePasswordSubmit} className="flex gap-2" id="form_change_pass">
+          <input
+            type="password"
+            id="input_new_pass_profile"
+            placeholder="Nouveau mot de passe"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="flex-grow h-10 px-3 bg-background border border-outline-variant rounded-xl text-on-surface text-xs focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-sans"
+            required
+          />
+          <button
+            type="submit"
+            id="btn_submit_pass_profile"
+            className="h-10 px-4 bg-primary text-on-primary font-bold text-xs rounded-xl hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center gap-1"
+          >
+            Mettre à jour
+          </button>
+        </form>
+        {successMsg && (
+          <p className="text-xs text-[#10b981] font-bold flex items-center gap-1.5 bg-[#10b981]/15 border border-[#10b981]/20 p-2.5 rounded-xl animate-fade-in" id="pass_success_msg">
+            <Check size={14} /> Votre mot de passe a été mis à jour avec succès !
+          </p>
+        )}
       </div>
 
       {/* 🎨 Theme Selector Section */}
