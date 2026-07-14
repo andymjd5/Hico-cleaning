@@ -26,7 +26,7 @@ import EboueurSpaceView from './components/EboueurSpaceView';
 import AdminSettingsView from './components/AdminSettingsView';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -227,24 +227,35 @@ export default function App() {
     localStorage.setItem('hico_inbox_messages', JSON.stringify(inboxMessages));
   }, [inboxMessages]);
 
-  // Navigation Guards to strictly prevent role leaks
-  useEffect(() => {
-    if (!currentUser) return;
+  // Dynamic screen permission verification helper
+  const isScreenAllowed = (screenId: string) => {
+    if (!currentUser) return false;
+    if (screenId === 'login' || screenId === 'profil') return true;
     
-    // Get custom permissions or fallback to defaults
     const customPermsRaw = localStorage.getItem('hico_role_permissions');
     const perms = customPermsRaw ? JSON.parse(customPermsRaw) : {
-      admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'admin_settings'],
+      admin: [
+        'dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 
+        'rapports', 'commune_explorer', 'dechets_map', 'admin_settings_screens', 
+        'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
+      ],
       agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map'],
       abonne: ['abonne_space'],
       eboueur: ['eboueur_space']
     };
 
-    const allowedScreens = perms[currentUser.role] || [];
+    const allowed = perms[currentUser.role] || [];
+    return allowed.includes(screenId);
+  };
+
+  // Navigation Guards to strictly prevent role leaks
+  useEffect(() => {
+    if (!currentUser) return;
+    
     // Profile, login and password changes are always implicitly allowed
     const implicitlyAllowed = ['login', 'profil'];
     
-    if (currentScreen !== 'login' && !allowedScreens.includes(currentScreen) && !implicitlyAllowed.includes(currentScreen)) {
+    if (currentScreen !== 'login' && !isScreenAllowed(currentScreen) && !implicitlyAllowed.includes(currentScreen)) {
       // Send them back to their default screen
       if (currentUser.role === 'abonne') {
         setCurrentScreen('abonne_space');
@@ -968,18 +979,69 @@ export default function App() {
                     <span>Rapports</span>
                   </button>
 
-                  {/* Settings tab (Admin only) */}
-                  {currentUser?.role === 'admin' && (
+                  {/* Settings section header */}
+                  {(isScreenAllowed('admin_settings_screens') || 
+                    isScreenAllowed('admin_settings_pricing') || 
+                    isScreenAllowed('admin_settings_accounts') || 
+                    isScreenAllowed('admin_settings_passwords')) && (
+                    <div className="text-xs font-black text-on-surface-variant/70 uppercase tracking-widest mt-5 mb-2 px-4 select-none">
+                      Paramètres Système
+                    </div>
+                  )}
+
+                  {isScreenAllowed('admin_settings_screens') && (
                     <button 
-                      onClick={() => setCurrentScreen('admin_settings')}
+                      onClick={() => setCurrentScreen('admin_settings_screens')}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                        currentScreen === 'admin_settings'
+                        currentScreen === 'admin_settings_screens'
                           ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
                           : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
                       }`}
                     >
-                      <Settings size={18} />
-                      <span>Paramètres Système</span>
+                      <Shield size={18} />
+                      <span>Configuration Rôles</span>
+                    </button>
+                  )}
+
+                  {isScreenAllowed('admin_settings_pricing') && (
+                    <button 
+                      onClick={() => setCurrentScreen('admin_settings_pricing')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'admin_settings_pricing'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <DollarSign size={18} />
+                      <span>Prix d'Abonnement</span>
+                    </button>
+                  )}
+
+                  {isScreenAllowed('admin_settings_accounts') && (
+                    <button 
+                      onClick={() => setCurrentScreen('admin_settings_accounts')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'admin_settings_accounts'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <UserPlus size={18} />
+                      <span>Création de Comptes</span>
+                    </button>
+                  )}
+
+                  {isScreenAllowed('admin_settings_passwords') && (
+                    <button 
+                      onClick={() => setCurrentScreen('admin_settings_passwords')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'admin_settings_passwords'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <Key size={18} />
+                      <span>Mot de Passe Temporaire</span>
                     </button>
                   )}
                 </>
@@ -1196,10 +1258,15 @@ export default function App() {
                   activeTheme={theme}
                   onChangeTheme={setTheme}
                   onUpdatePassword={handleUpdatePassword}
+                  onNavigate={setCurrentScreen}
                 />
               )}
 
-              {currentScreen === 'admin_settings' && (
+              {(currentScreen === 'admin_settings' || 
+                currentScreen === 'admin_settings_screens' || 
+                currentScreen === 'admin_settings_pricing' || 
+                currentScreen === 'admin_settings_accounts' || 
+                currentScreen === 'admin_settings_passwords') && (
                 <AdminSettingsView 
                   agents={agents}
                   onAddAgent={(newAgent) => setAgents(prev => [...prev, newAgent])}
@@ -1211,6 +1278,21 @@ export default function App() {
                     }
                   }}
                   onDeleteAgent={(agentId) => setAgents(prev => prev.filter(a => a.id !== agentId))}
+                  defaultTab={
+                    currentScreen === 'admin_settings_screens' ? 'screens' :
+                    currentScreen === 'admin_settings_pricing' ? 'pricing' :
+                    currentScreen === 'admin_settings_accounts' ? 'accounts' :
+                    currentScreen === 'admin_settings_passwords' ? 'passwords' : 'screens'
+                  }
+                  onTabChange={(tab) => {
+                    const screenMap = {
+                      screens: 'admin_settings_screens' as Screen,
+                      pricing: 'admin_settings_pricing' as Screen,
+                      accounts: 'admin_settings_accounts' as Screen,
+                      passwords: 'admin_settings_passwords' as Screen
+                    };
+                    setCurrentScreen(screenMap[tab]);
+                  }}
                 />
               )}
 

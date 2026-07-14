@@ -20,16 +20,33 @@ interface AdminSettingsViewProps {
   onAddAgent: (newAgent: Agent) => void;
   onUpdateAgent: (updatedAgent: Agent) => void;
   onDeleteAgent: (agentId: string) => void;
+  defaultTab?: 'screens' | 'pricing' | 'accounts' | 'passwords';
+  onTabChange?: (tab: 'screens' | 'pricing' | 'accounts' | 'passwords') => void;
 }
 
 export default function AdminSettingsView({
   agents,
   onAddAgent,
   onUpdateAgent,
-  onDeleteAgent
+  onDeleteAgent,
+  defaultTab = 'screens',
+  onTabChange
 }: AdminSettingsViewProps) {
   // 1. Tab State
-  const [activeTab, setActiveTab] = useState<'screens' | 'pricing' | 'accounts' | 'passwords'>('screens');
+  const [activeTab, setActiveTab] = useState<'screens' | 'pricing' | 'accounts' | 'passwords'>(defaultTab);
+
+  React.useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab]);
+
+  const handleTabClick = (tab: 'screens' | 'pricing' | 'accounts' | 'passwords') => {
+    setActiveTab(tab);
+    if (onTabChange) {
+      onTabChange(tab);
+    }
+  };
 
   // 2. Pricing State
   const [subscriptionPrice, setSubscriptionPrice] = useState<number>(() => {
@@ -46,7 +63,7 @@ export default function AdminSettingsView({
     const saved = localStorage.getItem('hico_role_permissions');
     if (saved) return JSON.parse(saved);
     return {
-      admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'admin_settings'],
+      admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'],
       agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map'],
       abonne: ['abonne_space'],
       eboueur: ['eboueur_space']
@@ -169,7 +186,10 @@ export default function AdminSettingsView({
     { id: 'rapports', label: 'Rapports & Graphiques D3', rolesAllowed: ['admin', 'agent'] },
     { id: 'abonne_space', label: 'Espace Abonné Exclusif', rolesAllowed: ['abonne'] },
     { id: 'eboueur_space', label: 'Espace Mission Éboueur Exclusif', rolesAllowed: ['eboueur'] },
-    { id: 'admin_settings', label: 'Paramètres Système (Admin)', rolesAllowed: ['admin'] }
+    { id: 'admin_settings_screens', label: 'Paramètres: Options d\'Affichage / Rôles (Point 1)', rolesAllowed: ['admin'] },
+    { id: 'admin_settings_pricing', label: 'Paramètres: Prix d\'Abonnement (Point 2)', rolesAllowed: ['admin'] },
+    { id: 'admin_settings_accounts', label: 'Paramètres: Création de Comptes Agents (Point 3)', rolesAllowed: ['admin'] },
+    { id: 'admin_settings_passwords', label: 'Paramètres: Mot de Passe Temporaire (Point 4)', rolesAllowed: ['admin'] }
   ];
 
   return (
@@ -191,7 +211,7 @@ export default function AdminSettingsView({
       <div className="flex flex-wrap gap-2 bg-surface p-1.5 rounded-2xl border border-outline-variant" id="settings_tabs">
         <button
           id="tab_btn_screens"
-          onClick={() => setActiveTab('screens')}
+          onClick={() => handleTabClick('screens')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-sans text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'screens'
               ? 'bg-primary text-on-primary shadow-md'
@@ -203,7 +223,7 @@ export default function AdminSettingsView({
         </button>
         <button
           id="tab_btn_pricing"
-          onClick={() => setActiveTab('pricing')}
+          onClick={() => handleTabClick('pricing')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-sans text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'pricing'
               ? 'bg-primary text-on-primary shadow-md'
@@ -215,7 +235,7 @@ export default function AdminSettingsView({
         </button>
         <button
           id="tab_btn_accounts"
-          onClick={() => setActiveTab('accounts')}
+          onClick={() => handleTabClick('accounts')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-sans text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'accounts'
               ? 'bg-primary text-on-primary shadow-md'
@@ -227,7 +247,7 @@ export default function AdminSettingsView({
         </button>
         <button
           id="tab_btn_passwords"
-          onClick={() => setActiveTab('passwords')}
+          onClick={() => handleTabClick('passwords')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-sans text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'passwords'
               ? 'bg-primary text-on-primary shadow-md'

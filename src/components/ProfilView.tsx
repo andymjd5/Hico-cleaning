@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { User, Shield, LogOut, Database, Phone, Key, Check } from 'lucide-react';
-import { Agent } from '../types';
+import { User, Shield, LogOut, Database, Phone, Key, Check, DollarSign, UserPlus } from 'lucide-react';
+import { Agent, Screen } from '../types';
 
 interface ProfilViewProps {
   currentAgent: Agent;
@@ -9,6 +9,7 @@ interface ProfilViewProps {
   activeTheme: 'dark' | 'light';
   onChangeTheme: (theme: 'dark' | 'light') => void;
   onUpdatePassword: (newPassword: string) => void;
+  onNavigate?: (screen: Screen) => void;
 }
 
 export default function ProfilView({
@@ -17,10 +18,28 @@ export default function ProfilView({
   onResetDatabase,
   activeTheme,
   onChangeTheme,
-  onUpdatePassword
+  onUpdatePassword,
+  onNavigate
 }: ProfilViewProps) {
   const [newPassword, setNewPassword] = useState('');
   const [successMsg, setSuccessMsg] = useState(false);
+
+  const getPermissions = () => {
+    const customPermsRaw = localStorage.getItem('hico_role_permissions');
+    if (!customPermsRaw) {
+      return currentAgent.role === 'admin' 
+        ? ['admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords']
+        : [];
+    }
+    try {
+      const perms = JSON.parse(customPermsRaw);
+      return perms[currentAgent.role] || [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const allowedScreens = getPermissions();
 
   const handleResetClick = () => {
     if (window.confirm("Êtes-vous sûr de vouloir réinitialiser la base de données locale ? Toutes les parcelles créées lors de cette session seront annulées.")) {
@@ -92,6 +111,63 @@ export default function ProfilView({
           </div>
         </div>
       </div>
+
+      {/* 👑 Section Administration / Paramètres (visible only to authorized roles) */}
+      {onNavigate && (allowedScreens.includes('admin_settings_screens') || 
+                      allowedScreens.includes('admin_settings_pricing') || 
+                      allowedScreens.includes('admin_settings_accounts') || 
+                      allowedScreens.includes('admin_settings_passwords')) && (
+        <div className="bg-surface border border-outline-variant rounded-2xl p-5 shadow-lg flex flex-col gap-3" id="admin_profile_section">
+          <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant pb-1.5 select-none flex items-center gap-1.5">
+            👑 Administration & Paramètres
+          </h3>
+          <p className="text-xs text-on-surface-variant leading-relaxed font-sans mb-1">
+            Accédez directement aux modules de configuration et d'administration du système :
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+            {allowedScreens.includes('admin_settings_screens') && (
+              <button
+                type="button"
+                onClick={() => onNavigate('admin_settings_screens')}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-background border border-outline-variant hover:border-primary text-on-surface text-xs font-semibold hover:text-primary transition-all cursor-pointer text-left"
+              >
+                <Shield size={14} className="text-primary shrink-0" />
+                <span>Options d'Affichage / Rôles</span>
+              </button>
+            )}
+            {allowedScreens.includes('admin_settings_pricing') && (
+              <button
+                type="button"
+                onClick={() => onNavigate('admin_settings_pricing')}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-background border border-outline-variant hover:border-primary text-on-surface text-xs font-semibold hover:text-primary transition-all cursor-pointer text-left"
+              >
+                <DollarSign size={14} className="text-primary shrink-0" />
+                <span>Prix d'Abonnement</span>
+              </button>
+            )}
+            {allowedScreens.includes('admin_settings_accounts') && (
+              <button
+                type="button"
+                onClick={() => onNavigate('admin_settings_accounts')}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-background border border-outline-variant hover:border-primary text-on-surface text-xs font-semibold hover:text-primary transition-all cursor-pointer text-left"
+              >
+                <UserPlus size={14} className="text-primary shrink-0" />
+                <span>Création de Comptes Agents</span>
+              </button>
+            )}
+            {allowedScreens.includes('admin_settings_passwords') && (
+              <button
+                type="button"
+                onClick={() => onNavigate('admin_settings_passwords')}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-background border border-outline-variant hover:border-primary text-on-surface text-xs font-semibold hover:text-primary transition-all cursor-pointer text-left"
+              >
+                <Key size={14} className="text-primary shrink-0" />
+                <span>Mot de Passe Temporaire</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 🔒 Section Mot de passe */}
       <div className="bg-surface border border-outline-variant rounded-2xl p-5 shadow-lg flex flex-col gap-3" id="password_section_profile">

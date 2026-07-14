@@ -60,7 +60,11 @@ export type Screen =
   | 'dechets_map'
   | 'abonne_space'
   | 'eboueur_space'
-  | 'admin_settings';
+  | 'admin_settings'
+  | 'admin_settings_screens'
+  | 'admin_settings_pricing'
+  | 'admin_settings_accounts'
+  | 'admin_settings_passwords';
 
 export interface PoubelleSignal {
   id: string;
