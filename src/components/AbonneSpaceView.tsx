@@ -32,7 +32,7 @@ interface AbonneSpaceViewProps {
   commune: Commune;
   avenue: Avenue;
   activeSignals: PoubelleSignal[];
-  onReportTrashFull: () => void;
+  onReportTrashFull: (type_poubelle: 'biodegradable' | 'non_biodegradable') => void;
   messages: InboxMessage[];
   onSendMessage: (sender: string, content: string) => void;
 }
@@ -47,9 +47,13 @@ export default function AbonneSpaceView({
   messages,
   onSendMessage
 }: AbonneSpaceViewProps) {
-  // Check if there's an active alert for this parcel
-  const currentSignal = useMemo(() => {
-    return activeSignals.find(s => s.parcelle_id === currentParcelle.id && s.status !== 'completed');
+  // Check if there's an active alert for biodegradable or non-biodegradable trash
+  const bioSignal = useMemo(() => {
+    return activeSignals.find(s => s.parcelle_id === currentParcelle.id && s.type_poubelle === 'biodegradable' && s.status !== 'completed');
+  }, [activeSignals, currentParcelle]);
+
+  const nonBioSignal = useMemo(() => {
+    return activeSignals.find(s => s.parcelle_id === currentParcelle.id && s.type_poubelle === 'non_biodegradable' && s.status !== 'completed');
   }, [activeSignals, currentParcelle]);
 
   // Households paid validation state
@@ -183,71 +187,115 @@ export default function AbonneSpaceView({
         <section className="bg-surface border border-outline-variant rounded-2xl p-5 md:p-6 shadow-md flex flex-col justify-between gap-6">
           <div className="flex flex-col gap-2">
             <h3 className="text-base font-extrabold text-on-surface flex items-center gap-2">
-              <Trash2 className="text-error" size={20} />
-              Signalement Poubelle Pleine
+              <Trash2 className="text-primary" size={20} />
+              Signalement Poubelles Remplies
             </h3>
             <p className="text-xs text-on-surface-variant leading-relaxed font-medium">
-              Votre poubelle déborde ou est pleine ? Émettez un signal en un clic pour envoyer une mission de ramassage à l'éboueur le plus proche de votre avenue.
+              Vos poubelles sont pleines ? Signalez séparément vos sachets poubelles biodégradables (déchets organiques) et non-biodégradables (plastiques, verres, métaux) pour optimiser le ramassage logistique et la distribution de nouveaux sachets.
             </p>
           </div>
 
-          {/* Signal State Display */}
-          <div className="bg-background/55 border border-outline-variant/60 p-5 rounded-2xl flex flex-col items-center justify-center text-center gap-4 py-8">
-            {currentSignal ? (
-              <div className="flex flex-col items-center gap-3 animate-pulse">
-                <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
-                  currentSignal.status === 'pending' 
-                    ? 'bg-error/15 text-error border border-error/20' 
-                    : 'bg-yellow-500/15 text-yellow-500 border border-yellow-500/20'
-                }`}>
-                  <AlertTriangle size={28} />
-                </div>
-                <div>
-                  <h4 className="text-sm font-black text-on-surface">
-                    {currentSignal.status === 'pending' ? 'Signal Actif Envoyé !' : 'Mission en Cours'}
-                  </h4>
-                  <p className="text-xs text-on-surface-variant mt-1 max-w-xs leading-normal">
-                    {currentSignal.status === 'pending' 
-                      ? 'Votre demande est en cours de traitement par notre régulateur de salubrité.' 
-                      : 'Un éboueur a été assigné et est en route vers votre parcelle.'}
-                  </p>
-                </div>
-                
-                <div className="mt-2 text-[10px] text-on-surface-variant font-bold uppercase tracking-wider bg-outline-variant/30 px-3 py-1 rounded-full flex items-center gap-1">
-                  <Clock size={11} /> Signalé à {currentSignal.reported_at.substring(11, 16)}
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* POUBELLE BIODEGRADABLE */}
+            <div className="bg-background/40 border border-outline-variant/60 rounded-2xl p-4 flex flex-col justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-extrabold uppercase text-emerald-400 tracking-wider">Biodégradable (Vert)</span>
               </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-14 h-14 rounded-full bg-[#10b981]/10 border border-[#10b981]/20 text-[#10b981] flex items-center justify-center">
-                  <CheckCircle2 size={28} />
-                </div>
-                <div>
-                  <h4 className="text-sm font-black text-on-surface">Votre poubelle est vide</h4>
-                  <p className="text-xs text-on-surface-variant mt-1 max-w-xs leading-normal">
-                    Aucun signalement actif de salubrité n'est enregistré pour votre parcelle N° {currentParcelle.numero_parcelle}.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
 
-          {/* Trigger Button */}
-          <button
-            onClick={() => {
-              onReportTrashFull();
-              alert("Signal envoyé ! Les éboueurs de votre commune ont été alertés de la mission.");
-            }}
-            disabled={!!currentSignal}
-            className={`w-full h-12 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98] cursor-pointer ${
-              currentSignal 
-                ? 'bg-outline-variant/30 text-on-surface-variant/50 cursor-not-allowed border border-outline-variant/20' 
-                : 'bg-error text-white hover:opacity-90 border border-error/25'
-            }`}
-          >
-            <Trash2 size={18} className={!currentSignal ? 'animate-bounce' : ''} />
-            <span>{currentSignal ? 'Signalement déjà transmis' : 'Signaler Poubelle Pleine 🚨'}</span>
-          </button>
+              {bioSignal ? (
+                <div className="flex flex-col gap-2 py-2">
+                  <div className="flex items-center gap-2 text-amber-500">
+                    <AlertTriangle size={16} className="animate-bounce" />
+                    <span className="text-xs font-black">
+                      {bioSignal.status === 'pending' ? 'En attente' : 'Éboueur en route'}
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-on-surface-variant leading-snug">
+                    {bioSignal.status === 'pending' 
+                      ? 'Signal enregistré, en attente de collecte.' 
+                      : 'Un agent se dirige vers votre parcelle.'}
+                  </p>
+                  <span className="text-[9px] font-bold text-on-surface-variant/70 uppercase">
+                    Signalé à {bioSignal.reported_at.substring(11, 16)}
+                  </span>
+                </div>
+              ) : (
+                <div className="py-3 flex flex-col gap-1">
+                  <span className="text-xs font-bold text-on-surface">Poubelle vide ✔</span>
+                  <p className="text-[10px] text-on-surface-variant leading-snug">
+                    Sachet vide ou en cours d'utilisation.
+                  </p>
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  onReportTrashFull('biodegradable');
+                  alert("Signal envoyé ! Les éboueurs ont été alertés de la mission de collecte biodégradable.");
+                }}
+                disabled={!!bioSignal}
+                className={`w-full h-10 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer ${
+                  bioSignal 
+                    ? 'bg-outline-variant/25 text-on-surface-variant/40 cursor-not-allowed border border-outline-variant/10' 
+                    : 'bg-emerald-600 text-white hover:bg-emerald-500 border border-emerald-500/20 shadow-md shadow-emerald-900/10'
+                }`}
+              >
+                <Trash2 size={14} />
+                <span>{bioSignal ? 'Transmis' : 'Signaler Pleine'}</span>
+              </button>
+            </div>
+
+            {/* POUBELLE NON-BIODEGRADABLE */}
+            <div className="bg-background/40 border border-outline-variant/60 rounded-2xl p-4 flex flex-col justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
+                <span className="text-xs font-extrabold uppercase text-indigo-400 tracking-wider">Non-Dégradable (Gris)</span>
+              </div>
+
+              {nonBioSignal ? (
+                <div className="flex flex-col gap-2 py-2">
+                  <div className="flex items-center gap-2 text-amber-500">
+                    <AlertTriangle size={16} className="animate-bounce" />
+                    <span className="text-xs font-black">
+                      {nonBioSignal.status === 'pending' ? 'En attente' : 'Éboueur en route'}
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-on-surface-variant leading-snug">
+                    {nonBioSignal.status === 'pending' 
+                      ? 'Signal enregistré, en attente de collecte.' 
+                      : 'Un agent se dirige vers votre parcelle.'}
+                  </p>
+                  <span className="text-[9px] font-bold text-on-surface-variant/70 uppercase">
+                    Signalé à {nonBioSignal.reported_at.substring(11, 16)}
+                  </span>
+                </div>
+              ) : (
+                <div className="py-3 flex flex-col gap-1">
+                  <span className="text-xs font-bold text-on-surface">Poubelle vide ✔</span>
+                  <p className="text-[10px] text-on-surface-variant leading-snug">
+                    Sachet vide ou en cours d'utilisation.
+                  </p>
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  onReportTrashFull('non_biodegradable');
+                  alert("Signal envoyé ! Les éboueurs ont été alertés de la mission de collecte non-dégradable.");
+                }}
+                disabled={!!nonBioSignal}
+                className={`w-full h-10 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer ${
+                  nonBioSignal 
+                    ? 'bg-outline-variant/25 text-on-surface-variant/40 cursor-not-allowed border border-outline-variant/10' 
+                    : 'bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-500/20 shadow-md shadow-indigo-900/10'
+                }`}
+              >
+                <Trash2 size={14} />
+                <span>{nonBioSignal ? 'Transmis' : 'Signaler Pleine'}</span>
+              </button>
+            </div>
+          </div>
         </section>
 
         {/* RIGHT COLUMN: Interactive Payments Calculator */}

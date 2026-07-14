@@ -81,6 +81,7 @@ export interface PoubelleSignal {
   assigned_eboueur_id?: string;
   reported_at: string;
   completed_at?: string;
+  type_poubelle?: 'biodegradable' | 'non_biodegradable';
 }
 
 export interface Eboueur {

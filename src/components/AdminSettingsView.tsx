@@ -93,8 +93,8 @@ export default function AdminSettingsView({
       }
     }
     return {
-      admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'],
-      agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map'],
+      admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'],
+      agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'sachets_management'],
       abonne: ['abonne_space'],
       eboueur: ['eboueur_space']
     };
@@ -215,6 +215,7 @@ export default function AdminSettingsView({
     { id: 'commune_explorer', label: 'Explorateur de position GPS', rolesAllowed: ['admin', 'agent'] },
     { id: 'dechets_map', label: 'Carte Poubelles & Éboueurs (Leaflet)', rolesAllowed: ['admin', 'agent', 'eboueur'] },
     { id: 'rapports', label: 'Rapports & Graphiques D3', rolesAllowed: ['admin', 'agent'] },
+    { id: 'sachets_management', label: 'Gestion de Sachets Poubelles', rolesAllowed: ['admin', 'agent'] },
     { id: 'abonne_space', label: 'Espace Abonné Exclusif', rolesAllowed: ['abonne'] },
     { id: 'eboueur_space', label: 'Espace Mission Éboueur Exclusif', rolesAllowed: ['eboueur'] },
     { id: 'admin_settings_screens', label: 'Paramètres: Options d\'Affichage / Rôles (Point 1)', rolesAllowed: ['admin'] },

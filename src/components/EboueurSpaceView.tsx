@@ -122,9 +122,19 @@ export default function EboueurSpaceView({
                       </div>
                     </div>
 
-                    <span className="text-[10px] font-mono bg-error/15 text-error px-2 py-0.5 rounded font-bold uppercase shrink-0 border border-error/20">
-                      Poubelle Pleine 🚨
-                    </span>
+                    {assignedMissions[0].type_poubelle === 'biodegradable' ? (
+                      <span className="text-[10px] font-mono bg-emerald-500/15 text-emerald-400 px-2.5 py-1 rounded-full font-bold uppercase shrink-0 border border-emerald-500/20">
+                        Biodégradable (Vert) 🟢
+                      </span>
+                    ) : assignedMissions[0].type_poubelle === 'non_biodegradable' ? (
+                      <span className="text-[10px] font-mono bg-indigo-500/15 text-indigo-400 px-2.5 py-1 rounded-full font-bold uppercase shrink-0 border border-indigo-500/20">
+                        Non-Dégradable (Gris) ⚪
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono bg-error/15 text-error px-2.5 py-1 rounded-full font-bold uppercase shrink-0 border border-error/20">
+                        Poubelle Pleine 🚨
+                      </span>
+                    )}
                   </div>
 
                   {/* Landlord metadata */}
@@ -133,13 +143,18 @@ export default function EboueurSpaceView({
                       Informations de l'Abonné (Bailleur)
                     </span>
                     <span className="font-extrabold text-on-surface">{assignedMissions[0].bailleur_nom}</span>
-                    <a 
-                      href={`tel:${assignedMissions[0].bailleur_telephone}`}
-                      className="text-secondary font-mono flex items-center gap-1 hover:underline cursor-pointer"
-                    >
-                      <Phone size={12} />
-                      {assignedMissions[0].bailleur_telephone}
-                    </a>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      <a 
+                        href={`tel:${assignedMissions[0].bailleur_telephone}`}
+                        className="text-secondary font-mono flex items-center gap-1 hover:underline cursor-pointer"
+                      >
+                        <Phone size={12} />
+                        {assignedMissions[0].bailleur_telephone}
+                      </a>
+                      <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/20 px-2 py-0.5 rounded border border-emerald-900/30">
+                        ➜ Sac de rechange {assignedMissions[0].type_poubelle === 'biodegradable' ? 'biodégradable' : 'non-dégradable'} prêt pour échange
+                      </span>
+                    </div>
                   </div>
 
                   <div className="flex justify-between items-center text-[10px] text-on-surface-variant">
@@ -206,11 +221,14 @@ export default function EboueurSpaceView({
                       <span className="font-extrabold text-on-surface block truncate">
                         N° {mis.numero_parcelle}, Av. {mis.avenue_nom}
                       </span>
-                      <span className="text-[10px] text-on-surface-variant">
-                        Commune : {mis.commune_nom}
-                      </span>
+                      <div className="flex flex-col gap-0.5 text-[10px] text-on-surface-variant mt-0.5">
+                        <span>Commune : {mis.commune_nom}</span>
+                        <span className={`font-semibold ${mis.type_poubelle === 'biodegradable' ? 'text-emerald-400' : 'text-indigo-400'}`}>
+                          Type : {mis.type_poubelle === 'biodegradable' ? 'Biodégradable (Vert)' : 'Non-Dégradable (Gris)'}
+                        </span>
+                      </div>
                       <span className="text-[9px] text-[#10b981] block font-mono mt-1 font-semibold flex items-center gap-0.5">
-                        <Clock size={10} /> Complété à {mis.completed_at?.substring(11, 16) || 'Récemment'}
+                        <Clock size={10} /> Complété • Sac remplacé ✔
                       </span>
                     </div>
                   </div>

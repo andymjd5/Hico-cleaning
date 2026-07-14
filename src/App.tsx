@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Agent, Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur, InboxMessage } from './types';
+import { Agent, Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur, InboxMessage, SachetStock, SachetDistribution } from './types';
 import { 
   INITIAL_AGENTS, 
   INITIAL_COMMUNES, 
@@ -24,9 +24,10 @@ import DechetsMapView from './components/DechetsMapView';
 import AbonneSpaceView from './components/AbonneSpaceView';
 import EboueurSpaceView from './components/EboueurSpaceView';
 import AdminSettingsView from './components/AdminSettingsView';
+import SachetsManagementView from './components/SachetsManagementView';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -193,6 +194,16 @@ export default function App() {
     ];
   });
 
+  const [sachetStocks, setSachetStocks] = useState<SachetStock[]>(() => {
+    const saved = localStorage.getItem('hico_sachet_stocks');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [sachetDistributions, setSachetDistributions] = useState<SachetDistribution[]>(() => {
+    const saved = localStorage.getItem('hico_sachet_distributions');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>(() => {
     const saved = localStorage.getItem('hico_inbox_messages');
     if (saved) return JSON.parse(saved);
@@ -227,6 +238,29 @@ export default function App() {
     localStorage.setItem('hico_inbox_messages', JSON.stringify(inboxMessages));
   }, [inboxMessages]);
 
+  useEffect(() => {
+    localStorage.setItem('hico_sachet_stocks', JSON.stringify(sachetStocks));
+  }, [sachetStocks]);
+
+  useEffect(() => {
+    localStorage.setItem('hico_sachet_distributions', JSON.stringify(sachetDistributions));
+  }, [sachetDistributions]);
+
+  // Seed sachet stocks when communes are loaded and stocks are empty
+  useEffect(() => {
+    if (communes.length > 0 && sachetStocks.length === 0) {
+      const initialStocks: SachetStock[] = communes.map(c => ({
+        id: 'stk-' + c.id,
+        commune_id: c.id,
+        biodegradable: 450 + Math.floor(Math.random() * 100), // ~500
+        non_biodegradable: 400 + Math.floor(Math.random() * 150), // ~500
+        seuil_alerte: 50,
+        last_replenished: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
+      }));
+      setSachetStocks(initialStocks);
+    }
+  }, [communes, sachetStocks]);
+
   // Dynamic screen permission verification helper
   const isScreenAllowed = (screenId: string) => {
     if (!currentUser) return false;
@@ -237,6 +271,14 @@ export default function App() {
     if (customPermsRaw) {
       try {
         perms = JSON.parse(customPermsRaw);
+        if (perms.admin && !perms.admin.includes('sachets_management')) {
+          perms.admin = [...perms.admin, 'sachets_management'];
+          localStorage.setItem('hico_role_permissions', JSON.stringify(perms));
+        }
+        if (perms.agent && !perms.agent.includes('sachets_management')) {
+          perms.agent = [...perms.agent, 'sachets_management'];
+          localStorage.setItem('hico_role_permissions', JSON.stringify(perms));
+        }
         if (perms.admin && !perms.admin.includes('admin_settings_screens')) {
           perms.admin = [
             ...perms.admin.filter((s: string) => s !== 'admin_settings'),
@@ -256,10 +298,10 @@ export default function App() {
       perms = {
         admin: [
           'dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 
-          'rapports', 'commune_explorer', 'dechets_map', 'admin_settings_screens', 
+          'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'admin_settings_screens', 
           'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
         ],
-        agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map'],
+        agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'sachets_management'],
         abonne: ['abonne_space'],
         eboueur: ['eboueur_space']
       };
@@ -617,7 +659,64 @@ export default function App() {
   // ==========================================
   // GESTION DES DECHETS ET EBOUEURS HANDLERS
   // ==========================================
-  const handleReportTrashFull = () => {
+  const handleReplenishStock = (communeId: string, bioQty: number, nonBioQty: number) => {
+    setSachetStocks(prev => {
+      const updated = prev.map(stock => {
+        if (stock.commune_id === communeId) {
+          return {
+            ...stock,
+            biodegradable: stock.biodegradable + bioQty,
+            non_biodegradable: stock.non_biodegradable + nonBioQty,
+            last_replenished: new Date().toISOString()
+          };
+        }
+        return stock;
+      });
+      if (!updated.some(s => s.commune_id === communeId)) {
+        updated.push({
+          id: 'stk-' + communeId,
+          commune_id: communeId,
+          biodegradable: bioQty,
+          non_biodegradable: nonBioQty,
+          seuil_alerte: 50,
+          last_replenished: new Date().toISOString()
+        });
+      }
+      return updated;
+    });
+  };
+
+  const handleDistributeSachets = (distribution: Omit<SachetDistribution, 'id'>) => {
+    let success = false;
+    setSachetStocks(prev => {
+      const updated = prev.map(stock => {
+        if (stock.commune_id === distribution.commune_id) {
+          if (stock.biodegradable >= distribution.quantite_biodegradable && 
+              stock.non_biodegradable >= distribution.quantite_non_biodegradable) {
+            success = true;
+            return {
+              ...stock,
+              biodegradable: stock.biodegradable - distribution.quantite_biodegradable,
+              non_biodegradable: stock.non_biodegradable - distribution.quantite_non_biodegradable
+            };
+          }
+        }
+        return stock;
+      });
+      return updated;
+    });
+
+    if (!success) return false;
+
+    const newDist: SachetDistribution = {
+      id: 'dist-' + Math.random().toString(36).substring(2, 11),
+      ...distribution
+    };
+    setSachetDistributions(prev => [newDist, ...prev]);
+    return true;
+  };
+
+  const handleReportTrashFull = (type_poubelle: 'biodegradable' | 'non_biodegradable') => {
     // Find active Abonne profile associated with the user
     const ab = abonnes.find(a => a.telephone_principal === currentUser?.telephone || a.id === 'abonne-demo');
     if (!ab) {
@@ -629,6 +728,18 @@ export default function App() {
       alert("Erreur: Parcelle d'abonné introuvable !");
       return;
     }
+
+    // Check if there is already an active signal for this specific type to avoid duplicates
+    const alreadySignaled = poubelleSignals.some(
+      s => s.parcelle_id === parc.id && 
+           s.type_poubelle === type_poubelle && 
+           s.status !== 'completed'
+    );
+    if (alreadySignaled) {
+      alert(`Un signalement est déjà actif pour votre poubelle ${type_poubelle === 'biodegradable' ? 'biodégradable' : 'non-biodégradable'}.`);
+      return;
+    }
+
     const ave = avenues.find(a => a.id === parc.avenue_id);
     const com = communes.find(c => c.id === ave?.commune_id);
 
@@ -644,7 +755,8 @@ export default function App() {
       bailleur_nom: ab.nom_complet,
       bailleur_telephone: ab.telephone_principal,
       status: 'pending',
-      reported_at: new Date().toISOString()
+      reported_at: new Date().toISOString(),
+      type_poubelle: type_poubelle
     };
 
     setPoubelleSignals(prev => [newSignal, ...prev]);
@@ -675,10 +787,18 @@ export default function App() {
 
   const handleCompleteMission = (signalId: string) => {
     let assignedEbId: string | undefined;
+    let signalType: 'biodegradable' | 'non_biodegradable' = 'biodegradable';
+    let parcelleId = '';
+    let avenueId = '';
+    let communeId = '';
 
     setPoubelleSignals(prev => prev.map(sig => {
       if (sig.id === signalId) {
         assignedEbId = sig.assigned_eboueur_id;
+        signalType = sig.type_poubelle || 'biodegradable';
+        parcelleId = sig.parcelle_id;
+        avenueId = sig.avenue_id;
+        communeId = sig.commune_id;
         return {
           ...sig,
           status: 'completed',
@@ -687,6 +807,31 @@ export default function App() {
       }
       return sig;
     }));
+
+    // Find the name of the driver who completed the mission to log as distributor
+    let driverNom = 'Chauffeur Éboueur';
+    if (assignedEbId) {
+      const ebObj = eboueurs.find(e => e.id === assignedEbId);
+      if (ebObj) driverNom = ebObj.nom;
+    } else {
+      const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone || e.id === 'eboueur-demo');
+      if (currentEb) driverNom = currentEb.nom;
+    }
+
+    // Auto distribute replacement sachet of that type during collection
+    if (parcelleId && avenueId && communeId) {
+      const isBio = signalType === 'biodegradable';
+      handleDistributeSachets({
+        parcelle_id: parcelleId,
+        avenue_id: avenueId,
+        commune_id: communeId,
+        date_distribution: new Date().toISOString(),
+        quantite_biodegradable: isBio ? 1 : 0,
+        quantite_non_biodegradable: isBio ? 0 : 1,
+        distribue_par: driverNom,
+        notes: `Remplacement de sac poubelle (${isBio ? 'biodégradable' : 'non-biodégradable'}) après ramassage.`
+      });
+    }
 
     if (assignedEbId) {
       setEboueurs(prev => prev.map(eb => {
@@ -1000,6 +1145,21 @@ export default function App() {
                     <span>Rapports</span>
                   </button>
 
+                  {/* Sachets management tab */}
+                  {isScreenAllowed('sachets_management') && (
+                    <button 
+                      onClick={() => setCurrentScreen('sachets_management')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'sachets_management'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <Package size={18} />
+                      <span>Gestion de Sachets</span>
+                    </button>
+                  )}
+
                   {/* Settings section header */}
                   {(isScreenAllowed('admin_settings_screens') || 
                     isScreenAllowed('admin_settings_pricing') || 
@@ -1185,6 +1345,19 @@ export default function App() {
                   avenues={avenues}
                   parcelles={parcelles}
                   abonnes={abonnes}
+                />
+              )}
+
+              {currentScreen === 'sachets_management' && (
+                <SachetsManagementView 
+                  communes={communes}
+                  avenues={avenues}
+                  parcelles={parcelles}
+                  agents={agents}
+                  stocks={sachetStocks}
+                  distributions={sachetDistributions}
+                  onReplenishStock={handleReplenishStock}
+                  onDistributeSachets={handleDistributeSachets}
                 />
               )}
 
