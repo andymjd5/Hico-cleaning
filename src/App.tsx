@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Agent, Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur, InboxMessage, SachetStock, SachetDistribution } from './types';
+import { Agent, Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur, InboxMessage, SachetStock, SachetDistribution, SubscriptionPayment, StaffPayment, MaterialExpense, DisputeSignal } from './types';
 import { 
   INITIAL_AGENTS, 
   INITIAL_COMMUNES, 
@@ -25,6 +25,7 @@ import AbonneSpaceView from './components/AbonneSpaceView';
 import EboueurSpaceView from './components/EboueurSpaceView';
 import AdminSettingsView from './components/AdminSettingsView';
 import SachetsManagementView from './components/SachetsManagementView';
+import FinanceManagementView from './components/FinanceManagementView';
 
 // Lucide Icons
 import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package } from 'lucide-react';
@@ -204,6 +205,138 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [payments, setPayments] = useState<SubscriptionPayment[]>(() => {
+    const saved = localStorage.getItem('hico_payments');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'PAY-8219A',
+        abonne_id: 'ab-demo-1',
+        nom_complet: 'Papa Mavula',
+        commune_id: 'c-gombe',
+        parcelle_id: 'p-demo-1',
+        montant: 12.0,
+        date_paiement: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
+        mode_paiement: 'mpesa',
+        telephone_payeur: '0821111111',
+        status: 'success'
+      },
+      {
+        id: 'PAY-1928B',
+        abonne_id: 'ab-demo-2',
+        nom_complet: 'Maman Sifa',
+        commune_id: 'c-lemba',
+        parcelle_id: 'p-demo-2',
+        montant: 8.0,
+        date_paiement: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString(),
+        mode_paiement: 'orange',
+        telephone_payeur: '0815555555',
+        status: 'success'
+      },
+      {
+        id: 'PAY-4831C',
+        abonne_id: 'ab-demo-3',
+        nom_complet: 'Bailleur Gombe 2',
+        commune_id: 'c-gombe',
+        parcelle_id: 'p-demo-3',
+        montant: 15.0,
+        date_paiement: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
+        mode_paiement: 'airtel',
+        telephone_payeur: '0852222222',
+        status: 'success'
+      }
+    ];
+  });
+
+  const [staffPayments, setStaffPayments] = useState<StaffPayment[]>(() => {
+    const saved = localStorage.getItem('hico_staff_payments');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'PAY-STF-1',
+        recipient_id: 'eb-1',
+        recipient_name: 'Chauffeur Kabeya',
+        recipient_role: 'eboueur',
+        commune_id: 'c-gombe',
+        montant: 250.0,
+        date_paiement: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
+        notes: 'Salaire mensuel Juin 2026'
+      },
+      {
+        id: 'PAY-STF-2',
+        recipient_id: 'eb-2',
+        recipient_name: 'Chauffeur Mutombo',
+        recipient_role: 'eboueur',
+        commune_id: 'c-lemba',
+        montant: 250.0,
+        date_paiement: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
+        notes: 'Salaire mensuel Juin 2026'
+      },
+      {
+        id: 'PAY-STF-3',
+        recipient_id: 'ag-demo-1',
+        recipient_name: 'Agent Recenseur Kinshasa',
+        recipient_role: 'agent',
+        commune_id: 'c-gombe',
+        montant: 200.0,
+        date_paiement: new Date(Date.now() - 12 * 24 * 3600 * 1000).toISOString(),
+        notes: 'Indemnité de recensement'
+      }
+    ];
+  });
+
+  const [materialExpenses, setMaterialExpenses] = useState<MaterialExpense[]>(() => {
+    const saved = localStorage.getItem('hico_material_expenses');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'EXP-1',
+        label: 'Achat de 15 râteaux de voirie',
+        commune_id: 'c-gombe',
+        montant: 45.0,
+        date_depense: new Date(Date.now() - 8 * 24 * 3600 * 1000).toISOString(),
+        notes: 'Fournisseur Bricolage Kinshasa'
+      },
+      {
+        id: 'EXP-2',
+        label: 'Sachets poubelles rechargeables x1000',
+        commune_id: 'global',
+        montant: 120.0,
+        date_depense: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
+        notes: 'Importation plastique biodégradable'
+      },
+      {
+        id: 'EXP-3',
+        label: 'Carburant benne tasseuse Gombe',
+        commune_id: 'c-gombe',
+        montant: 80.0,
+        date_depense: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
+        notes: 'Station Engie'
+      }
+    ];
+  });
+
+  const [disputes, setDisputes] = useState<DisputeSignal[]>(() => {
+    const saved = localStorage.getItem('hico_disputes');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'DISP-1',
+        abonne_id: 'ab-demo-4',
+        nom_complet: 'Bailleur En Retard 1',
+        telephone: '0812222222',
+        commune_id: 'c-lemba',
+        parcelle_id: 'p-demo-4',
+        montant_du: 10.0,
+        date_constat: new Date(Date.now() - 4 * 24 * 3600 * 1000).toISOString(),
+        status: 'active',
+        reminders_sent: 1,
+        last_reminder_date: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
+        notes: 'Refuse de payer sous prétexte de voyage locataire'
+      }
+    ];
+  });
+
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>(() => {
     const saved = localStorage.getItem('hico_inbox_messages');
     if (saved) return JSON.parse(saved);
@@ -246,6 +379,22 @@ export default function App() {
     localStorage.setItem('hico_sachet_distributions', JSON.stringify(sachetDistributions));
   }, [sachetDistributions]);
 
+  useEffect(() => {
+    localStorage.setItem('hico_payments', JSON.stringify(payments));
+  }, [payments]);
+
+  useEffect(() => {
+    localStorage.setItem('hico_staff_payments', JSON.stringify(staffPayments));
+  }, [staffPayments]);
+
+  useEffect(() => {
+    localStorage.setItem('hico_material_expenses', JSON.stringify(materialExpenses));
+  }, [materialExpenses]);
+
+  useEffect(() => {
+    localStorage.setItem('hico_disputes', JSON.stringify(disputes));
+  }, [disputes]);
+
   // Seed sachet stocks when communes are loaded and stocks are empty
   useEffect(() => {
     if (communes.length > 0 && sachetStocks.length === 0) {
@@ -279,6 +428,14 @@ export default function App() {
           perms.agent = [...perms.agent, 'sachets_management'];
           localStorage.setItem('hico_role_permissions', JSON.stringify(perms));
         }
+        if (perms.admin && !perms.admin.includes('finance_management')) {
+          perms.admin = [...perms.admin, 'finance_management'];
+          localStorage.setItem('hico_role_permissions', JSON.stringify(perms));
+        }
+        if (perms.agent && !perms.agent.includes('finance_management')) {
+          perms.agent = [...perms.agent, 'finance_management'];
+          localStorage.setItem('hico_role_permissions', JSON.stringify(perms));
+        }
         if (perms.admin && !perms.admin.includes('admin_settings_screens')) {
           perms.admin = [
             ...perms.admin.filter((s: string) => s !== 'admin_settings'),
@@ -298,10 +455,10 @@ export default function App() {
       perms = {
         admin: [
           'dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 
-          'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'admin_settings_screens', 
+          'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'admin_settings_screens', 
           'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
         ],
-        agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'sachets_management'],
+        agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management'],
         abonne: ['abonne_space'],
         eboueur: ['eboueur_space']
       };
@@ -714,6 +871,105 @@ export default function App() {
     };
     setSachetDistributions(prev => [newDist, ...prev]);
     return true;
+  };
+
+  // ==========================================
+  // GESTION FINANCIERE & RECETTES & LITIGES HANDLERS
+  // ==========================================
+  const handleAddSubscriptionPayment = (newPay: Omit<SubscriptionPayment, 'id'>) => {
+    const pay: SubscriptionPayment = {
+      ...newPay,
+      id: 'PAY-' + Math.random().toString(36).substring(2, 9).toUpperCase()
+    };
+    setPayments(prev => [pay, ...prev]);
+
+    // If there is an active dispute for this abonne, let's mark it resolved
+    setDisputes(prev => prev.map(d => {
+      if (d.abonne_id === newPay.abonne_id && d.status === 'active') {
+        return { ...d, status: 'resolved' };
+      }
+      return d;
+    }));
+  };
+
+  const handlePayStaff = (newPay: Omit<StaffPayment, 'id'>) => {
+    const pay: StaffPayment = {
+      ...newPay,
+      id: 'PAY-STF-' + Math.random().toString(36).substring(2, 9).toUpperCase()
+    };
+    setStaffPayments(prev => [pay, ...prev]);
+  };
+
+  const handleAddMaterialExpense = (newExp: Omit<MaterialExpense, 'id'>) => {
+    const exp: MaterialExpense = {
+      ...newExp,
+      id: 'EXP-' + Math.random().toString(36).substring(2, 9).toUpperCase()
+    };
+    setMaterialExpenses(prev => [exp, ...prev]);
+  };
+
+  const handleSignalDispute = (newDisp: Omit<DisputeSignal, 'id'>) => {
+    const disp: DisputeSignal = {
+      ...newDisp,
+      id: 'DISP-' + Math.random().toString(36).substring(2, 9).toUpperCase()
+    };
+    setDisputes(prev => [disp, ...prev]);
+
+    // Send a real inbox notification warning the subscriber
+    const msgContent = `[SIGNALEMENT DE LITIGE] Nous constatons un défaut de paiement de redevance de salubrité pour votre parcelle. Montant réclamé : ${newDisp.montant_du} FC / $. Veuillez régulariser d'urgence via l'application ou appeler le service recouvrement.`;
+    handleSendInboxMessage('Service Recouvrement (Hico)', msgContent);
+  };
+
+  const handleResolveDispute = (disputeId: string) => {
+    setDisputes(prev => prev.map(d => {
+      if (d.id === disputeId) {
+        // Record a payment first
+        const pay: SubscriptionPayment = {
+          id: 'PAY-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+          abonne_id: d.abonne_id,
+          nom_complet: d.nom_complet,
+          commune_id: d.commune_id,
+          parcelle_id: d.parcelle_id,
+          montant: d.montant_du,
+          date_paiement: new Date().toISOString(),
+          mode_paiement: 'mpesa',
+          telephone_payeur: d.telephone,
+          status: 'success'
+        };
+        setPayments(prevPayments => [pay, ...prevPayments]);
+
+        // Mark dispute resolved
+        return { ...d, status: 'resolved' as const };
+      }
+      return d;
+    }));
+
+    // Send notification to user that they are paid up
+    const updatedDispute = disputes.find(d => d.id === disputeId);
+    if (updatedDispute) {
+      const msgContent = `[LITIGE RÉSOLU] Merci ! Votre redevance de salubrité de ${updatedDispute.montant_du} a été réglée avec succès. Votre abonnement est réactivé.`;
+      handleSendInboxMessage('Service Recouvrement (Hico)', msgContent);
+    }
+  };
+
+  const handleSendDisputeReminder = (disputeId: string) => {
+    setDisputes(prev => prev.map(d => {
+      if (d.id === disputeId) {
+        // Increment reminders_sent
+        const reminders = d.reminders_sent + 1;
+        
+        // Push a warning to the user's inbox
+        const msgContent = `[RAPPEL DE LITIGE N°${reminders}] Alerte de recouvrement ! Votre compte présente un solde impayé de ${d.montant_du}. Un SMS de sommation a été envoyé au ${d.telephone}. Veuillez régler sous 48h.`;
+        handleSendInboxMessage('Service Recouvrement (Hico)', msgContent);
+
+        return {
+          ...d,
+          reminders_sent: reminders,
+          last_reminder_date: new Date().toISOString()
+        };
+      }
+      return d;
+    }));
   };
 
   const handleReportTrashFull = (type_poubelle: 'biodegradable' | 'non_biodegradable') => {
@@ -1160,6 +1416,21 @@ export default function App() {
                     </button>
                   )}
 
+                  {/* Finance management tab */}
+                  {isScreenAllowed('finance_management') && (
+                    <button 
+                      onClick={() => setCurrentScreen('finance_management')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'finance_management'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <DollarSign size={18} />
+                      <span>Gestion Financière</span>
+                    </button>
+                  )}
+
                   {/* Settings section header */}
                   {(isScreenAllowed('admin_settings_screens') || 
                     isScreenAllowed('admin_settings_pricing') || 
@@ -1361,6 +1632,26 @@ export default function App() {
                 />
               )}
 
+              {currentScreen === 'finance_management' && (
+                <FinanceManagementView 
+                  communes={communes}
+                  avenues={avenues}
+                  parcelles={parcelles}
+                  abonnes={abonnes}
+                  agents={agents}
+                  payments={payments}
+                  staffPayments={staffPayments}
+                  expenses={materialExpenses}
+                  disputes={disputes}
+                  onAddSubscriptionPayment={handleAddSubscriptionPayment}
+                  onPayStaff={handlePayStaff}
+                  onAddExpense={handleAddMaterialExpense}
+                  onSignalDispute={handleSignalDispute}
+                  onResolveDispute={handleResolveDispute}
+                  onSendDisputeReminder={handleSendDisputeReminder}
+                />
+              )}
+
               {currentScreen === 'commune_explorer' && (
                 <CommuneExplorer 
                   communes={communes}
@@ -1424,6 +1715,30 @@ export default function App() {
                     onReportTrashFull={handleReportTrashFull}
                     messages={inboxMessages}
                     onSendMessage={handleSendInboxMessage}
+                    onRecordOnlinePayment={(amount, provider, phone) => {
+                      // Add payment directly to receipts registry
+                      const pay: SubscriptionPayment = {
+                        id: 'PAY-ONL-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+                        abonne_id: userAbonne.id,
+                        nom_complet: userAbonne.nom_complet,
+                        commune_id: userCommune.id,
+                        parcelle_id: userParcelle.id,
+                        montant: amount,
+                        date_paiement: new Date().toISOString(),
+                        mode_paiement: provider,
+                        telephone_payeur: phone,
+                        status: 'success'
+                      };
+                      setPayments(prev => [pay, ...prev]);
+
+                      // Auto-resolve any active dispute if there is one
+                      setDisputes(prev => prev.map(d => {
+                        if (d.abonne_id === userAbonne.id && d.status === 'active') {
+                          return { ...d, status: 'resolved' };
+                        }
+                        return d;
+                      }));
+                    }}
                   />
                 );
               })()}

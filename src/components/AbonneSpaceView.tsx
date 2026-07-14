@@ -35,6 +35,7 @@ interface AbonneSpaceViewProps {
   onReportTrashFull: (type_poubelle: 'biodegradable' | 'non_biodegradable') => void;
   messages: InboxMessage[];
   onSendMessage: (sender: string, content: string) => void;
+  onRecordOnlinePayment?: (amount: number, provider: 'mpesa' | 'orange' | 'airtel', phone: string) => void;
 }
 
 export default function AbonneSpaceView({
@@ -45,7 +46,8 @@ export default function AbonneSpaceView({
   activeSignals,
   onReportTrashFull,
   messages,
-  onSendMessage
+  onSendMessage,
+  onRecordOnlinePayment
 }: AbonneSpaceViewProps) {
   // Check if there's an active alert for biodegradable or non-biodegradable trash
   const bioSignal = useMemo(() => {
@@ -136,6 +138,10 @@ export default function AbonneSpaceView({
     setTimeout(() => {
       setIsProcessingPayment(false);
       setPaymentSuccess(true);
+      
+      if (onRecordOnlinePayment) {
+        onRecordOnlinePayment(totalAmountDue, selectedPaymentProvider, paymentPhoneNumber);
+      }
       
       // Update subscription date to next month
       const nextMonth = new Date();

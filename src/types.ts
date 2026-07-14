@@ -65,7 +65,8 @@ export type Screen =
   | 'admin_settings_pricing'
   | 'admin_settings_accounts'
   | 'admin_settings_passwords'
-  | 'sachets_management';
+  | 'sachets_management'
+  | 'finance_management';
 
 export interface PoubelleSignal {
   id: string;
@@ -122,3 +123,52 @@ export interface SachetDistribution {
   distribue_par: string; // Nom de l'éboueur ou agent
   notes?: string;
 }
+
+export interface SubscriptionPayment {
+  id: string;
+  abonne_id: string;
+  nom_complet: string;
+  commune_id: string;
+  parcelle_id: string;
+  montant: number;
+  date_paiement: string;
+  mode_paiement: 'mpesa' | 'orange' | 'airtel';
+  telephone_payeur: string;
+  status: 'success';
+}
+
+export interface StaffPayment {
+  id: string;
+  recipient_id: string;
+  recipient_name: string;
+  recipient_role: 'agent' | 'eboueur' | 'staff';
+  commune_id: string;
+  montant: number;
+  date_paiement: string;
+  notes?: string;
+}
+
+export interface MaterialExpense {
+  id: string;
+  label: string;
+  commune_id: string; // "global" or commune.id
+  montant: number;
+  date_depense: string;
+  notes?: string;
+}
+
+export interface DisputeSignal {
+  id: string;
+  abonne_id: string;
+  nom_complet: string;
+  telephone: string;
+  commune_id: string;
+  parcelle_id: string;
+  montant_du: number;
+  date_constat: string;
+  status: 'active' | 'resolved';
+  reminders_sent: number;
+  last_reminder_date?: string;
+  notes?: string;
+}
+
