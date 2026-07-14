@@ -78,9 +78,22 @@ export default function AbonneSpaceView({
 
   const householdCount = currentParcelle.nombre_menages;
   const subscriptionPricePerHousehold = useMemo(() => {
+    if (commune && commune.id) {
+      const savedCommunePrices = localStorage.getItem('hico_commune_prices');
+      if (savedCommunePrices) {
+        try {
+          const prices = JSON.parse(savedCommunePrices);
+          if (prices[commune.id] !== undefined) {
+            return parseFloat(prices[commune.id]);
+          }
+        } catch (e) {
+          console.error("Error parsing commune prices", e);
+        }
+      }
+    }
     const saved = localStorage.getItem('hico_subscription_price');
     return saved ? parseFloat(saved) : 1.0;
-  }, []);
+  }, [commune]);
 
   const currencySymbol = useMemo(() => {
     return localStorage.getItem('hico_subscription_currency') || '$';

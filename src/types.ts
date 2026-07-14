@@ -64,7 +64,8 @@ export type Screen =
   | 'admin_settings_screens'
   | 'admin_settings_pricing'
   | 'admin_settings_accounts'
-  | 'admin_settings_passwords';
+  | 'admin_settings_passwords'
+  | 'sachets_management';
 
 export interface PoubelleSignal {
   id: string;
@@ -98,4 +99,25 @@ export interface InboxMessage {
   content: string;
   sent_at: string;
   read: boolean;
+}
+
+export interface SachetStock {
+  id: string;
+  commune_id: string;
+  biodegradable: number;
+  non_biodegradable: number;
+  seuil_alerte: number;
+  last_replenished: string;
+}
+
+export interface SachetDistribution {
+  id: string;
+  parcelle_id: string;
+  avenue_id: string;
+  commune_id: string;
+  date_distribution: string;
+  quantite_biodegradable: number;
+  quantite_non_biodegradable: number;
+  distribue_par: string; // Nom de l'éboueur ou agent
+  notes?: string;
 }

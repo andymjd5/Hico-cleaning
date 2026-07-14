@@ -232,17 +232,38 @@ export default function App() {
     if (!currentUser) return false;
     if (screenId === 'login' || screenId === 'profil') return true;
     
+    let perms;
     const customPermsRaw = localStorage.getItem('hico_role_permissions');
-    const perms = customPermsRaw ? JSON.parse(customPermsRaw) : {
-      admin: [
-        'dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 
-        'rapports', 'commune_explorer', 'dechets_map', 'admin_settings_screens', 
-        'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
-      ],
-      agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map'],
-      abonne: ['abonne_space'],
-      eboueur: ['eboueur_space']
-    };
+    if (customPermsRaw) {
+      try {
+        perms = JSON.parse(customPermsRaw);
+        if (perms.admin && !perms.admin.includes('admin_settings_screens')) {
+          perms.admin = [
+            ...perms.admin.filter((s: string) => s !== 'admin_settings'),
+            'admin_settings_screens',
+            'admin_settings_pricing',
+            'admin_settings_accounts',
+            'admin_settings_passwords'
+          ];
+          localStorage.setItem('hico_role_permissions', JSON.stringify(perms));
+        }
+      } catch (e) {
+        // Fallback below
+      }
+    }
+    
+    if (!perms) {
+      perms = {
+        admin: [
+          'dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 
+          'rapports', 'commune_explorer', 'dechets_map', 'admin_settings_screens', 
+          'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
+        ],
+        agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map'],
+        abonne: ['abonne_space'],
+        eboueur: ['eboueur_space']
+      };
+    }
 
     const allowed = perms[currentUser.role] || [];
     return allowed.includes(screenId);
@@ -1293,6 +1314,7 @@ export default function App() {
                     };
                     setCurrentScreen(screenMap[tab]);
                   }}
+                  communes={communes}
                 />
               )}
 

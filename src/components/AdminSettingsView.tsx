@@ -13,7 +13,7 @@ import {
   Trash2, 
   Unlock 
 } from 'lucide-react';
-import { Agent, Screen } from '../types';
+import { Agent, Screen, Commune } from '../types';
 
 interface AdminSettingsViewProps {
   agents: Agent[];
@@ -22,6 +22,7 @@ interface AdminSettingsViewProps {
   onDeleteAgent: (agentId: string) => void;
   defaultTab?: 'screens' | 'pricing' | 'accounts' | 'passwords';
   onTabChange?: (tab: 'screens' | 'pricing' | 'accounts' | 'passwords') => void;
+  communes?: Commune[];
 }
 
 export default function AdminSettingsView({
@@ -30,7 +31,8 @@ export default function AdminSettingsView({
   onUpdateAgent,
   onDeleteAgent,
   defaultTab = 'screens',
-  onTabChange
+  onTabChange,
+  communes = []
 }: AdminSettingsViewProps) {
   // 1. Tab State
   const [activeTab, setActiveTab] = useState<'screens' | 'pricing' | 'accounts' | 'passwords'>(defaultTab);
@@ -56,12 +58,40 @@ export default function AdminSettingsView({
   const [currency, setCurrency] = useState<string>(() => {
     return localStorage.getItem('hico_subscription_currency') || '$';
   });
+  const [communePrices, setCommunePrices] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('hico_commune_prices');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error loading commune prices", e);
+      }
+    }
+    return {};
+  });
   const [priceSuccess, setPriceSuccess] = useState(false);
 
   // 3. Permissions/Screens State
   const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>(() => {
     const saved = localStorage.getItem('hico_role_permissions');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.admin && !parsed.admin.includes('admin_settings_screens')) {
+          parsed.admin = [
+            ...parsed.admin.filter((s: string) => s !== 'admin_settings'),
+            'admin_settings_screens',
+            'admin_settings_pricing',
+            'admin_settings_accounts',
+            'admin_settings_passwords'
+          ];
+          localStorage.setItem('hico_role_permissions', JSON.stringify(parsed));
+        }
+        return parsed;
+      } catch (e) {
+        console.error("Error loading permissions", e);
+      }
+    }
     return {
       admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'],
       agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map'],
@@ -88,6 +118,7 @@ export default function AdminSettingsView({
     e.preventDefault();
     localStorage.setItem('hico_subscription_price', subscriptionPrice.toString());
     localStorage.setItem('hico_subscription_currency', currency);
+    localStorage.setItem('hico_commune_prices', JSON.stringify(communePrices));
     setPriceSuccess(true);
     setTimeout(() => setPriceSuccess(false), 3000);
   };
@@ -348,11 +379,11 @@ export default function AdminSettingsView({
             <p className="text-xs text-on-surface-variant">Modifiez le prix facturé mensuellement par ménage recensé pour l'abonnement d'évacuation des déchets.</p>
           </div>
 
-          <form onSubmit={handleSavePricing} className="flex flex-col gap-4 max-w-md mt-2" id="pricing_form">
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSavePricing} className="flex flex-col gap-4 mt-2" id="pricing_form">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="sub_price">
-                  Tarif Mensuel (par ménage)
+                  Tarif Mensuel Général par défaut (par ménage)
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-500 font-bold font-mono">
@@ -387,22 +418,73 @@ export default function AdminSettingsView({
               </div>
             </div>
 
-            <div className="bg-background/50 border border-outline-variant p-4 rounded-2xl flex items-start gap-3 mt-1">
+            <div className="bg-background/50 border border-outline-variant p-4 rounded-2xl flex items-start gap-3 mt-1 max-w-2xl">
               <div className="text-amber-500 shrink-0 text-base mt-0.5">💡</div>
               <div className="flex flex-col gap-0.5 text-xs">
                 <span className="font-bold text-on-surface">Calcul Automatique des factures</span>
                 <span className="text-on-surface-variant leading-relaxed">
                   Le système calculera automatiquement le montant à payer pour chaque parcelle abonnée en multipliant : 
                   <br />
-                  <strong className="text-primary font-mono font-bold">Nombre de ménages × {subscriptionPrice} {currency}</strong>.
+                  <strong className="text-primary font-mono font-bold">Nombre de ménages × Tarif de la commune {currency}</strong>.
                 </span>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-2">
+            {/* Tarifs personnalisés par commune */}
+            {communes && communes.length > 0 && (
+              <div className="border-t border-outline-variant/60 pt-5 mt-4" id="commune_pricing_section">
+                <h4 className="text-sm font-black text-on-surface tracking-tight mb-1">
+                  Tarifs personnalisés par Commune
+                </h4>
+                <p className="text-[11px] text-on-surface-variant mb-4 leading-normal">
+                  Saisissez un tarif spécifique pour chaque commune si nécessaire. Les communes sans tarif personnalisé utiliseront automatiquement le tarif par défaut ci-dessus (<strong className="font-bold">{subscriptionPrice} {currency}</strong>).
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {communes.map((comm) => {
+                    const customVal = communePrices[comm.id] !== undefined ? communePrices[comm.id] : '';
+                    return (
+                      <div 
+                        key={comm.id}
+                        className="bg-background/40 border border-outline-variant rounded-2xl p-3 flex flex-col gap-1.5 hover:border-outline/50 transition-all"
+                      >
+                        <span className="text-xs font-bold text-on-surface truncate">{comm.nom}</span>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-gray-500 font-bold font-mono text-xs">
+                            {currency}
+                          </span>
+                          <input 
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            placeholder={`${subscriptionPrice}`}
+                            value={customVal}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                              setCommunePrices(prev => {
+                                const updated = { ...prev };
+                                if (val === undefined || isNaN(val)) {
+                                  delete updated[comm.id];
+                                } else {
+                                  updated[comm.id] = val;
+                                }
+                                return updated;
+                              });
+                            }}
+                            className="w-full h-9 pl-7 pr-2 bg-surface border border-outline-variant rounded-lg text-on-surface text-xs focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono font-bold"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-4">
               {priceSuccess && (
                 <span className="text-xs text-[#10b981] font-bold self-center flex items-center gap-1 bg-[#10b981]/15 border border-[#10b981]/20 px-3 py-1.5 rounded-xl animate-fade-in">
-                  <Check size={14} /> Tarif mis à jour avec succès !
+                  <Check size={14} /> Tarifs mis à jour avec succès !
                 </span>
               )}
               <button
@@ -410,7 +492,7 @@ export default function AdminSettingsView({
                 id="btn_save_pricing"
                 className="px-5 py-2.5 bg-primary text-on-primary font-bold text-xs rounded-xl hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-md"
               >
-                Enregistrer le Nouveau Tarif
+                Enregistrer les Tarifs
               </button>
             </div>
           </form>
@@ -421,7 +503,7 @@ export default function AdminSettingsView({
       {activeTab === 'accounts' && (
         <div className="bg-surface border border-outline-variant rounded-3xl p-6 shadow-xl flex flex-col gap-4 animate-fade-in" id="accounts_settings_card">
           <div className="flex flex-col gap-1" id="accounts_settings_header">
-            <h3 className="text-base font-black text-on-surface tracking-tight">Création des Comptes pour les Agents</h3>
+            <h3 className="text-base font-black text-on-surface tracking-tight">Création de Comptes (Agents, Éboueurs, Abonnés, Admins)</h3>
             <p className="text-xs text-on-surface-variant">Enregistrez de nouveaux comptes utilisateurs (Agents recenseurs, Administrateurs, Éboueurs ou Abonnés) avec accès sécurisé par mot de passe.</p>
           </div>
 
@@ -429,7 +511,7 @@ export default function AdminSettingsView({
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="acc_nom">
-                  Nom Complet de l'Agent / Utilisateur
+                  Nom Complet de l'Utilisateur (Agent, Éboueur, etc.)
                 </label>
                 <input 
                   type="text"
@@ -509,7 +591,7 @@ export default function AdminSettingsView({
                   className="px-6 py-3 bg-primary text-on-primary font-bold text-xs rounded-xl hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-md flex items-center gap-2"
                 >
                   <UserPlus size={16} />
-                  Créer le Compte de l'Agent
+                  Créer le Compte
                 </button>
               </div>
             </div>
