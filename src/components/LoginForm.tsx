@@ -5,9 +5,11 @@ import { INITIAL_AGENTS } from '../initialData';
 
 interface LoginFormProps {
   onLoginSuccess: (agent: Agent) => void;
+  agents: Agent[];
+  onRegisterAgent: (newAgent: Agent) => void;
 }
 
-export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
+export default function LoginForm({ onLoginSuccess, agents, onRegisterAgent }: LoginFormProps) {
   // Let form fields start blank to look like a clean login page, or fill via click
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -19,46 +21,9 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
     return val.replace(/\s+/g, '');
   };
 
-  const getAgentsList = (): Agent[] => {
-    const saved = localStorage.getItem('hico_agents');
-    if (saved) return JSON.parse(saved);
-    
-    // Fallback to initial + default demo roles
-    return [
-      {
-        id: 'admin-1',
-        nom: 'Hico Admin',
-        telephone: '0600000000',
-        role: 'admin',
-        created_at: new Date('2026-05-01').toISOString(),
-        password: 'password'
-      },
-      {
-        id: 'agent-1',
-        nom: 'Jean Malonga',
-        telephone: '0612345678',
-        role: 'agent',
-        created_at: new Date('2026-05-01').toISOString(),
-        password: 'password'
-      },
-      {
-        id: 'abonne-demo',
-        nom: 'Papa Mavula',
-        telephone: '0821111111',
-        role: 'abonne',
-        created_at: new Date().toISOString(),
-        password: 'password'
-      },
-      {
-        id: 'eboueur-demo',
-        nom: 'Chauffeur Kabeya',
-        telephone: '0892222222',
-        role: 'eboueur',
-        created_at: new Date().toISOString(),
-        password: 'password'
-      }
-    ];
-  };
+  const [isNewAccount, setIsNewAccount] = useState(false);
+  const [newAccountNom, setNewAccountNom] = useState('');
+  const [newAccountRole, setNewAccountRole] = useState<'eboueur' | 'abonne' | 'agent' | 'admin'>('eboueur');
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,10 +35,8 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
       return;
     }
 
-    const allAgents = getAgentsList();
-
     // Find if user already exists
-    const found = allAgents.find(
+    const found = agents.find(
       (a) => cleanPhone(a.telephone) === checkPhone || a.telephone === checkPhone
     );
 
@@ -85,27 +48,29 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
       }
       onLoginSuccess(found);
     } else {
-      // Create a professional agent profile dynamically for any custom key/phone entered by the tester!
+      // If we haven't displayed the new account creation fields yet, show them first
+      if (!isNewAccount) {
+        setIsNewAccount(true);
+        const formatSuffix = checkPhone.substring(Math.max(0, checkPhone.length - 4));
+        setNewAccountNom(`Agent Recenseur ${formatSuffix || 'Nouveau'}`);
+        return;
+      }
+
+      // Create a professional agent profile dynamically
       const safePhone = phone.trim();
-      const formatSuffix = safePhone.substring(Math.max(0, safePhone.length - 4));
-      const dynamicName = `Agent Recenseur ${formatSuffix || 'Demo'}`;
       
       const sessionAgent: Agent = {
         id: 'agent-' + Math.random().toString(36).substring(2, 11),
-        nom: dynamicName,
+        nom: newAccountNom.trim() || `Agent Recenseur`,
         telephone: safePhone,
-        role: 'agent',
+        role: newAccountRole,
         created_at: new Date().toISOString(),
         password: password || 'password',
         isTempPassword: false
       };
       
-      // Save newly created agent to local list so they can log back in
-      const currentSaved = localStorage.getItem('hico_agents');
-      const list = currentSaved ? JSON.parse(currentSaved) : allAgents;
-      list.push(sessionAgent);
-      localStorage.setItem('hico_agents', JSON.stringify(list));
-
+      // Save newly created agent to local list and sync with database
+      onRegisterAgent(sessionAgent);
       onLoginSuccess(sessionAgent);
     }
   };
@@ -116,9 +81,8 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
     setErrorMsg(null);
 
     setTimeout(() => {
-      const allAgents = getAgentsList();
       const checkPhone = cleanPhone(demoPhone);
-      const found = allAgents.find(
+      const found = agents.find(
         (a) => cleanPhone(a.telephone) === checkPhone || a.telephone === checkPhone
       );
       if (found) {
@@ -127,11 +91,10 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
     }, 100);
   };
 
-  const list = getAgentsList();
   const groupedAgents = {
-    eboueur: list.filter(a => a.role === 'eboueur'),
-    abonne: list.filter(a => a.role === 'abonne'),
-    admin_agent: list.filter(a => a.role === 'admin' || a.role === 'agent')
+    eboueur: agents.filter(a => a.role === 'eboueur'),
+    abonne: agents.filter(a => a.role === 'abonne'),
+    admin_agent: agents.filter(a => a.role === 'admin' || a.role === 'agent')
   };
 
   return (
@@ -166,7 +129,7 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
               Sélecteur de Comptes :
             </span>
             <span className="text-[10px] text-gray-500 font-mono font-bold">
-              {list.length} comptes trouvés
+              {agents.length} comptes trouvés
             </span>
           </div>
 
@@ -326,6 +289,52 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+
+              {isNewAccount && (
+                <div className="bg-[#0D0D0D] border border-white/5 rounded-2xl p-4 flex flex-col gap-3 mt-2 animate-fade-in text-left">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#10b981] flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse"></span>
+                    Nouveau Compte Détecté !
+                  </span>
+                  <p className="text-[11px] text-gray-400 font-sans leading-normal">
+                    Ce numéro n'est pas encore enregistré. Veuillez compléter les informations ci-dessous pour l'enregistrer dans le système :
+                  </p>
+                  
+                  {/* Nom complet input */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-bold uppercase tracking-widest text-gray-400 font-sans" htmlFor="new_name">
+                      Nom complet de l'utilisateur
+                    </label>
+                    <input
+                      type="text"
+                      id="new_name"
+                      value={newAccountNom}
+                      onChange={(e) => setNewAccountNom(e.target.value)}
+                      className="w-full h-9 px-3 bg-[#141414] border border-white/10 rounded-lg text-white text-xs focus:outline-none focus:border-primary font-sans"
+                      placeholder="Ex: Andy MJ"
+                      required
+                    />
+                  </div>
+
+                  {/* Role selection dropdown */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-bold uppercase tracking-widest text-gray-400 font-sans" htmlFor="new_role">
+                      Rôle de l'utilisateur
+                    </label>
+                    <select
+                      id="new_role"
+                      value={newAccountRole}
+                      onChange={(e) => setNewAccountRole(e.target.value as any)}
+                      className="w-full h-9 px-2 bg-[#141414] border border-white/10 rounded-lg text-white text-xs focus:outline-none focus:border-primary font-sans"
+                    >
+                      <option value="eboueur">Éboueur (Chauffeur de camion)</option>
+                      <option value="abonne">Abonné (Bailleur / Propriétaire de parcelle)</option>
+                      <option value="agent">Agent Recenseur (Staff terrain)</option>
+                      <option value="admin">Administrateur système</option>
+                    </select>
+                  </div>
+                </div>
+              )}
               
               {/* Error Message with dynamic show/hide */}
               {errorMsg && (
@@ -343,7 +352,7 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
               type="submit"
               className="w-full h-11 bg-white text-black font-bold text-sm rounded-xl mt-2 hover:bg-gray-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
             >
-              Se connecter
+              {isNewAccount ? "Créer le compte et se connecter" : "Se connecter"}
               <LogIn size={16} />
             </button>
           </form>

@@ -67,7 +67,17 @@ export default function App() {
   // Agents list state
   const [agents, setAgents] = useState<Agent[]>(() => {
     const saved = localStorage.getItem('hico_agents');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Keep only admin-1 and filter out any hardcoded demo users
+          return parsed.filter(a => a.id === 'admin-1' || !['agent-1', 'abonne-demo', 'eboueur-demo'].includes(a.id));
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
     return [
       {
         id: 'admin-1',
@@ -75,30 +85,6 @@ export default function App() {
         telephone: '0600000000',
         role: 'admin',
         created_at: new Date('2026-05-01').toISOString(),
-        password: 'password'
-      },
-      {
-        id: 'agent-1',
-        nom: 'Jean Malonga',
-        telephone: '0612345678',
-        role: 'agent',
-        created_at: new Date('2026-05-01').toISOString(),
-        password: 'password'
-      },
-      {
-        id: 'abonne-demo',
-        nom: 'Papa Mavula',
-        telephone: '0821111111',
-        role: 'abonne',
-        created_at: new Date().toISOString(),
-        password: 'password'
-      },
-      {
-        id: 'eboueur-demo',
-        nom: 'Chauffeur Kabeya',
-        telephone: '0892222222',
-        role: 'eboueur',
-        created_at: new Date().toISOString(),
         password: 'password'
       }
     ];
@@ -176,70 +162,34 @@ export default function App() {
   // 4.2. Waste management and collector tracking states
   const [poubelleSignals, setPoubelleSignals] = useState<PoubelleSignal[]>(() => {
     const saved = localStorage.getItem('hico_poubelle_signals');
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'sig-1',
-        parcelle_id: 'p-demo-1',
-        commune_id: 'c-gombe',
-        avenue_id: 'ave-gombe-1',
-        commune_nom: 'Gombe',
-        avenue_nom: 'Boulevard du 30 Juin',
-        numero_parcelle: '24',
-        bailleur_nom: 'Papa Mavula',
-        bailleur_telephone: '0821111111',
-        status: 'pending',
-        reported_at: new Date(Date.now() - 30 * 60000).toISOString()
-      },
-      {
-        id: 'sig-2',
-        parcelle_id: 'p-demo-2',
-        commune_id: 'c-lemba',
-        avenue_id: 'ave-lemba-1',
-        commune_nom: 'Lemba',
-        avenue_nom: 'Université',
-        numero_parcelle: '112',
-        bailleur_nom: 'Maman Sifa',
-        bailleur_telephone: '0815555555',
-        status: 'assigned',
-        assigned_eboueur_id: 'eb-2',
-        reported_at: new Date(Date.now() - 90 * 60000).toISOString()
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Filter out demo signals
+          return parsed.filter(s => !['sig-1', 'sig-2', 'p-demo-1', 'p-demo-2'].includes(s.id) && s.parcelle_id !== 'p-demo-1');
+        }
+      } catch (e) {
+        console.error(e);
       }
-    ];
+    }
+    return [];
   });
 
   const [eboueurs, setEboueurs] = useState<Eboueur[]>(() => {
     const saved = localStorage.getItem('hico_eboueurs');
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'eb-1',
-        nom: 'Chauffeur Kabeya',
-        telephone: '0892222222',
-        latitude: -4.32111,
-        longitude: 15.30555,
-        status: 'idle',
-        gps_active: true
-      },
-      {
-        id: 'eb-2',
-        nom: 'Chauffeur Mutombo',
-        telephone: '0893333333',
-        latitude: -4.35444,
-        longitude: 15.31222,
-        status: 'en_mission',
-        gps_active: true
-      },
-      {
-        id: 'eb-3',
-        nom: 'Chauffeur Ngalula',
-        telephone: '0894444444',
-        latitude: -4.33999,
-        longitude: 15.28999,
-        status: 'idle',
-        gps_active: false
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Filter out demo eboueurs
+          return parsed.filter(e => !['eb-1', 'eb-2', 'eb-3', 'eboueur-demo'].includes(e.id));
+        }
+      } catch (e) {
+        console.error(e);
       }
-    ];
+    }
+    return [];
   });
 
   const [sachetStocks, setSachetStocks] = useState<SachetStock[]>(() => {
@@ -254,134 +204,63 @@ export default function App() {
 
   const [payments, setPayments] = useState<SubscriptionPayment[]>(() => {
     const saved = localStorage.getItem('hico_payments');
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'PAY-8219A',
-        abonne_id: 'ab-demo-1',
-        nom_complet: 'Papa Mavula',
-        commune_id: 'c-gombe',
-        parcelle_id: 'p-demo-1',
-        montant: 12.0,
-        date_paiement: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
-        mode_paiement: 'mpesa',
-        telephone_payeur: '0821111111',
-        status: 'success'
-      },
-      {
-        id: 'PAY-1928B',
-        abonne_id: 'ab-demo-2',
-        nom_complet: 'Maman Sifa',
-        commune_id: 'c-lemba',
-        parcelle_id: 'p-demo-2',
-        montant: 8.0,
-        date_paiement: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString(),
-        mode_paiement: 'orange',
-        telephone_payeur: '0815555555',
-        status: 'success'
-      },
-      {
-        id: 'PAY-4831C',
-        abonne_id: 'ab-demo-3',
-        nom_complet: 'Bailleur Gombe 2',
-        commune_id: 'c-gombe',
-        parcelle_id: 'p-demo-3',
-        montant: 15.0,
-        date_paiement: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
-        mode_paiement: 'airtel',
-        telephone_payeur: '0852222222',
-        status: 'success'
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Filter out demo payments
+          return parsed.filter(p => !p.id.startsWith('PAY-8219') && p.abonne_id !== 'abonne-demo' && p.abonne_id !== 'ab-demo-2' && p.abonne_id !== 'ab-demo-3');
+        }
+      } catch (e) {
+        console.error(e);
       }
-    ];
+    }
+    return [];
   });
 
   const [staffPayments, setStaffPayments] = useState<StaffPayment[]>(() => {
     const saved = localStorage.getItem('hico_staff_payments');
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'PAY-STF-1',
-        recipient_id: 'eb-1',
-        recipient_name: 'Chauffeur Kabeya',
-        recipient_role: 'eboueur',
-        commune_id: 'c-gombe',
-        montant: 250.0,
-        date_paiement: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
-        notes: 'Salaire mensuel Juin 2026'
-      },
-      {
-        id: 'PAY-STF-2',
-        recipient_id: 'eb-2',
-        recipient_name: 'Chauffeur Mutombo',
-        recipient_role: 'eboueur',
-        commune_id: 'c-lemba',
-        montant: 250.0,
-        date_paiement: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
-        notes: 'Salaire mensuel Juin 2026'
-      },
-      {
-        id: 'PAY-STF-3',
-        recipient_id: 'ag-demo-1',
-        recipient_name: 'Agent Recenseur Kinshasa',
-        recipient_role: 'agent',
-        commune_id: 'c-gombe',
-        montant: 200.0,
-        date_paiement: new Date(Date.now() - 12 * 24 * 3600 * 1000).toISOString(),
-        notes: 'Indemnité de recensement'
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(p => !['PAY-STF-1', 'PAY-STF-2', 'PAY-STF-3'].includes(p.id) && !p.recipient_id.startsWith('eb-'));
+        }
+      } catch (e) {
+        console.error(e);
       }
-    ];
+    }
+    return [];
   });
 
   const [materialExpenses, setMaterialExpenses] = useState<MaterialExpense[]>(() => {
     const saved = localStorage.getItem('hico_material_expenses');
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'EXP-1',
-        label: 'Achat de 15 râteaux de voirie',
-        commune_id: 'c-gombe',
-        montant: 45.0,
-        date_depense: new Date(Date.now() - 8 * 24 * 3600 * 1000).toISOString(),
-        notes: 'Fournisseur Bricolage Kinshasa'
-      },
-      {
-        id: 'EXP-2',
-        label: 'Sachets poubelles rechargeables x1000',
-        commune_id: 'global',
-        montant: 120.0,
-        date_depense: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
-        notes: 'Importation plastique biodégradable'
-      },
-      {
-        id: 'EXP-3',
-        label: 'Carburant benne tasseuse Gombe',
-        commune_id: 'c-gombe',
-        montant: 80.0,
-        date_depense: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
-        notes: 'Station Engie'
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(p => !['EXP-1', 'EXP-2', 'EXP-3'].includes(p.id));
+        }
+      } catch (e) {
+        console.error(e);
       }
-    ];
+    }
+    return [];
   });
 
   const [disputes, setDisputes] = useState<DisputeSignal[]>(() => {
     const saved = localStorage.getItem('hico_disputes');
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'DISP-1',
-        abonne_id: 'ab-demo-4',
-        nom_complet: 'Bailleur En Retard 1',
-        telephone: '0812222222',
-        commune_id: 'c-lemba',
-        parcelle_id: 'p-demo-4',
-        montant_du: 10.0,
-        date_constat: new Date(Date.now() - 4 * 24 * 3600 * 1000).toISOString(),
-        status: 'active',
-        reminders_sent: 1,
-        last_reminder_date: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
-        notes: 'Refuse de payer sous prétexte de voyage locataire'
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(d => d.id !== 'DISP-1');
+        }
+      } catch (e) {
+        console.error(e);
       }
-    ];
+    }
+    return [];
   });
 
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>(() => {
@@ -392,14 +271,7 @@ export default function App() {
         id: 'msg-1',
         sender: 'Hico-Cleaning',
         content: 'Bienvenue sur votre espace de salubrité Hico-Cleaning ! Retrouvez ici vos factures, vos signalements de poubelles pleines et les alertes d\'assainissement.',
-        sent_at: 'Hier, 14:00',
-        read: false
-      },
-      {
-        id: 'msg-2',
-        sender: 'Autorités Urbaines',
-        content: 'Directive Kinshasa Bopeto : Tous les bailleurs sont tenus de dégager les trottoirs devant leurs parcelles sous peine d\'amende administrative de l\'Hôtel de Ville.',
-        sent_at: 'Hier, 09:30',
+        sent_at: new Date().toISOString(),
         read: false
       }
     ];
@@ -428,10 +300,10 @@ export default function App() {
           id: agent.id,
           nom: agent.nom,
           telephone: agent.telephone,
-          latitude: -4.33 + (offset % 5) * 0.015 - 0.03,
-          longitude: 15.31 + (offset % 5) * 0.012 - 0.02,
+          latitude: -4.3316 + (offset % 5) * 0.015 - 0.03,
+          longitude: 15.3139 + (offset % 5) * 0.012 - 0.02,
           status: 'idle',
-          gps_active: true // Actif par défaut pour être immédiatement repérable sur la carte
+          gps_active: false // Désactivé par défaut pour ne pas s'afficher sur la carte avant de s'activer réellement
         });
         hasChanges = true;
       }
@@ -578,77 +450,7 @@ export default function App() {
     }
   }, [currentScreen, currentUser]);
 
-  // Seeding Gombe demo structures to avoid blank dashboards
-  useEffect(() => {
-    if (communes.length > 0) {
-      const hasGombeAve = avenues.some(a => a.commune_id === 'c-gombe');
-      if (!hasGombeAve) {
-        const demoAve: Avenue = {
-          id: 'ave-gombe-1',
-          commune_id: 'c-gombe',
-          nom: 'Boulevard du 30 Juin',
-          created_at: new Date().toISOString()
-        };
-        const demoAve2: Avenue = {
-          id: 'ave-lemba-1',
-          commune_id: 'c-lemba',
-          nom: 'Université',
-          created_at: new Date().toISOString()
-        };
-        setAvenues(prev => {
-          const updated = [demoAve, demoAve2, ...prev];
-          localStorage.setItem('hico_db_avenues', JSON.stringify(updated));
-          return updated;
-        });
-
-        const demoParc: Parcelle = {
-          id: 'p-demo-1',
-          avenue_id: 'ave-gombe-1',
-          numero_parcelle: '24',
-          type_logement: 'maison_basse',
-          presence_locataire: 'oui',
-          nombre_menages: 7, // 7 households
-          created_by: 'admin-1',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          latitude: -4.31234,
-          longitude: 15.29876
-        };
-        const demoParc2: Parcelle = {
-          id: 'p-demo-2',
-          avenue_id: 'ave-lemba-1',
-          numero_parcelle: '112',
-          type_logement: 'appartement',
-          presence_locataire: 'oui',
-          nombre_menages: 4,
-          created_by: 'admin-1',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          latitude: -4.35411,
-          longitude: 15.31122
-        };
-        setParcelles(prev => {
-          const updated = [demoParc, demoParc2, ...prev];
-          localStorage.setItem('hico_db_parcelles', JSON.stringify(updated));
-          return updated;
-        });
-
-        const demoAb: Abonne = {
-          id: 'abonne-demo',
-          parcelle_id: 'p-demo-1',
-          nom_complet: 'Papa Mavula',
-          telephone_principal: '0821111111',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        setAbonnes(prev => {
-          const updated = [demoAb, ...prev];
-          localStorage.setItem('hico_db_abonnes', JSON.stringify(updated));
-          return updated;
-        });
-      }
-    }
-  }, [communes, avenues]);
+  // Removed demo seeding to allow starting with a clean production database as requested.
 
   // 5. Supabase connection feedback state
   const [dbStatus, setDbStatus] = useState<'loading' | 'connected' | 'error_missing_tables' | 'offline'>('loading');
@@ -715,6 +517,18 @@ export default function App() {
         .select('*');
       if (absError) throw absError;
       setAbonnes(abs || []);
+
+      // 5. Fetch Agents (with graceful fallback if table 'agents' doesn't exist yet)
+      try {
+        const { data: ags, error: agsError } = await supabase
+          .from('agents')
+          .select('*');
+        if (!agsError && ags && ags.length > 0) {
+          setAgents(ags);
+        }
+      } catch (agentErr) {
+        console.warn("Table 'agents' not accessible or doesn't exist yet in Supabase. Using localStorage fallback.", agentErr);
+      }
 
       setDbStatus('connected');
       setDbErrorMsg(null);
@@ -900,6 +714,49 @@ export default function App() {
         alert("Sauvegarde cloud en suspens (Enregistré localement) :\n" + (err.message || err));
       } finally {
         setSyncing(false);
+      }
+    }
+  };
+
+  const handleAddAgentSync = async (newAgent: Agent) => {
+    setAgents(prev => {
+      if (prev.some(a => a.id === newAgent.id)) return prev;
+      return [...prev, newAgent];
+    });
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('agents').insert([newAgent]);
+      } catch (err) {
+        console.warn("Supabase agent insert skipped or failed:", err);
+      }
+    }
+  };
+
+  const handleUpdateAgentSync = async (updatedAgent: Agent) => {
+    setAgents(prev => prev.map(a => a.id === updatedAgent.id ? updatedAgent : a));
+    if (currentUser && currentUser.id === updatedAgent.id) {
+      setCurrentUser(updatedAgent);
+      localStorage.setItem('hico_current_user', JSON.stringify(updatedAgent));
+    }
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('agents').update(updatedAgent).eq('id', updatedAgent.id);
+      } catch (err) {
+        console.warn("Supabase agent update skipped or failed:", err);
+      }
+    }
+  };
+
+  const handleDeleteAgentSync = async (agentId: string) => {
+    setAgents(prev => prev.filter(a => a.id !== agentId));
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('agents').delete().eq('id', agentId);
+      } catch (err) {
+        console.warn("Supabase agent delete skipped or failed:", err);
       }
     }
   };
@@ -1161,7 +1018,7 @@ export default function App() {
       const ebObj = eboueurs.find(e => e.id === assignedEbId);
       if (ebObj) driverNom = ebObj.nom;
     } else {
-      const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone || e.id === 'eboueur-demo');
+      const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone);
       if (currentEb) driverNom = currentEb.nom;
     }
 
@@ -1192,7 +1049,7 @@ export default function App() {
       }));
     } else {
       // Fallback matching current logged-in driver
-      const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone || e.id === 'eboueur-demo');
+      const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone);
       if (currentEb) {
         setEboueurs(prev => prev.map(eb => {
           if (eb.id === currentEb.id) {
@@ -1207,24 +1064,86 @@ export default function App() {
     }
   };
 
+  // Real Geolocation watching for the logged-in Éboueur when GPS is active
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'eboueur') return;
+    
+    const currentEb = eboueurs.find(e => e.telephone === currentUser.telephone);
+    if (!currentEb || !currentEb.gps_active) return;
+
+    if (!navigator.geolocation) {
+      console.warn("La géolocalisation n'est pas supportée par votre navigateur.");
+      return;
+    }
+
+    const handleSuccess = (position: GeolocationPosition) => {
+      const { latitude, longitude } = position.coords;
+      setEboueurs(prev => prev.map(eb => {
+        if (eb.telephone === currentUser.telephone) {
+          return {
+            ...eb,
+            latitude,
+            longitude
+          };
+        }
+        return eb;
+      }));
+    };
+
+    const handleError = (error: GeolocationPositionError) => {
+      console.error("Erreur de suivi GPS réel :", error.message);
+    };
+
+    const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    });
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [currentUser, eboueurs.find(e => e.telephone === currentUser?.telephone)?.gps_active]);
+
   const handleToggleEboueurGps = () => {
-    const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone || e.id === 'eboueur-demo');
+    if (!currentUser || currentUser.role !== 'eboueur') return;
+    const currentEb = eboueurs.find(e => e.telephone === currentUser.telephone);
     if (!currentEb) return;
+
+    const nextGpsState = !currentEb.gps_active;
 
     setEboueurs(prev => prev.map(eb => {
       if (eb.id === currentEb.id) {
-        const nextGpsState = !eb.gps_active;
-        const newLat = nextGpsState ? eb.latitude + (Math.random() - 0.5) * 0.002 : eb.latitude;
-        const newLng = nextGpsState ? eb.longitude + (Math.random() - 0.5) * 0.002 : eb.longitude;
         return {
           ...eb,
-          gps_active: nextGpsState,
-          latitude: newLat,
-          longitude: newLng
+          gps_active: nextGpsState
         };
       }
       return eb;
     }));
+
+    if (nextGpsState && navigator.geolocation) {
+      // Fetch initial position immediately upon turning GPS on
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setEboueurs(prev => prev.map(eb => {
+            if (eb.id === currentEb.id) {
+              return {
+                ...eb,
+                latitude,
+                longitude
+              };
+            }
+            return eb;
+          }));
+        },
+        (err) => {
+          console.warn("Position initiale indisponible, en attente du tracker :", err.message);
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    }
   };
 
   const handleSendInboxMessage = (sender: string, content: string) => {
@@ -1282,7 +1201,11 @@ export default function App() {
       
       {/* 1. Login View State */}
       {currentScreen === 'login' ? (
-        <LoginForm onLoginSuccess={handleLogin} />
+        <LoginForm 
+          onLoginSuccess={handleLogin} 
+          agents={agents}
+          onRegisterAgent={handleAddAgentSync}
+        />
       ) : (
         /* 2. Logged User Layout Shell */
         <div className="flex flex-col min-h-screen">
@@ -1845,7 +1768,15 @@ export default function App() {
               })()}
 
               {currentScreen === 'eboueur_space' && (() => {
-                const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone || e.id === 'eboueur-demo') || eboueurs[0];
+                const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone) || {
+                  id: currentUser?.id || 'temp-eboueur',
+                  nom: currentUser?.nom || 'Éboueur de service',
+                  telephone: currentUser?.telephone || '',
+                  latitude: -4.3316,
+                  longitude: 15.3139,
+                  status: 'idle' as const,
+                  gps_active: false
+                };
                 const myAssignedMissions = poubelleSignals.filter(s => s.assigned_eboueur_id === currentEb.id && s.status === 'assigned');
                 const myCompletedMissions = poubelleSignals.filter(s => s.assigned_eboueur_id === currentEb.id && s.status === 'completed');
 
@@ -1880,15 +1811,9 @@ export default function App() {
                 currentScreen === 'admin_settings_passwords') && (
                 <AdminSettingsView 
                   agents={agents}
-                  onAddAgent={(newAgent) => setAgents(prev => [...prev, newAgent])}
-                  onUpdateAgent={(updatedAgent) => {
-                    setAgents(prev => prev.map(a => a.id === updatedAgent.id ? updatedAgent : a));
-                    if (currentUser && currentUser.id === updatedAgent.id) {
-                      setCurrentUser(updatedAgent);
-                      localStorage.setItem('hico_current_user', JSON.stringify(updatedAgent));
-                    }
-                  }}
-                  onDeleteAgent={(agentId) => setAgents(prev => prev.filter(a => a.id !== agentId))}
+                  onAddAgent={handleAddAgentSync}
+                  onUpdateAgent={handleUpdateAgentSync}
+                  onDeleteAgent={handleDeleteAgentSync}
                   defaultTab={
                     currentScreen === 'admin_settings_screens' ? 'screens' :
                     currentScreen === 'admin_settings_pricing' ? 'pricing' :

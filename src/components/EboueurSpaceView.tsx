@@ -88,11 +88,14 @@ export default function EboueurSpaceView({
 
             <button
               onClick={() => {
+                const targetState = !currentEboueur.gps_active;
                 onToggleGps();
-                alert(currentEboueur.gps_active 
-                  ? "Traceur GPS de service éteint." 
-                  : "Traceur GPS de service allumé ! Votre position en temps réel est transmise au centre de répartition."
-                );
+                setTimeout(() => {
+                  alert(targetState 
+                    ? "Traceur GPS de service allumé ! Votre position en temps réel est transmise au centre de répartition."
+                    : "Traceur GPS de service éteint."
+                  );
+                }, 50);
               }}
               className={`h-9 px-4 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 ${
                 currentEboueur.gps_active 
