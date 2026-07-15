@@ -414,6 +414,34 @@ export default function App() {
     localStorage.setItem('hico_eboueurs', JSON.stringify(eboueurs));
   }, [eboueurs]);
 
+  // Synchroniser les agents de rôle 'eboueur' avec la liste 'eboueurs' pour l'affichage de la carte
+  useEffect(() => {
+    const eboueursFromAgents = agents.filter(a => a.role === 'eboueur');
+    let hasChanges = false;
+    const updatedEboueurs = [...eboueurs];
+
+    eboueursFromAgents.forEach(agent => {
+      const exists = updatedEboueurs.some(e => e.telephone === agent.telephone || e.id === agent.id);
+      if (!exists) {
+        const offset = updatedEboueurs.length;
+        updatedEboueurs.push({
+          id: agent.id,
+          nom: agent.nom,
+          telephone: agent.telephone,
+          latitude: -4.33 + (offset % 5) * 0.015 - 0.03,
+          longitude: 15.31 + (offset % 5) * 0.012 - 0.02,
+          status: 'idle',
+          gps_active: true // Actif par défaut pour être immédiatement repérable sur la carte
+        });
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      setEboueurs(updatedEboueurs);
+    }
+  }, [agents, eboueurs]);
+
   useEffect(() => {
     localStorage.setItem('hico_inbox_messages', JSON.stringify(inboxMessages));
   }, [inboxMessages]);
@@ -1341,6 +1369,15 @@ export default function App() {
               >
                 <User size={18} />
               </button>
+
+              <button 
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 h-9 px-3 bg-error/10 hover:bg-error/20 text-error rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer border border-error/20"
+                title="Se déconnecter"
+              >
+                <LogOut size={14} />
+                <span className="hidden sm:inline">Déconnexion</span>
+              </button>
             </div>
           </header>
 
@@ -1802,6 +1839,7 @@ export default function App() {
                         return d;
                       }));
                     }}
+                    onLogout={handleLogout}
                   />
                 );
               })()}
@@ -1818,6 +1856,7 @@ export default function App() {
                     completedMissions={myCompletedMissions}
                     onToggleGps={handleToggleEboueurGps}
                     onCompleteMission={handleCompleteMission}
+                    onLogout={handleLogout}
                   />
                 );
               })()}

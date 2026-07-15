@@ -14,7 +14,8 @@ import {
   Inbox, 
   History, 
   Radio, 
-  Phone 
+  Phone,
+  LogOut
 } from 'lucide-react';
 
 interface EboueurSpaceViewProps {
@@ -23,6 +24,7 @@ interface EboueurSpaceViewProps {
   completedMissions: PoubelleSignal[];
   onToggleGps: () => void;
   onCompleteMission: (signalId: string) => void;
+  onLogout?: () => void;
 }
 
 export default function EboueurSpaceView({
@@ -30,7 +32,8 @@ export default function EboueurSpaceView({
   assignedMissions,
   completedMissions,
   onToggleGps,
-  onCompleteMission
+  onCompleteMission,
+  onLogout
 }: EboueurSpaceViewProps) {
   
   const hasActiveMission = assignedMissions.length > 0;
@@ -42,10 +45,24 @@ export default function EboueurSpaceView({
       <header className="bg-surface border border-outline-variant rounded-3xl p-6 shadow-xl relative overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-r from-secondary/10 to-transparent pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 z-10 relative">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] bg-secondary/20 text-indigo-300 font-extrabold uppercase px-2.5 py-1 rounded-full border border-secondary/20 w-max tracking-wider">
-              Espace Agent Éboueur 🚚
-            </span>
+          <div className="flex flex-col gap-1.5 flex-grow">
+            <div className="flex items-center justify-between gap-4 w-full">
+              <span className="text-[10px] bg-secondary/20 text-indigo-300 font-extrabold uppercase px-2.5 py-1 rounded-full border border-secondary/20 w-max tracking-wider">
+                Espace Agent Éboueur 🚚
+              </span>
+              
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-error/10 hover:bg-error/20 text-error rounded-xl font-bold text-xs transition-all active:scale-95 cursor-pointer border border-error/20"
+                  title="Se déconnecter"
+                >
+                  <LogOut size={13} />
+                  <span>Se déconnecter</span>
+                </button>
+              )}
+            </div>
+            
             <h2 className="text-2xl font-black text-on-surface tracking-tight mt-1.5">
               Bonjour, {currentEboueur.nom}
             </h2>
