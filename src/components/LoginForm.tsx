@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, LogIn, Phone, Lock } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Eye, EyeOff, LogIn, Phone, Lock, Truck, Shield, User, Users } from 'lucide-react';
 import { Agent } from '../types';
 import { INITIAL_AGENTS } from '../initialData';
 
@@ -8,12 +8,12 @@ interface LoginFormProps {
 }
 
 export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
-  // Pre-fill with Jean Malonga's mockup credentials for wonderful testing UX!
-  const [phone, setPhone] = useState('06 12 34 56 78');
-  const [password, setPassword] = useState('password');
+  // Let form fields start blank to look like a clean login page, or fill via click
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [isDemoWarning, setIsDemoWarning] = useState(false);
+  const [activeRoleTab, setActiveRoleTab] = useState<'eboueur' | 'abonne' | 'admin_agent'>('eboueur');
 
   const cleanPhone = (val: string) => {
     return val.replace(/\s+/g, '');
@@ -127,6 +127,13 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
     }, 100);
   };
 
+  const list = getAgentsList();
+  const groupedAgents = {
+    eboueur: list.filter(a => a.role === 'eboueur'),
+    abonne: list.filter(a => a.role === 'abonne'),
+    admin_agent: list.filter(a => a.role === 'admin' || a.role === 'agent')
+  };
+
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center px-4 py-8 bg-[#0A0A0A] text-white">
       <main className="w-full max-w-sm flex flex-col gap-6">
@@ -151,41 +158,103 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
           </div>
         </header>
 
-        {/* Quick Connection Switcher Panel */}
-        <div className="bg-[#141414] rounded-2xl border border-white/10 p-4 flex flex-col gap-2.5 shadow-md">
-          <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#10b981] flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse"></span>
-            Accès Rapide Démo (4 rôles) :
-          </span>
-          <div className="grid grid-cols-2 gap-2">
+        {/* Dynamic Account Selector Panel */}
+        <div className="bg-[#141414] rounded-2xl border border-white/10 p-4 flex flex-col gap-3 shadow-md" id="dynamic_account_switcher">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#10b981] flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse"></span>
+              Sélecteur de Comptes :
+            </span>
+            <span className="text-[10px] text-gray-500 font-mono font-bold">
+              {list.length} comptes trouvés
+            </span>
+          </div>
+
+          {/* Tab Selector */}
+          <div className="flex bg-[#0D0D0D] p-1 rounded-xl border border-white/5 gap-1">
             <button
-              onClick={() => handleQuickConnect('0600000000')}
-              className="py-2 px-1 text-left bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 rounded-xl flex flex-col gap-0.5 transition-all text-white cursor-pointer"
+              type="button"
+              onClick={() => setActiveRoleTab('eboueur')}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                activeRoleTab === 'eboueur'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
             >
-              <span className="text-[10px] font-black leading-tight">1. Administrateur</span>
-              <span className="text-[8px] text-gray-400 font-medium">Hico Admin</span>
+              <Truck size={14} />
+              <span>Éboueurs</span>
             </button>
             <button
-              onClick={() => handleQuickConnect('0612345678')}
-              className="py-2 px-1 text-left bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 rounded-xl flex flex-col gap-0.5 transition-all text-white cursor-pointer"
+              type="button"
+              onClick={() => setActiveRoleTab('abonne')}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                activeRoleTab === 'abonne'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
             >
-              <span className="text-[10px] font-black leading-tight">2. Agent Recenseur</span>
-              <span className="text-[8px] text-gray-400 font-medium">Jean Malonga</span>
+              <User size={14} />
+              <span>Abonnés</span>
             </button>
             <button
-              onClick={() => handleQuickConnect('0821111111')}
-              className="py-2 px-1 text-left bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 rounded-xl flex flex-col gap-0.5 transition-all text-white cursor-pointer"
+              type="button"
+              onClick={() => setActiveRoleTab('admin_agent')}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                activeRoleTab === 'admin_agent'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
             >
-              <span className="text-[10px] font-black leading-tight text-primary">3. Abonné (Bailleur)</span>
-              <span className="text-[8px] text-gray-400 font-medium">Papa Mavula</span>
+              <Shield size={14} />
+              <span>Staff</span>
             </button>
-            <button
-              onClick={() => handleQuickConnect('0892222222')}
-              className="py-2 px-1 text-left bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 rounded-xl flex flex-col gap-0.5 transition-all text-white cursor-pointer"
-            >
-              <span className="text-[10px] font-black leading-tight text-indigo-400">4. Agent Éboueur</span>
-              <span className="text-[8px] text-gray-400 font-medium">Chauffeur Kabeya</span>
-            </button>
+          </div>
+
+          {/* Active Tab Account List Grid */}
+          <div className="grid grid-cols-1 gap-2 max-h-[160px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+            {groupedAgents[activeRoleTab].length === 0 ? (
+              <div className="text-center py-4 text-xs text-gray-500 font-medium font-sans">
+                Aucun compte enregistré pour ce rôle.
+              </div>
+            ) : (
+              groupedAgents[activeRoleTab].map((agent) => (
+                <button
+                  key={agent.id}
+                  type="button"
+                  onClick={() => onLoginSuccess(agent)}
+                  className="w-full p-2.5 text-left bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/15 rounded-xl flex items-center justify-between gap-3 transition-all cursor-pointer group"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      agent.role === 'eboueur' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/25' :
+                      agent.role === 'abonne' ? 'bg-primary/10 text-primary border border-primary/25' :
+                      'bg-amber-500/10 text-amber-400 border border-amber-500/25'
+                    }`}>
+                      {agent.role === 'eboueur' ? <Truck size={15} /> :
+                       agent.role === 'abonne' ? <User size={15} /> :
+                       <Shield size={15} />}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-black text-white group-hover:text-primary transition-colors leading-none">
+                        {agent.nom}
+                      </span>
+                      <span className="text-[9px] text-gray-400 font-mono mt-0.5 font-medium leading-none">
+                        {agent.telephone}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[8px] bg-white/10 text-gray-300 font-bold uppercase px-1.5 py-0.5 rounded border border-white/5 font-sans tracking-wide">
+                      {agent.role === 'eboueur' ? 'Éboueur' :
+                       agent.role === 'abonne' ? 'Abonné' :
+                       agent.role === 'admin' ? 'Admin' : 'Recenseur'}
+                    </span>
+                    <LogIn size={12} className="text-gray-500 group-hover:text-white transition-colors shrink-0" />
+                  </div>
+                </button>
+              ))
+            )}
           </div>
         </div>
 
