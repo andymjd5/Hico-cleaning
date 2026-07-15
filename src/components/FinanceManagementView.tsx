@@ -76,6 +76,7 @@ export default function FinanceManagementView({
   // Filtering & Search states
   const [selectedCommuneId, setSelectedCommuneId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [chartSearchQuery, setChartSearchQuery] = useState<string>('');
 
   // Modals / Form toggles
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
@@ -215,15 +216,22 @@ export default function FinanceManagementView({
     });
   }, [communes, payments, staffPayments, expenses]);
 
+  // Filtered commune finance data based on search
+  const filteredCommuneFinanceData = useMemo(() => {
+    if (!chartSearchQuery.trim()) return communeFinanceData;
+    const query = chartSearchQuery.toLowerCase().trim();
+    return communeFinanceData.filter(d => d.name.toLowerCase().includes(query));
+  }, [communeFinanceData, chartSearchQuery]);
+
   // Maximum value for chart scaling
   const maxChartValue = useMemo(() => {
     let max = 100; // default min range
-    communeFinanceData.forEach(d => {
+    filteredCommuneFinanceData.forEach(d => {
       if (d.income > max) max = d.income;
       if (d.expenses > max) max = d.expenses;
     });
     return max * 1.15; // 15% padding
-  }, [communeFinanceData]);
+  }, [filteredCommuneFinanceData]);
 
   // Filtered Lists for Tables
   const filteredPaymentsList = useMemo(() => {
@@ -578,66 +586,91 @@ export default function FinanceManagementView({
           )}
 
           {/* SVG Analytical Charts Panel */}
-          <section className="bg-surface border border-outline-variant rounded-3xl p-5 md:p-6 shadow-md">
-            <h3 className="text-sm font-extrabold text-on-surface flex items-center gap-2 mb-4">
-              <FileText className="text-primary" size={16} />
-              Analyse financière comparative par Commune ({currencySymbol})
-            </h3>
+          <section className="bg-surface border border-outline-variant rounded-3xl p-5 md:p-6 shadow-md overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <h3 className="text-sm font-extrabold text-on-surface flex items-center gap-2">
+                <FileText className="text-primary" size={16} />
+                Analyse financière comparative par Commune ({currencySymbol})
+              </h3>
+              
+              {/* Search input for communes in the chart/list */}
+              <div className="flex items-center gap-2 bg-background border border-outline-variant px-3 py-1.5 rounded-xl w-full sm:w-64">
+                <Search size={14} className="text-on-surface-variant" />
+                <input
+                  type="text"
+                  placeholder="Rechercher une commune..."
+                  value={chartSearchQuery}
+                  onChange={(e) => setChartSearchQuery(e.target.value)}
+                  className="bg-transparent text-xs text-on-surface focus:outline-none w-full"
+                />
+              </div>
+            </div>
 
             {communeFinanceData.length === 0 ? (
               <p className="text-xs text-on-surface-variant italic text-center py-12">Aucune donnée disponible.</p>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
                 
                 {/* Responsive Custom SVG Bar Chart */}
-                <div className="lg:col-span-8 flex flex-col gap-4">
-                  <div className="relative w-full h-[260px] bg-background/50 border border-outline-variant/60 rounded-2xl p-4 flex flex-col justify-between">
+                <div className="lg:col-span-8 min-w-0 w-full flex flex-col gap-4">
+                  <div className="relative w-full h-[260px] bg-background/50 border border-outline-variant/60 rounded-2xl p-4 flex flex-col justify-between overflow-hidden">
                     
                     {/* Grid Lines */}
-                    <div className="absolute inset-0 flex flex-col justify-between p-4 pointer-events-none opacity-20">
+                    <div className="absolute inset-x-0 top-4 bottom-14 flex flex-col justify-between px-4 pointer-events-none opacity-20">
                       <div className="border-b border-outline border-dashed w-full" />
                       <div className="border-b border-outline border-dashed w-full" />
                       <div className="border-b border-outline border-dashed w-full" />
                       <div className="border-b border-outline border-dashed w-full" />
                     </div>
 
-                    {/* Chart Bars */}
-                    <div className="relative h-[180px] flex items-end justify-around gap-6 pt-4 z-10">
-                      {communeFinanceData.map((d, index) => {
-                        const incHeight = Math.max(8, (d.income / maxChartValue) * 150);
-                        const expHeight = Math.max(8, (d.expenses / maxChartValue) * 150);
-                        return (
-                          <div key={d.communeId} className="flex flex-col items-center group w-24">
-                            
-                            {/* Value tooltip on hover */}
-                            <div className="opacity-0 group-hover:opacity-100 absolute -top-2 bg-black/90 border border-outline-variant text-[10px] py-1.5 px-2 rounded-lg flex flex-col gap-0.5 pointer-events-none transition-opacity text-center z-50 shadow-xl">
-                              <span className="font-bold text-white">{d.name}</span>
-                              <span className="text-emerald-400">Recettes: {d.income} {currencySymbol}</span>
-                              <span className="text-indigo-400">Dépenses: {d.expenses} {currencySymbol}</span>
-                              <span className={d.profit >= 0 ? 'text-primary' : 'text-error'}>
-                                Net: {d.profit} {currencySymbol}
-                              </span>
-                            </div>
+                    {/* Chart Bars - Scrollable to fit all 24 communes gracefully */}
+                    <div className="relative h-[180px] w-full overflow-x-auto overflow-y-hidden z-10 pb-2 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-outline-variant/60 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-primary/40">
+                      {filteredCommuneFinanceData.length === 0 ? (
+                        <div className="flex items-center justify-center w-full h-full text-xs text-on-surface-variant italic">
+                          Aucun résultat pour "{chartSearchQuery}"
+                        </div>
+                      ) : (
+                        <div className="flex items-end justify-start gap-4 pt-12 pb-2 min-w-max px-2 h-full">
+                          {filteredCommuneFinanceData.map((d, index) => {
+                            const incHeight = Math.max(8, (d.income / maxChartValue) * 110);
+                            const expHeight = Math.max(8, (d.expenses / maxChartValue) * 110);
+                            return (
+                              <div key={d.communeId} className="flex flex-col items-center group w-[54px] shrink-0 relative">
+                                
+                                {/* Value tooltip on hover */}
+                                <div className="opacity-0 group-hover:opacity-100 absolute -top-12 bg-black/90 border border-outline-variant text-[9px] py-1 px-1.5 rounded-lg flex flex-col gap-0.5 pointer-events-none transition-opacity text-center z-50 shadow-xl w-28 left-1/2 -translate-x-1/2">
+                                  <span className="font-bold text-white truncate">{d.name}</span>
+                                  <span className="text-emerald-400">Recettes: {d.income} {currencySymbol}</span>
+                                  <span className="text-indigo-400 font-medium">Dépenses: {d.expenses} {currencySymbol}</span>
+                                  <span className={d.profit >= 0 ? 'text-primary' : 'text-error'}>
+                                    Net: {d.profit} {currencySymbol}
+                                  </span>
+                                </div>
 
-                            <div className="flex items-end gap-2.5">
-                              {/* Income Bar (Green) */}
-                              <div 
-                                style={{ height: `${incHeight}px` }}
-                                className="w-4 bg-emerald-500 rounded-t-sm shadow-md transition-all hover:brightness-110"
-                              />
-                              {/* Expense Bar (Purple) */}
-                              <div 
-                                style={{ height: `${expHeight}px` }}
-                                className="w-4 bg-indigo-500 rounded-t-sm shadow-md transition-all hover:brightness-110"
-                              />
-                            </div>
-                            
-                            <span className="text-[10px] text-on-surface-variant font-extrabold mt-2 truncate w-full text-center">
-                              {d.name}
-                            </span>
-                          </div>
-                        );
-                      })}
+                                <div className="flex items-end gap-1.5">
+                                  {/* Income Bar (Green) */}
+                                  <div 
+                                    style={{ height: `${incHeight}px` }}
+                                    className="w-3.5 bg-emerald-500 rounded-t-sm shadow-md transition-all hover:brightness-110"
+                                  />
+                                  {/* Expense Bar (Purple) */}
+                                  <div 
+                                    style={{ height: `${expHeight}px` }}
+                                    className="w-3.5 bg-indigo-500 rounded-t-sm shadow-md transition-all hover:brightness-110"
+                                  />
+                                </div>
+                                
+                                <span 
+                                  title={d.name}
+                                  className="text-[9px] text-on-surface-variant font-black mt-2 truncate w-full text-center"
+                                >
+                                  {d.name}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     {/* Legend */}
@@ -656,24 +689,30 @@ export default function FinanceManagementView({
                 </div>
 
                 {/* Side list detailing totals per commune */}
-                <div className="lg:col-span-4 flex flex-col gap-3">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant">Bilan par Commune</span>
+                <div className="lg:col-span-4 min-w-0 w-full flex flex-col gap-3">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant">
+                    Bilan par Commune {chartSearchQuery.trim() && `("${chartSearchQuery}")`}
+                  </span>
                   
-                  <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
-                    {communeFinanceData.map((d) => (
-                      <div key={d.communeId} className="bg-background/40 border border-outline-variant/60 p-3 rounded-xl flex items-center justify-between gap-3">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-extrabold text-on-surface">{d.name}</span>
-                          <span className="text-[9px] text-on-surface-variant">Recettes: {d.income} {currencySymbol}</span>
+                  <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-outline-variant/60 [&::-webkit-scrollbar-thumb]:rounded-full">
+                    {filteredCommuneFinanceData.length === 0 ? (
+                      <div className="text-xs text-on-surface-variant italic text-center py-8">Aucun bilan trouvé.</div>
+                    ) : (
+                      filteredCommuneFinanceData.map((d) => (
+                        <div key={d.communeId} className="bg-background/40 border border-outline-variant/60 p-3 rounded-xl flex items-center justify-between gap-3 shrink-0">
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <span className="text-xs font-extrabold text-on-surface truncate">{d.name}</span>
+                            <span className="text-[9px] text-on-surface-variant">Recettes: {d.income} {currencySymbol}</span>
+                          </div>
+                          <div className="text-right flex flex-col gap-0.5 shrink-0">
+                            <span className="text-xs font-black text-indigo-400">-{d.expenses} {currencySymbol}</span>
+                            <span className={`text-[10px] font-bold ${d.profit >= 0 ? 'text-emerald-400' : 'text-error'}`}>
+                              {d.profit >= 0 ? '+' : ''}{d.profit} {currencySymbol}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-right flex flex-col gap-0.5">
-                          <span className="text-xs font-black text-indigo-400">-{d.expenses} {currencySymbol}</span>
-                          <span className={`text-[10px] font-bold ${d.profit >= 0 ? 'text-emerald-400' : 'text-error'}`}>
-                            {d.profit >= 0 ? '+' : ''}{d.profit} {currencySymbol}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
 

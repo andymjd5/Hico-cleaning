@@ -77,14 +77,34 @@ export default function AdminSettingsView({
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.admin && !parsed.admin.includes('admin_settings_screens')) {
-          parsed.admin = [
-            ...parsed.admin.filter((s: string) => s !== 'admin_settings'),
-            'admin_settings_screens',
-            'admin_settings_pricing',
-            'admin_settings_accounts',
-            'admin_settings_passwords'
+        let updated = false;
+        
+        if (parsed.admin) {
+          const requiredAdminScreens = [
+            'sachets_management', 'finance_management', 'admin_settings_screens', 
+            'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
           ];
+          requiredAdminScreens.forEach(s => {
+            if (!parsed.admin.includes(s)) {
+              parsed.admin.push(s);
+              updated = true;
+            }
+          });
+        }
+        
+        if (parsed.agent) {
+          const requiredAgentScreens = [
+            'sachets_management', 'finance_management'
+          ];
+          requiredAgentScreens.forEach(s => {
+            if (!parsed.agent.includes(s)) {
+              parsed.agent.push(s);
+              updated = true;
+            }
+          });
+        }
+        
+        if (updated) {
           localStorage.setItem('hico_role_permissions', JSON.stringify(parsed));
         }
         return parsed;

@@ -121,10 +121,57 @@ export default function App() {
   const [selectedAvenueObj, setSelectedAvenueObj] = useState<Avenue | null>(null);
 
   // 4. local DB states with automatic migration to clean production state
-  const [communes, setCommunes] = useState<Commune[]>([]);
-  const [avenues, setAvenues] = useState<Avenue[]>([]);
-  const [parcelles, setParcelles] = useState<Parcelle[]>([]);
-  const [abonnes, setAbonnes] = useState<Abonne[]>([]);
+  const [communes, setCommunes] = useState<Commune[]>(() => {
+    const saved = localStorage.getItem('hico_db_communes');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error('Failed to parse saved communes', e);
+      }
+    }
+    return INITIAL_COMMUNES;
+  });
+
+  const [avenues, setAvenues] = useState<Avenue[]>(() => {
+    const saved = localStorage.getItem('hico_db_avenues');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error('Failed to parse saved avenues', e);
+      }
+    }
+    return INITIAL_AVENUES;
+  });
+
+  const [parcelles, setParcelles] = useState<Parcelle[]>(() => {
+    const saved = localStorage.getItem('hico_db_parcelles');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error('Failed to parse saved parcelles', e);
+      }
+    }
+    return INITIAL_PARCELLES;
+  });
+
+  const [abonnes, setAbonnes] = useState<Abonne[]>(() => {
+    const saved = localStorage.getItem('hico_db_abonnes');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error('Failed to parse saved abonnes', e);
+      }
+    }
+    return INITIAL_ABONNES;
+  });
 
   // 4.2. Waste management and collector tracking states
   const [poubelleSignals, setPoubelleSignals] = useState<PoubelleSignal[]>(() => {
@@ -415,35 +462,51 @@ export default function App() {
     if (!currentUser) return false;
     if (screenId === 'login' || screenId === 'profil') return true;
     
+    // Admins always have access to settings and administrative features to prevent lockouts
+    if (currentUser.role === 'admin') {
+      const adminScreens = [
+        'dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 
+        'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 
+        'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
+      ];
+      if (adminScreens.includes(screenId)) {
+        return true;
+      }
+    }
+
     let perms;
     const customPermsRaw = localStorage.getItem('hico_role_permissions');
     if (customPermsRaw) {
       try {
         perms = JSON.parse(customPermsRaw);
-        if (perms.admin && !perms.admin.includes('sachets_management')) {
-          perms.admin = [...perms.admin, 'sachets_management'];
-          localStorage.setItem('hico_role_permissions', JSON.stringify(perms));
-        }
-        if (perms.agent && !perms.agent.includes('sachets_management')) {
-          perms.agent = [...perms.agent, 'sachets_management'];
-          localStorage.setItem('hico_role_permissions', JSON.stringify(perms));
-        }
-        if (perms.admin && !perms.admin.includes('finance_management')) {
-          perms.admin = [...perms.admin, 'finance_management'];
-          localStorage.setItem('hico_role_permissions', JSON.stringify(perms));
-        }
-        if (perms.agent && !perms.agent.includes('finance_management')) {
-          perms.agent = [...perms.agent, 'finance_management'];
-          localStorage.setItem('hico_role_permissions', JSON.stringify(perms));
-        }
-        if (perms.admin && !perms.admin.includes('admin_settings_screens')) {
-          perms.admin = [
-            ...perms.admin.filter((s: string) => s !== 'admin_settings'),
-            'admin_settings_screens',
-            'admin_settings_pricing',
-            'admin_settings_accounts',
-            'admin_settings_passwords'
+        let updated = false;
+        
+        if (perms.admin) {
+          const requiredAdminScreens = [
+            'sachets_management', 'finance_management', 'admin_settings_screens', 
+            'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
           ];
+          requiredAdminScreens.forEach(s => {
+            if (!perms.admin.includes(s)) {
+              perms.admin.push(s);
+              updated = true;
+            }
+          });
+        }
+        
+        if (perms.agent) {
+          const requiredAgentScreens = [
+            'sachets_management', 'finance_management'
+          ];
+          requiredAgentScreens.forEach(s => {
+            if (!perms.agent.includes(s)) {
+              perms.agent.push(s);
+              updated = true;
+            }
+          });
+        }
+        
+        if (updated) {
           localStorage.setItem('hico_role_permissions', JSON.stringify(perms));
         }
       } catch (e) {
@@ -1285,7 +1348,7 @@ export default function App() {
           <div className="flex flex-grow pt-16">
             
             {/* Desktop Left-Rail Navigation (visible on md+) */}
-            <aside className="hidden md:flex fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 border-r border-outline-variant bg-surface flex-col py-6 px-4 gap-2 z-30 shadow-xl">
+            <aside className="hidden md:flex fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 border-r border-outline-variant bg-surface flex-col py-6 px-4 gap-2 z-30 shadow-xl overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-outline-variant/50 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-primary/40">
               <div className="text-xs font-bold text-on-surface-variant opacity-80 uppercase tracking-widest mb-4 px-3 select-none">
                 Menu Principal
               </div>
