@@ -121,106 +121,6 @@ export default function LoginForm({ onLoginSuccess, agents, onRegisterAgent }: L
           </div>
         </header>
 
-        {/* Dynamic Account Selector Panel */}
-        <div className="bg-[#141414] rounded-2xl border border-white/10 p-4 flex flex-col gap-3 shadow-md" id="dynamic_account_switcher">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#10b981] flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse"></span>
-              Sélecteur de Comptes :
-            </span>
-            <span className="text-[10px] text-gray-500 font-mono font-bold">
-              {agents.length} comptes trouvés
-            </span>
-          </div>
-
-          {/* Tab Selector */}
-          <div className="flex bg-[#0D0D0D] p-1 rounded-xl border border-white/5 gap-1">
-            <button
-              type="button"
-              onClick={() => setActiveRoleTab('eboueur')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                activeRoleTab === 'eboueur'
-                  ? 'bg-primary text-white shadow-md'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Truck size={14} />
-              <span>Éboueurs</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveRoleTab('abonne')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                activeRoleTab === 'abonne'
-                  ? 'bg-primary text-white shadow-md'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <User size={14} />
-              <span>Abonnés</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveRoleTab('admin_agent')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                activeRoleTab === 'admin_agent'
-                  ? 'bg-primary text-white shadow-md'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Shield size={14} />
-              <span>Staff</span>
-            </button>
-          </div>
-
-          {/* Active Tab Account List Grid */}
-          <div className="grid grid-cols-1 gap-2 max-h-[160px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
-            {groupedAgents[activeRoleTab].length === 0 ? (
-              <div className="text-center py-4 text-xs text-gray-500 font-medium font-sans">
-                Aucun compte enregistré pour ce rôle.
-              </div>
-            ) : (
-              groupedAgents[activeRoleTab].map((agent) => (
-                <button
-                  key={agent.id}
-                  type="button"
-                  onClick={() => onLoginSuccess(agent)}
-                  className="w-full p-2.5 text-left bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/15 rounded-xl flex items-center justify-between gap-3 transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      agent.role === 'eboueur' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/25' :
-                      agent.role === 'abonne' ? 'bg-primary/10 text-primary border border-primary/25' :
-                      'bg-amber-500/10 text-amber-400 border border-amber-500/25'
-                    }`}>
-                      {agent.role === 'eboueur' ? <Truck size={15} /> :
-                       agent.role === 'abonne' ? <User size={15} /> :
-                       <Shield size={15} />}
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-black text-white group-hover:text-primary transition-colors leading-none">
-                        {agent.nom}
-                      </span>
-                      <span className="text-[9px] text-gray-400 font-mono mt-0.5 font-medium leading-none">
-                        {agent.telephone}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] bg-white/10 text-gray-300 font-bold uppercase px-1.5 py-0.5 rounded border border-white/5 font-sans tracking-wide">
-                      {agent.role === 'eboueur' ? 'Éboueur' :
-                       agent.role === 'abonne' ? 'Abonné' :
-                       agent.role === 'admin' ? 'Admin' : 'Recenseur'}
-                    </span>
-                    <LogIn size={12} className="text-gray-500 group-hover:text-white transition-colors shrink-0" />
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-
         {/* Login Form Container */}
         <div className="bg-[#141414] rounded-3xl border border-white/10 p-5 flex flex-col gap-5 shadow-2xl">
           <form className="flex flex-col gap-3.5" onSubmit={handleLogin}>
@@ -261,8 +161,8 @@ export default function LoginForm({ onLoginSuccess, agents, onRegisterAgent }: L
                 </label>
                 <button 
                   type="button" 
-                  onClick={() => alert(`Pour la démo, utilisez le mot de passe: "password"`)}
-                  className="text-[10px] font-bold text-primary hover:text-white transition-colors"
+                  onClick={() => alert(`Veuillez contacter le support ou votre administrateur pour réinitialiser votre mot de passe.`)}
+                  className="text-[10px] font-bold text-primary hover:text-white transition-colors cursor-pointer"
                 >
                   Oublié ?
                 </button>
@@ -363,17 +263,6 @@ export default function LoginForm({ onLoginSuccess, agents, onRegisterAgent }: L
           Besoin d'aide ? <br /> Contactez le <span className="text-primary font-bold hover:underline cursor-pointer" onClick={() => alert('Support technique Hico-Cleaning : +243 81 234 5678')}>support technique</span>.
         </p>
 
-        {/* Info Box to facilitate fast testing */}
-        <div className="bg-[#1C1C1C] border border-white/5 text-gray-300 rounded-2xl p-4 text-xs flex flex-col gap-1.5 shadow-md">
-          <p className="font-bold text-primary flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block animate-pulse"></span>
-            Mode d'accès et Connexion :
-          </p>
-          <ul className="list-disc list-inside space-y-1 text-gray-400 font-sans">
-            <li>Saisissez <span className="text-white font-medium">n'importe quel numéro</span> pour vous connecter de façon personnalisée.</li>
-            <li>Ou connectez-vous directement avec le numéro de démonstration prérempli ci-dessus.</li>
-          </ul>
-        </div>
       </main>
     </div>
   );

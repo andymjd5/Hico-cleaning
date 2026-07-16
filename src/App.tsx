@@ -523,8 +523,27 @@ export default function App() {
         const { data: ags, error: agsError } = await supabase
           .from('agents')
           .select('*');
-        if (!agsError && ags && ags.length > 0) {
-          setAgents(ags);
+        if (!agsError && ags) {
+          const mergedAgents = [...ags];
+          const hasAdmin = mergedAgents.some(a => a.role === 'admin' || a.id === 'admin-1' || a.telephone === '0600000000');
+          if (!hasAdmin) {
+            const defaultAdmin: Agent = {
+              id: 'admin-1',
+              nom: 'Hico Admin',
+              telephone: '0600000000',
+              role: 'admin',
+              created_at: new Date('2026-05-01').toISOString(),
+              password: 'password',
+              isTempPassword: false
+            };
+            mergedAgents.unshift(defaultAdmin);
+            try {
+              await supabase.from('agents').upsert([defaultAdmin]);
+            } catch (err) {
+              console.warn("Failed to auto-upsert default admin:", err);
+            }
+          }
+          setAgents(mergedAgents);
         }
       } catch (agentErr) {
         console.warn("Table 'agents' not accessible or doesn't exist yet in Supabase. Using localStorage fallback.", agentErr);
@@ -2273,8 +2292,12 @@ CREATE TABLE IF NOT EXISTS agents (
   nom TEXT NOT NULL,
   telephone TEXT NOT NULL UNIQUE,
   role TEXT NOT NULL CHECK (role IN ('admin', 'agent', 'abonne', 'eboueur')),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  password TEXT DEFAULT 'password'
 );
+
+-- Migration pour ajouter la colonne mot de passe si existante
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS password TEXT DEFAULT 'password';
 
 -- 1. Table des communes
 CREATE TABLE IF NOT EXISTS communes (
@@ -2416,8 +2439,12 @@ CREATE TABLE IF NOT EXISTS agents (
   nom TEXT NOT NULL,
   telephone TEXT NOT NULL UNIQUE,
   role TEXT NOT NULL CHECK (role IN ('admin', 'agent', 'abonne', 'eboueur')),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  password TEXT DEFAULT 'password'
 );
+
+-- Migration pour ajouter la colonne mot de passe si existante
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS password TEXT DEFAULT 'password';
 
 -- 1. Table des communes
 CREATE TABLE IF NOT EXISTS communes (
