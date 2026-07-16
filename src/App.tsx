@@ -530,6 +530,125 @@ export default function App() {
         console.warn("Table 'agents' not accessible or doesn't exist yet in Supabase. Using localStorage fallback.", agentErr);
       }
 
+      // 6. Fetch Poubelle Signals
+      try {
+        const { data: sigs, error: sigsError } = await supabase
+          .from('signaux_poubelles')
+          .select('*')
+          .order('reported_at', { ascending: false });
+        if (!sigsError && sigs) {
+          const formatted = sigs.map((s: any) => ({
+            id: s.id,
+            parcelle_id: s.parcelle_id,
+            commune_id: s.commune_id,
+            avenue_id: s.avenue_id,
+            commune_nom: s.commune_nom,
+            avenue_nom: s.avenue_nom,
+            numero_parcelle: s.numero_parcelle,
+            bailleur_nom: s.bailleur_nom,
+            bailleur_telephone: s.bailleur_telephone,
+            status: s.status as 'pending' | 'assigned' | 'completed',
+            assigned_eboueur_id: s.assigned_eboueur_id,
+            reported_at: s.reported_at,
+            completed_at: s.completed_at,
+            type_poubelle: s.type_poubelle as 'biodegradable' | 'non_biodegradable'
+          }));
+          setPoubelleSignals(formatted);
+        }
+      } catch (e) {
+        console.warn("Table 'signaux_poubelles' not accessible, using localStorage fallback.", e);
+      }
+
+      // 7. Fetch Sachet Stocks
+      try {
+        const { data: stocks, error: stocksError } = await supabase
+          .from('sachet_stocks')
+          .select('*');
+        if (!stocksError && stocks && stocks.length > 0) {
+          setSachetStocks(stocks);
+        }
+      } catch (e) {
+        console.warn("Table 'sachet_stocks' not accessible, using localStorage fallback.", e);
+      }
+
+      // 8. Fetch Sachet Distributions
+      try {
+        const { data: dists, error: distsError } = await supabase
+          .from('sachet_distributions')
+          .select('*')
+          .order('date_distribution', { ascending: false });
+        if (!distsError && dists) {
+          setSachetDistributions(dists);
+        }
+      } catch (e) {
+        console.warn("Table 'sachet_distributions' not accessible, using localStorage fallback.", e);
+      }
+
+      // 9. Fetch Payments
+      try {
+        const { data: pays, error: paysError } = await supabase
+          .from('subscription_payments')
+          .select('*')
+          .order('date_paiement', { ascending: false });
+        if (!paysError && pays) {
+          setPayments(pays);
+        }
+      } catch (e) {
+        console.warn("Table 'subscription_payments' not accessible, using localStorage fallback.", e);
+      }
+
+      // 10. Fetch Staff Payments
+      try {
+        const { data: spays, error: spaysError } = await supabase
+          .from('staff_payments')
+          .select('*')
+          .order('date_paiement', { ascending: false });
+        if (!spaysError && spays) {
+          setStaffPayments(spays);
+        }
+      } catch (e) {
+        console.warn("Table 'staff_payments' not accessible, using localStorage fallback.", e);
+      }
+
+      // 11. Fetch Material Expenses
+      try {
+        const { data: exps, error: expsError } = await supabase
+          .from('material_expenses')
+          .select('*')
+          .order('date_depense', { ascending: false });
+        if (!expsError && exps) {
+          setMaterialExpenses(exps);
+        }
+      } catch (e) {
+        console.warn("Table 'material_expenses' not accessible, using localStorage fallback.", e);
+      }
+
+      // 12. Fetch Disputes
+      try {
+        const { data: disps, error: dispsError } = await supabase
+          .from('dispute_signals')
+          .select('*')
+          .order('date_constat', { ascending: false });
+        if (!dispsError && disps) {
+          setDisputes(disps);
+        }
+      } catch (e) {
+        console.warn("Table 'dispute_signals' not accessible, using localStorage fallback.", e);
+      }
+
+      // 13. Fetch Inbox Messages
+      try {
+        const { data: msgs, error: msgsError } = await supabase
+          .from('inbox_messages')
+          .select('*')
+          .order('sent_at', { ascending: false });
+        if (!msgsError && msgs) {
+          setInboxMessages(msgs);
+        }
+      } catch (e) {
+        console.warn("Table 'inbox_messages' not accessible, using localStorage fallback.", e);
+      }
+
       setDbStatus('connected');
       setDbErrorMsg(null);
     } catch (err: any) {
@@ -764,46 +883,59 @@ export default function App() {
   // ==========================================
   // GESTION DES DECHETS ET EBOUEURS HANDLERS
   // ==========================================
-  const handleReplenishStock = (communeId: string, bioQty: number, nonBioQty: number) => {
+  const handleReplenishStock = async (communeId: string, bioQty: number, nonBioQty: number) => {
+    let updatedStock: SachetStock | null = null;
     setSachetStocks(prev => {
       const updated = prev.map(stock => {
         if (stock.commune_id === communeId) {
-          return {
+          updatedStock = {
             ...stock,
             biodegradable: stock.biodegradable + bioQty,
             non_biodegradable: stock.non_biodegradable + nonBioQty,
             last_replenished: new Date().toISOString()
           };
+          return updatedStock!;
         }
         return stock;
       });
       if (!updated.some(s => s.commune_id === communeId)) {
-        updated.push({
+        updatedStock = {
           id: 'stk-' + communeId,
           commune_id: communeId,
           biodegradable: bioQty,
           non_biodegradable: nonBioQty,
           seuil_alerte: 50,
           last_replenished: new Date().toISOString()
-        });
+        };
+        updated.push(updatedStock!);
       }
       return updated;
     });
+
+    if (isSupabaseConfigured && dbStatus === 'connected' && updatedStock) {
+      try {
+        await supabase.from('sachet_stocks').upsert([updatedStock]);
+      } catch (err) {
+        console.warn("Supabase sachet_stocks upsert failed:", err);
+      }
+    }
   };
 
-  const handleDistributeSachets = (distribution: Omit<SachetDistribution, 'id'>) => {
+  const handleDistributeSachets = async (distribution: Omit<SachetDistribution, 'id'>) => {
     let success = false;
+    let updatedStock: SachetStock | null = null;
     setSachetStocks(prev => {
       const updated = prev.map(stock => {
         if (stock.commune_id === distribution.commune_id) {
           if (stock.biodegradable >= distribution.quantite_biodegradable && 
               stock.non_biodegradable >= distribution.quantite_non_biodegradable) {
             success = true;
-            return {
+            updatedStock = {
               ...stock,
               biodegradable: stock.biodegradable - distribution.quantite_biodegradable,
               non_biodegradable: stock.non_biodegradable - distribution.quantite_non_biodegradable
             };
+            return updatedStock!;
           }
         }
         return stock;
@@ -818,13 +950,24 @@ export default function App() {
       ...distribution
     };
     setSachetDistributions(prev => [newDist, ...prev]);
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        if (updatedStock) {
+          await supabase.from('sachet_stocks').upsert([updatedStock]);
+        }
+        await supabase.from('sachet_distributions').insert([newDist]);
+      } catch (err) {
+        console.warn("Supabase sachet distribution update failed:", err);
+      }
+    }
     return true;
   };
 
   // ==========================================
   // GESTION FINANCIERE & RECETTES & LITIGES HANDLERS
   // ==========================================
-  const handleAddSubscriptionPayment = (newPay: Omit<SubscriptionPayment, 'id'>) => {
+  const handleAddSubscriptionPayment = async (newPay: Omit<SubscriptionPayment, 'id'>) => {
     const pay: SubscriptionPayment = {
       ...newPay,
       id: 'PAY-' + Math.random().toString(36).substring(2, 9).toUpperCase()
@@ -838,25 +981,54 @@ export default function App() {
       }
       return d;
     }));
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('subscription_payments').insert([pay]);
+        await supabase.from('dis_signals' /* dispute_signals fallback */);
+      } catch (_) {}
+      try {
+        await supabase.from('dis_signals').update({ status: 'resolved' }).eq('abonne_id', newPay.abonne_id).eq('status', 'active');
+      } catch (_) {}
+      try {
+        await supabase.from('dispute_signals').update({ status: 'resolved' }).eq('abonne_id', newPay.abonne_id).eq('status', 'active');
+      } catch (_) {}
+    }
   };
 
-  const handlePayStaff = (newPay: Omit<StaffPayment, 'id'>) => {
+  const handlePayStaff = async (newPay: Omit<StaffPayment, 'id'>) => {
     const pay: StaffPayment = {
       ...newPay,
       id: 'PAY-STF-' + Math.random().toString(36).substring(2, 9).toUpperCase()
     };
     setStaffPayments(prev => [pay, ...prev]);
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('staff_payments').insert([pay]);
+      } catch (err) {
+        console.warn("Supabase staff_payments sync failed:", err);
+      }
+    }
   };
 
-  const handleAddMaterialExpense = (newExp: Omit<MaterialExpense, 'id'>) => {
+  const handleAddMaterialExpense = async (newExp: Omit<MaterialExpense, 'id'>) => {
     const exp: MaterialExpense = {
       ...newExp,
       id: 'EXP-' + Math.random().toString(36).substring(2, 9).toUpperCase()
     };
     setMaterialExpenses(prev => [exp, ...prev]);
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('material_expenses').insert([exp]);
+      } catch (err) {
+        console.warn("Supabase material_expenses sync failed:", err);
+      }
+    }
   };
 
-  const handleSignalDispute = (newDisp: Omit<DisputeSignal, 'id'>) => {
+  const handleSignalDispute = async (newDisp: Omit<DisputeSignal, 'id'>) => {
     const disp: DisputeSignal = {
       ...newDisp,
       id: 'DISP-' + Math.random().toString(36).substring(2, 9).toUpperCase()
@@ -865,15 +1037,28 @@ export default function App() {
 
     // Send a real inbox notification warning the subscriber
     const msgContent = `[SIGNALEMENT DE LITIGE] Nous constatons un défaut de paiement de redevance de salubrité pour votre parcelle. Montant réclamé : ${newDisp.montant_du} FC / $. Veuillez régulariser d'urgence via l'application ou appeler le service recouvrement.`;
-    handleSendInboxMessage('Service Recouvrement (Hico)', msgContent);
+    await handleSendInboxMessage('Service Recouvrement (Hico)', msgContent);
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('dispute_signals').insert([disp]);
+      } catch (err) {
+        console.warn("Supabase dispute_signals sync failed:", err);
+      }
+    }
   };
 
-  const handleResolveDispute = (disputeId: string) => {
+  const handleResolveDispute = async (disputeId: string) => {
+    let resolvedDisp: DisputeSignal | undefined;
+    const payId = 'PAY-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+    let payObj: SubscriptionPayment | null = null;
+
     setDisputes(prev => prev.map(d => {
       if (d.id === disputeId) {
+        resolvedDisp = { ...d, status: 'resolved' as const };
         // Record a payment first
-        const pay: SubscriptionPayment = {
-          id: 'PAY-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+        payObj = {
+          id: payId,
           abonne_id: d.abonne_id,
           nom_complet: d.nom_complet,
           commune_id: d.commune_id,
@@ -884,23 +1069,35 @@ export default function App() {
           telephone_payeur: d.telephone,
           status: 'success'
         };
-        setPayments(prevPayments => [pay, ...prevPayments]);
+        setPayments(prevPayments => [payObj!, ...prevPayments]);
 
         // Mark dispute resolved
-        return { ...d, status: 'resolved' as const };
+        return resolvedDisp!;
       }
       return d;
     }));
 
     // Send notification to user that they are paid up
-    const updatedDispute = disputes.find(d => d.id === disputeId);
+    const updatedDispute = resolvedDisp || disputes.find(d => d.id === disputeId);
     if (updatedDispute) {
       const msgContent = `[LITIGE RÉSOLU] Merci ! Votre redevance de salubrité de ${updatedDispute.montant_du} a été réglée avec succès. Votre abonnement est réactivé.`;
-      handleSendInboxMessage('Service Recouvrement (Hico)', msgContent);
+      await handleSendInboxMessage('Service Recouvrement (Hico)', msgContent);
+    }
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        if (payObj) {
+          await supabase.from('subscription_payments').insert([payObj]);
+        }
+        await supabase.from('dispute_signals').update({ status: 'resolved' }).eq('id', disputeId);
+      } catch (err) {
+        console.warn("Supabase dispute resolution sync failed:", err);
+      }
     }
   };
 
-  const handleSendDisputeReminder = (disputeId: string) => {
+  const handleSendDisputeReminder = async (disputeId: string) => {
+    let updatedDisp: DisputeSignal | null = null;
     setDisputes(prev => prev.map(d => {
       if (d.id === disputeId) {
         // Increment reminders_sent
@@ -910,17 +1107,26 @@ export default function App() {
         const msgContent = `[RAPPEL DE LITIGE N°${reminders}] Alerte de recouvrement ! Votre compte présente un solde impayé de ${d.montant_du}. Un SMS de sommation a été envoyé au ${d.telephone}. Veuillez régler sous 48h.`;
         handleSendInboxMessage('Service Recouvrement (Hico)', msgContent);
 
-        return {
+        updatedDisp = {
           ...d,
           reminders_sent: reminders,
           last_reminder_date: new Date().toISOString()
         };
+        return updatedDisp!;
       }
       return d;
     }));
+
+    if (isSupabaseConfigured && dbStatus === 'connected' && updatedDisp) {
+      try {
+        await supabase.from('dispute_signals').update(updatedDisp).eq('id', disputeId);
+      } catch (err) {
+        console.warn("Supabase dispute reminder sync failed:", err);
+      }
+    }
   };
 
-  const handleReportTrashFull = (type_poubelle: 'biodegradable' | 'non_biodegradable') => {
+  const handleReportTrashFull = async (type_poubelle: 'biodegradable' | 'non_biodegradable') => {
     // Find active Abonne profile associated with the user
     const ab = abonnes.find(a => a.telephone_principal === currentUser?.telephone || a.id === 'abonne-demo');
     if (!ab) {
@@ -964,9 +1170,17 @@ export default function App() {
     };
 
     setPoubelleSignals(prev => [newSignal, ...prev]);
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('signaux_poubelles').insert([newSignal]);
+      } catch (err) {
+        console.warn("Supabase signaux_poubelles insert failed:", err);
+      }
+    }
   };
 
-  const handleAssignEboueur = (signalId: string, eboueurId: string) => {
+  const handleAssignEboueur = async (signalId: string, eboueurId: string) => {
     setPoubelleSignals(prev => prev.map(sig => {
       if (sig.id === signalId) {
         return {
@@ -987,9 +1201,17 @@ export default function App() {
       }
       return eb;
     }));
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('signaux_poubelles').update({ status: 'assigned', assigned_eboueur_id: eboueurId }).eq('id', signalId);
+      } catch (err) {
+        console.warn("Supabase handleAssignEboueur failed:", err);
+      }
+    }
   };
 
-  const handleCompleteMission = (signalId: string) => {
+  const handleCompleteMission = async (signalId: string) => {
     let assignedEbId: string | undefined;
     let signalType: 'biodegradable' | 'non_biodegradable' = 'biodegradable';
     let parcelleId = '';
@@ -1025,7 +1247,7 @@ export default function App() {
     // Auto distribute replacement sachet of that type during collection
     if (parcelleId && avenueId && communeId) {
       const isBio = signalType === 'biodegradable';
-      handleDistributeSachets({
+      await handleDistributeSachets({
         parcelle_id: parcelleId,
         avenue_id: avenueId,
         commune_id: communeId,
@@ -1060,6 +1282,14 @@ export default function App() {
           }
           return eb;
         }));
+      }
+    }
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('signaux_poubelles').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', signalId);
+      } catch (err) {
+        console.warn("Supabase handleCompleteMission failed:", err);
       }
     }
   };
@@ -1146,18 +1376,26 @@ export default function App() {
     }
   };
 
-  const handleSendInboxMessage = (sender: string, content: string) => {
+  const handleSendInboxMessage = async (sender: string, content: string) => {
     const newMsg: InboxMessage = {
       id: 'msg-' + Math.random().toString(36).substring(2, 11),
       sender,
       content,
-      sent_at: 'À l\'instant',
+      sent_at: new Date().toISOString(),
       read: false
     };
     setInboxMessages(prev => [newMsg, ...prev]);
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('inbox_messages').insert([newMsg]);
+      } catch (err) {
+        console.warn("Supabase inbox_messages insert failed:", err);
+      }
+    }
   };
 
-  const handleSimulateSignal = (parcelleId: string) => {
+  const handleSimulateSignal = async (parcelleId: string) => {
     const parc = parcelles.find(p => p.id === parcelleId);
     if (!parc) return;
     const ab = abonnes.find(a => a.parcelle_id === parcelleId) || {
@@ -1183,6 +1421,14 @@ export default function App() {
     };
 
     setPoubelleSignals(prev => [newSignal, ...prev]);
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('signaux_poubelles').insert([newSignal]);
+      } catch (err) {
+        console.warn("Supabase simulate signal failed:", err);
+      }
+    }
   };
 
   // Switch between back hierarchy safely

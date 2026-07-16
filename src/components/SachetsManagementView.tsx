@@ -31,7 +31,7 @@ interface SachetsManagementViewProps {
   stocks: SachetStock[];
   distributions: SachetDistribution[];
   onReplenishStock: (communeId: string, bioQty: number, nonBioQty: number) => void;
-  onDistributeSachets: (distribution: Omit<SachetDistribution, 'id'>) => boolean;
+  onDistributeSachets: (distribution: Omit<SachetDistribution, 'id'>) => boolean | Promise<boolean>;
 }
 
 export default function SachetsManagementView({
@@ -169,7 +169,7 @@ export default function SachetsManagementView({
       return;
     }
 
-    const success = onDistributeSachets({
+    const result = onDistributeSachets({
       parcelle_id: distParcelleId,
       avenue_id: distAvenueId,
       commune_id: distCommuneId,
@@ -180,12 +180,22 @@ export default function SachetsManagementView({
       notes: distNotes
     });
 
-    if (success) {
-      setDistSuccess(true);
-      setDistNotes('');
-      setTimeout(() => setDistSuccess(false), 3000);
+    const handleSuccessState = (isSuccess: boolean) => {
+      if (isSuccess) {
+        setDistSuccess(true);
+        setDistNotes('');
+        setTimeout(() => setDistSuccess(false), 3000);
+      } else {
+        setDistError("Une erreur est survenue lors de la distribution.");
+      }
+    };
+
+    if (result instanceof Promise) {
+      result.then(handleSuccessState).catch(() => {
+        setDistError("Une erreur est survenue lors de la distribution.");
+      });
     } else {
-      setDistError("Une erreur est survenue lors de la distribution.");
+      handleSuccessState(result);
     }
   };
 
