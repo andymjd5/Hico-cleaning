@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, ChevronRight, Map, ArrowLeft, Plus } from 'lucide-react';
+import { Search, ChevronRight, Map, ArrowLeft, Plus, ChevronDown } from 'lucide-react';
 import { Commune, Avenue } from '../types';
 
 interface CommunesViewProps {
@@ -55,6 +55,30 @@ export default function CommunesView({
       {/* Intro info */}
       <div className="bg-surface/80 border border-outline-variant rounded-2xl p-4 text-xs font-sans shadow-lg leading-relaxed text-on-surface-variant">
         🗺️ <span className="font-semibold text-primary">Étape 1 du Recensement :</span> Sélectionnez d'abord la commune de l'avenue que vous souhaitez recenser. Vous pouvez également rechercher ou insérer une nouvelle commune.
+      </div>
+
+      {/* Dropdown Selection Matching Bento Theme */}
+      <div className="flex flex-col gap-2 bg-surface/50 border border-outline-variant rounded-2xl p-4.5 shadow-md">
+        <label className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+          Sélectionner une Commune *
+        </label>
+        <div className="relative">
+          <select
+            value=""
+            onChange={(e) => onSelectCommune(e.target.value)}
+            className="w-full h-11 px-3 bg-background border border-outline-variant rounded-xl text-sm font-semibold text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer appearance-none"
+          >
+            <option value="" disabled>-- Choisir une commune --</option>
+            {communes.map((comm) => (
+              <option key={comm.id} value={comm.id}>
+                {comm.nom}
+              </option>
+            ))}
+          </select>
+          <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-on-surface-variant">
+            <ChevronDown size={18} />
+          </div>
+        </div>
       </div>
 
       {/* Styled Search Input Area matching Bento Theme */}

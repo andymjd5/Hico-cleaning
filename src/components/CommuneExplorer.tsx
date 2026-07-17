@@ -48,13 +48,6 @@ export default function CommuneExplorer({
   const [searchTableQuery, setSearchTableQuery] = useState('');
   const [onlyWithGps, setOnlyWithGps] = useState(false);
 
-  // Reset selected commune and filter parameters when changed
-  React.useEffect(() => {
-    if (communes.length > 0 && !selectedCommuneId) {
-      setSelectedCommuneId(communes[0].id);
-    }
-  }, [communes, selectedCommuneId]);
-
   const selectedCommune = useMemo(() => {
     return communes.find(c => c.id === selectedCommuneId);
   }, [communes, selectedCommuneId]);
@@ -783,8 +776,16 @@ export default function CommuneExplorer({
 
         </div>
       ) : (
-        <div className="text-center py-8 text-on-surface-variant text-xs font-semibold">
-          Veuillez charger des communes pour démarrer la consultation.
+        <div className="text-center py-16 bg-background/30 border border-dashed border-outline-variant rounded-3xl flex flex-col items-center gap-4 max-w-xl mx-auto my-8 p-6 shadow-sm">
+          <div className="p-4 bg-secondary/10 rounded-full text-secondary animate-pulse">
+            <Compass size={40} className="text-secondary" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <h3 className="text-base font-bold text-on-surface">Explorateur GPS & Recensement</h3>
+            <p className="text-xs text-on-surface-variant max-w-md mx-auto leading-relaxed">
+              Veuillez sélectionner l'une des 24 communes de Kinshasa dans le menu déroulant ci-dessus pour interroger en temps réel les avenues, les parcelles géolocalisées et les responsables abonnés.
+            </p>
+          </div>
         </div>
       )}
 
