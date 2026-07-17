@@ -49,17 +49,36 @@ export default function App() {
   // 1. Session state
   const [currentUser, setCurrentUser] = useState<Agent | null>(() => {
     const saved = localStorage.getItem('hico_current_user');
-    return saved ? JSON.parse(saved) : null;
+    if (saved) {
+      try {
+        const user = JSON.parse(saved);
+        if (user && (user.telephone === '0890890000' || (user.nom && user.nom.toLowerCase().includes('andy mj')))) {
+          localStorage.removeItem('hico_current_user');
+          return null;
+        }
+        return user;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
   });
 
   // 2. Active Screen state
   const [currentScreen, setCurrentScreen] = useState<Screen>(() => {
     const saved = localStorage.getItem('hico_current_user');
     if (saved) {
-      const user = JSON.parse(saved);
-      if (user.role === 'abonne') return 'abonne_space';
-      if (user.role === 'eboueur') return 'eboueur_space';
-      return 'dashboard';
+      try {
+        const user = JSON.parse(saved);
+        if (user && (user.telephone === '0890890000' || (user.nom && user.nom.toLowerCase().includes('andy mj')))) {
+          return 'login';
+        }
+        if (user.role === 'abonne') return 'abonne_space';
+        if (user.role === 'eboueur') return 'eboueur_space';
+        return 'dashboard';
+      } catch (e) {
+        return 'login';
+      }
     }
     return 'login';
   });
@@ -71,8 +90,12 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Keep only admin-1 and filter out any hardcoded demo users
-          return parsed.filter(a => a.id === 'admin-1' || !['agent-1', 'abonne-demo', 'eboueur-demo'].includes(a.id));
+          // Keep only admin-1 and filter out any hardcoded demo users or local testing leftovers like andy mj
+          return parsed.filter(a => 
+            (a.id === 'admin-1' || !['agent-1', 'abonne-demo', 'eboueur-demo'].includes(a.id)) &&
+            a.telephone !== '0890890000' &&
+            !(a.nom && a.nom.toLowerCase().includes('andy mj'))
+          );
         }
       } catch (e) {
         console.error(e);
@@ -182,8 +205,12 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Filter out demo eboueurs
-          return parsed.filter(e => !['eb-1', 'eb-2', 'eb-3', 'eboueur-demo'].includes(e.id));
+          // Filter out demo eboueurs and local testing leftovers like andy mj
+          return parsed.filter(e => 
+            !['eb-1', 'eb-2', 'eb-3', 'eboueur-demo'].includes(e.id) &&
+            e.telephone !== '0890890000' &&
+            !(e.nom && e.nom.toLowerCase().includes('andy mj'))
+          );
         }
       } catch (e) {
         console.error(e);
@@ -288,9 +315,21 @@ export default function App() {
 
   // Synchroniser les agents de rôle 'eboueur' avec la liste 'eboueurs' pour l'affichage de la carte
   useEffect(() => {
-    const eboueursFromAgents = agents.filter(a => a.role === 'eboueur');
+    const eboueursFromAgents = agents.filter(a => 
+      a.role === 'eboueur' && 
+      a.telephone !== '0890890000' && 
+      !(a.nom && a.nom.toLowerCase().includes('andy mj'))
+    );
     let hasChanges = false;
-    const updatedEboueurs = [...eboueurs];
+    // Keep only clean eboueurs
+    const updatedEboueurs = eboueurs.filter(e => 
+      e.telephone !== '0890890000' && 
+      !(e.nom && e.nom.toLowerCase().includes('andy mj'))
+    );
+
+    if (updatedEboueurs.length !== eboueurs.length) {
+      hasChanges = true;
+    }
 
     eboueursFromAgents.forEach(agent => {
       const exists = updatedEboueurs.some(e => e.telephone === agent.telephone || e.id === agent.id);
