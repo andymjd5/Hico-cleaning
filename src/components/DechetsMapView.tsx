@@ -788,7 +788,7 @@ export default function DechetsMapView({
 
       {/* Localisation Modal Overlay */}
       {isLocalisationModalOpen && (
-        <div className="fixed inset-0 bg-background/85 backdrop-blur-md flex items-start justify-center z-[9999] p-3 md:p-5 pt-10 md:pt-14 animate-fade-in">
+        <div className="fixed inset-0 bg-background/85 backdrop-blur-md flex items-start justify-center z-[9999] p-3 md:p-5 pt-10 md:pt-14 md:pl-64 animate-fade-in">
           <div className="bg-surface border border-outline-variant rounded-3xl w-full max-w-xl md:max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             
             {/* Modal Header */}
