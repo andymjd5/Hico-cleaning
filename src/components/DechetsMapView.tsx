@@ -27,7 +27,8 @@ import {
   Radio, 
   AlertTriangle,
   Play,
-  Layers
+  Layers,
+  X
 } from 'lucide-react';
 
 interface DechetsMapViewProps {
@@ -38,7 +39,7 @@ interface DechetsMapViewProps {
   parcelles: Parcelle[];
   abonnes: Abonne[];
   onAssignMission: (signalId: string, eboueurId: string) => void;
-  onSimulateSignal: (parcelleId: string) => void;
+  onSimulateSignal: (parcelleId: string, typePoubelle?: 'biodegradable' | 'non_biodegradable') => void;
 }
 
 export default function DechetsMapView({
@@ -58,6 +59,13 @@ export default function DechetsMapView({
   const [simulationAvenueId, setSimulationAvenueId] = useState<string>('');
   const [simulationParcelleId, setSimulationParcelleId] = useState<string>('');
 
+  // Localisation Modal States
+  const [isLocalisationModalOpen, setIsLocalisationModalOpen] = useState(false);
+  const [locCommuneId, setLocCommuneId] = useState('');
+  const [locAvenueId, setLocAvenueId] = useState('');
+  const [locParcelleId, setLocParcelleId] = useState('');
+  const [locSachetType, setLocSachetType] = useState<'biodegradable' | 'non_biodegradable'>('biodegradable');
+
   // Communes list for simulation dropdown
   const simulationAvenues = useMemo(() => {
     if (!simulationCommuneId) return [];
@@ -68,6 +76,26 @@ export default function DechetsMapView({
     if (!simulationAvenueId) return [];
     return parcelles.filter(p => p.avenue_id === simulationAvenueId);
   }, [parcelles, simulationAvenueId]);
+
+  // Localisation list memoization
+  const locAvenues = useMemo(() => {
+    if (!locCommuneId) return [];
+    return avenues.filter(a => a.commune_id === locCommuneId);
+  }, [avenues, locCommuneId]);
+
+  const locParcelles = useMemo(() => {
+    if (!locAvenueId) return [];
+    return parcelles.filter(p => p.avenue_id === locAvenueId);
+  }, [parcelles, locAvenueId]);
+
+  const selectedLocParcelle = useMemo(() => {
+    return parcelles.find(p => p.id === locParcelleId);
+  }, [parcelles, locParcelleId]);
+
+  const selectedLocAbonne = useMemo(() => {
+    if (!locParcelleId) return null;
+    return abonnes.find(a => a.parcelle_id === locParcelleId);
+  }, [abonnes, locParcelleId]);
 
   // Filter signals based on active tab
   const filteredSignals = useMemo(() => {
@@ -321,6 +349,32 @@ export default function DechetsMapView({
     alert("Signal de poubelle pleine envoyé avec succès pour cette parcelle !");
   };
 
+  const handleLocalisationSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locParcelleId) return;
+
+    // Trigger simulation with sachet type
+    onSimulateSignal(locParcelleId, locSachetType);
+
+    // Pan map to the location
+    const p = parcelles.find(pa => pa.id === locParcelleId);
+    if (p && p.latitude != null && p.longitude != null && mapRef.current) {
+      mapRef.current.flyTo([p.latitude, p.longitude], 16, {
+        animate: true,
+        duration: 1.5
+      });
+    }
+
+    // Reset and Close
+    setLocCommuneId('');
+    setLocAvenueId('');
+    setLocParcelleId('');
+    setLocSachetType('biodegradable');
+    setIsLocalisationModalOpen(false);
+    
+    alert("📍 Signalement de poubelle pleine localisé avec succès ! La carte a été centrée sur l'emplacement.");
+  };
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-on-background">
       {/* Header block */}
@@ -353,15 +407,25 @@ export default function DechetsMapView({
                 <Layers size={14} className="text-secondary" />
                 Carte interactive de Kinshasa
               </span>
-              <div className="flex gap-2 items-center text-[10px] text-on-surface-variant font-bold">
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 bg-error rounded-full animate-ping"></span>
-                  <span>Alertes ({signals.filter(s => s.status === 'pending').length})</span>
-                </span>
-                <span className="flex items-center gap-1 ml-2">
-                  <span className="w-2.5 h-2.5 bg-[#10b981] rounded-full"></span>
-                  <span>Éboueurs Actifs ({eboueurs.filter(e => e.gps_active).length})</span>
-                </span>
+              <div className="flex gap-3 items-center">
+                <button
+                  type="button"
+                  onClick={() => setIsLocalisationModalOpen(true)}
+                  className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 font-bold text-[11px] px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  <MapPin size={13} />
+                  <span>Localisation</span>
+                </button>
+                <div className="flex gap-2 items-center text-[10px] text-on-surface-variant font-bold">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 bg-error rounded-full animate-ping"></span>
+                    <span>Alertes ({signals.filter(s => s.status === 'pending').length})</span>
+                  </span>
+                  <span className="flex items-center gap-1 ml-2">
+                    <span className="w-2.5 h-2.5 bg-[#10b981] rounded-full"></span>
+                    <span>Éboueurs Actifs ({eboueurs.filter(e => e.gps_active).length})</span>
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -721,6 +785,185 @@ export default function DechetsMapView({
         </div>
 
       </div>
+
+      {/* Localisation Modal Overlay */}
+      {isLocalisationModalOpen && (
+        <div className="fixed inset-0 bg-background/85 backdrop-blur-md flex items-center justify-center z-[9999] p-4 animate-fade-in">
+          <div className="bg-surface border border-outline-variant rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-outline-variant/60 flex justify-between items-center bg-surface/50">
+              <div className="flex items-center gap-2">
+                <MapPin size={20} className="text-primary animate-bounce" />
+                <h3 className="text-lg font-extrabold tracking-tight text-on-surface font-sans">
+                  Localiser une Poubelle Pleine
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLocalisationModalOpen(false)}
+                className="p-1.5 hover:bg-surface-variant rounded-xl text-on-surface-variant transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Content / Form */}
+            <form onSubmit={handleLocalisationSubmit} className="flex-grow overflow-y-auto p-6 flex flex-col gap-4.5">
+              
+              {/* Commune Selection */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+                  Commune *
+                </label>
+                <select
+                  required
+                  value={locCommuneId}
+                  onChange={(e) => {
+                    setLocCommuneId(e.target.value);
+                    setLocAvenueId('');
+                    setLocParcelleId('');
+                  }}
+                  className="w-full h-11 px-3 bg-background border border-outline-variant rounded-xl text-sm font-semibold text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer"
+                >
+                  <option value="">-- Choisir une commune --</option>
+                  {communes.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nom}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Avenue Selection */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+                  Avenue *
+                </label>
+                <select
+                  required
+                  disabled={!locCommuneId}
+                  value={locAvenueId}
+                  onChange={(e) => {
+                    setLocAvenueId(e.target.value);
+                    setLocParcelleId('');
+                  }}
+                  className="w-full h-11 px-3 bg-background border border-outline-variant disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-sm font-semibold text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer"
+                >
+                  <option value="">-- Choisir une avenue --</option>
+                  {locAvenues.map((a) => (
+                    <option key={a.id} value={a.id}>{a.nom}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Parcelle Selection */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+                  Numéro de Parcelle *
+                </label>
+                <select
+                  required
+                  disabled={!locAvenueId}
+                  value={locParcelleId}
+                  onChange={(e) => setLocParcelleId(e.target.value)}
+                  className="w-full h-11 px-3 bg-background border border-outline-variant disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-sm font-semibold text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer"
+                >
+                  <option value="">-- Choisir une parcelle --</option>
+                  {locParcelles.map((p) => (
+                    <option key={p.id} value={p.id}>N° {p.numero_parcelle}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ID / Phone Number of Bailleur (Auto-filled) */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+                  ID / Téléphone du Bailleur
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  placeholder="Sélectionnez une parcelle pour charger l'ID"
+                  value={selectedLocAbonne?.telephone_principal || (locParcelleId ? 'Aucun numéro enregistré' : '')}
+                  className="w-full h-11 px-3 bg-background/50 border border-outline-variant/60 rounded-xl text-sm font-semibold text-on-surface-variant outline-none cursor-not-allowed"
+                />
+              </div>
+
+              {/* Auto-filled details card below */}
+              {locParcelleId && (
+                <div className="bg-surface-variant/30 border border-outline-variant/60 rounded-2xl p-4 flex flex-col gap-2.5 animate-fade-in">
+                  <div className="flex justify-between items-center border-b border-outline-variant/30 pb-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">Détails du bailleur & géolocalisation</span>
+                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Abonné</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                    <div>
+                      <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Nom du Bailleur</p>
+                      <p className="font-bold text-on-surface">{selectedLocAbonne?.nom_complet || 'Inconnu (Bailleur non-inscrit)'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">ID Abonnement</p>
+                      <p className="font-mono text-on-surface font-semibold">{selectedLocAbonne?.id || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Latitude</p>
+                      <p className="font-mono font-bold text-on-surface">{selectedLocParcelle?.latitude || 'Non définie'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Longitude</p>
+                      <p className="font-mono font-bold text-on-surface">{selectedLocParcelle?.longitude || 'Non définie'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sachet Type selection buttons */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+                  Type de déchet (Sachet) *
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setLocSachetType('biodegradable')}
+                    className={`h-12 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      locSachetType === 'biodegradable'
+                        ? 'bg-emerald-600/15 border-emerald-500 text-emerald-500 shadow-sm'
+                        : 'bg-background border-outline-variant text-on-surface-variant hover:bg-background/85'
+                    }`}
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>Sachet dégradable</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLocSachetType('non_biodegradable')}
+                    className={`h-12 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      locSachetType === 'non_biodegradable'
+                        ? 'bg-red-600/15 border-red-500 text-red-500 shadow-sm'
+                        : 'bg-background border-outline-variant text-on-surface-variant hover:bg-background/85'
+                    }`}
+                  >
+                    <AlertTriangle size={16} />
+                    <span>Sachet non dégradable</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Validate button */}
+              <button
+                type="submit"
+                disabled={!locParcelleId}
+                className="w-full h-12 mt-2 bg-primary text-on-primary disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:bg-opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer border border-outline-variant"
+              >
+                <MapPin size={16} />
+                <span>Valider le signalement 🚀</span>
+              </button>
+
+            </form>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

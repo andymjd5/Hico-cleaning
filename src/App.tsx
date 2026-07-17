@@ -1460,7 +1460,7 @@ export default function App() {
     }
   };
 
-  const handleSimulateSignal = async (parcelleId: string) => {
+  const handleSimulateSignal = async (parcelleId: string, typePoubelle?: 'biodegradable' | 'non_biodegradable') => {
     const parc = parcelles.find(p => p.id === parcelleId);
     if (!parc) return;
     const ab = abonnes.find(a => a.parcelle_id === parcelleId) || {
@@ -1482,7 +1482,8 @@ export default function App() {
       bailleur_nom: ab.nom_complet,
       bailleur_telephone: ab.telephone_principal,
       status: 'pending',
-      reported_at: new Date().toISOString()
+      reported_at: new Date().toISOString(),
+      type_poubelle: typePoubelle
     };
 
     setPoubelleSignals(prev => [newSignal, ...prev]);
@@ -1889,8 +1890,17 @@ export default function App() {
                     setSelectedCommuneId(commId);
                     setCurrentScreen('avenues');
                   }}
+                  onSelectAvenueDirectly={(commId, ave) => {
+                    setSelectedCommuneId(commId);
+                    setSelectedAvenueObj(ave);
+                    setCurrentScreen('recensement_form');
+                  }}
                   onBack={() => setCurrentScreen('dashboard')}
                   onAddCommuneToggle={() => setShowAddCommuneModal(true)}
+                  onAddAvenueToggle={(commId) => {
+                    setNewAvenueCommuneId(commId);
+                    setShowAddAvenueModal(true);
+                  }}
                 />
               )}
 

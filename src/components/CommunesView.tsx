@@ -1,31 +1,49 @@
 import React, { useState } from 'react';
-import { Search, ChevronRight, Map, ArrowLeft, Plus, ChevronDown } from 'lucide-react';
+import { Search, ChevronRight, Map, ArrowLeft, Plus, ChevronDown, CheckCircle } from 'lucide-react';
 import { Commune, Avenue } from '../types';
 
 interface CommunesViewProps {
   communes: Commune[];
   avenues: Avenue[];
   onSelectCommune: (communeId: string) => void;
+  onSelectAvenueDirectly?: (communeId: string, avenue: Avenue) => void;
   onBack: () => void;
   onAddCommuneToggle: () => void;
+  onAddAvenueToggle?: (communeId: string) => void;
 }
 
 export default function CommunesView({
   communes,
   avenues,
   onSelectCommune,
+  onSelectAvenueDirectly,
   onBack,
-  onAddCommuneToggle
+  onAddCommuneToggle,
+  onAddAvenueToggle
 }: CommunesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCommuneIdLocal, setSelectedCommuneIdLocal] = useState<string>('');
+  const [selectedAvenueIdLocal, setSelectedAvenueIdLocal] = useState<string>('');
 
   const filteredCommunes = communes.filter((c) =>
     c.nom.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Filter avenues belonging to the locally selected commune
+  const localAvenues = avenues.filter((a) => a.commune_id === selectedCommuneIdLocal);
+
   // Helper inside the UI to count real avenues dynamically in our state
   const getAvenuesCount = (communeId: string): number => {
     return avenues.filter((a) => a.commune_id === communeId).length;
+  };
+
+  const handleContinue = () => {
+    if (selectedCommuneIdLocal && selectedAvenueIdLocal && onSelectAvenueDirectly) {
+      const selectedAve = avenues.find((a) => a.id === selectedAvenueIdLocal);
+      if (selectedAve) {
+        onSelectAvenueDirectly(selectedCommuneIdLocal, selectedAve);
+      }
+    }
   };
 
   return (
@@ -57,28 +75,91 @@ export default function CommunesView({
         🗺️ <span className="font-semibold text-primary">Étape 1 du Recensement :</span> Sélectionnez d'abord la commune de l'avenue que vous souhaitez recenser. Vous pouvez également rechercher ou insérer une nouvelle commune.
       </div>
 
-      {/* Dropdown Selection Matching Bento Theme */}
-      <div className="flex flex-col gap-2 bg-surface/50 border border-outline-variant rounded-2xl p-4.5 shadow-md">
-        <label className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
-          Sélectionner une Commune *
-        </label>
-        <div className="relative">
-          <select
-            value=""
-            onChange={(e) => onSelectCommune(e.target.value)}
-            className="w-full h-11 px-3 bg-background border border-outline-variant rounded-xl text-sm font-semibold text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer appearance-none"
-          >
-            <option value="" disabled>-- Choisir une commune --</option>
-            {communes.map((comm) => (
-              <option key={comm.id} value={comm.id}>
-                {comm.nom}
-              </option>
-            ))}
-          </select>
-          <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-on-surface-variant">
-            <ChevronDown size={18} />
+      {/* Double Dropdown Selection Matching Bento Theme */}
+      <div className="flex flex-col gap-4 bg-surface/50 border border-outline-variant rounded-2xl p-5 shadow-lg">
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+            Sélectionner une Commune *
+          </label>
+          <div className="relative">
+            <select
+              value={selectedCommuneIdLocal}
+              onChange={(e) => {
+                setSelectedCommuneIdLocal(e.target.value);
+                setSelectedAvenueIdLocal('');
+              }}
+              className="w-full h-11 px-3 bg-background border border-outline-variant rounded-xl text-sm font-semibold text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer appearance-none"
+            >
+              <option value="">-- Choisir une commune --</option>
+              {communes.map((comm) => (
+                <option key={comm.id} value={comm.id}>
+                  {comm.nom}
+                </option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-on-surface-variant">
+              <ChevronDown size={18} />
+            </div>
           </div>
         </div>
+
+        {/* Dynamic Avenue Dropdown */}
+        {selectedCommuneIdLocal && (
+          <div className="flex flex-col gap-2 animate-fade-in duration-200">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+                Sélectionner une Avenue *
+              </label>
+              {onAddAvenueToggle && (
+                <button
+                  type="button"
+                  onClick={() => onAddAvenueToggle(selectedCommuneIdLocal)}
+                  className="text-primary hover:underline text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus size={14} />
+                  <span>Nouvelle avenue</span>
+                </button>
+              )}
+            </div>
+            
+            <div className="relative">
+              <select
+                value={selectedAvenueIdLocal}
+                onChange={(e) => setSelectedAvenueIdLocal(e.target.value)}
+                className="w-full h-11 px-3 bg-background border border-outline-variant rounded-xl text-sm font-semibold text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer appearance-none"
+              >
+                <option value="">-- Choisir une avenue --</option>
+                {localAvenues.map((ave) => (
+                  <option key={ave.id} value={ave.id}>
+                    {ave.nom}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-on-surface-variant">
+                <ChevronDown size={18} />
+              </div>
+            </div>
+
+            {localAvenues.length === 0 && (
+              <p className="text-xs text-[#ef4444] mt-1 font-semibold">
+                ⚠️ Aucune avenue n'est encore enregistrée pour cette commune. Veuillez en créer une ci-dessus.
+              </p>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex gap-3 mt-3">
+              <button
+                type="button"
+                disabled={!selectedAvenueIdLocal}
+                onClick={handleContinue}
+                className="flex-grow h-11 bg-primary disabled:opacity-50 text-on-primary disabled:cursor-not-allowed rounded-xl text-xs font-bold uppercase tracking-wider shadow-md hover:bg-opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer border border-outline-variant"
+              >
+                <CheckCircle size={16} />
+                <span>Commencer le Recensement 🚀</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Styled Search Input Area matching Bento Theme */}
@@ -91,7 +172,7 @@ export default function CommunesView({
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full h-12 pl-11 pr-4 bg-surface border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-xl text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none transition-all font-sans text-sm shadow-md"
-          placeholder="Rechercher une commune..."
+          placeholder="Rechercher une commune par nom..."
         />
       </div>
 
@@ -104,8 +185,13 @@ export default function CommunesView({
             return (
               <div 
                 key={commune.id}
-                onClick={() => onSelectCommune(commune.id)}
-                className="bg-surface border border-outline-variant rounded-2xl p-4.5 flex items-center justify-between hover:border-outline hover:bg-surface/80 transition-all cursor-pointer group active:scale-[0.99] duration-150 shadow-md"
+                onClick={() => {
+                  setSelectedCommuneIdLocal(commune.id);
+                  setSelectedAvenueIdLocal('');
+                }}
+                className={`bg-surface border rounded-2xl p-4.5 flex items-center justify-between hover:border-outline hover:bg-surface/80 transition-all cursor-pointer group active:scale-[0.99] duration-150 shadow-md ${
+                  selectedCommuneIdLocal === commune.id ? 'border-primary bg-primary/5' : 'border-outline-variant'
+                }`}
               >
                 <div className="flex flex-col gap-1.5">
                   <h3 className="text-base font-bold text-on-surface group-hover:text-primary transition-colors font-sans">
