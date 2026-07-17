@@ -507,7 +507,8 @@ export default function App() {
       const savedParcelles = localStorage.getItem('hico_db_parcelles');
       const savedAbonnes = localStorage.getItem('hico_db_abonnes');
 
-      setCommunes(savedCommunes ? JSON.parse(savedCommunes) : INITIAL_COMMUNES);
+      const parsedC = savedCommunes ? JSON.parse(savedCommunes) : null;
+      setCommunes(Array.isArray(parsedC) && parsedC.length > 0 ? parsedC : INITIAL_COMMUNES);
       setAvenues(savedAvenues ? JSON.parse(savedAvenues) : INITIAL_AVENUES);
       setParcelles(savedParcelles ? JSON.parse(savedParcelles) : INITIAL_PARCELLES);
       setAbonnes(savedAbonnes ? JSON.parse(savedAbonnes) : INITIAL_ABONNES);
@@ -528,10 +529,15 @@ export default function App() {
       
       // Auto seed 24 communes on clean setup
       if (activeCommunes.length === 0) {
-        const { error: seedError } = await supabase.from('communes').insert(INITIAL_COMMUNES);
-        if (!seedError) {
-          activeCommunes = [...INITIAL_COMMUNES];
+        try {
+          const { error: seedError } = await supabase.from('communes').insert(INITIAL_COMMUNES);
+          if (seedError) {
+            console.warn("Supabase seed communes failed, using INITIAL_COMMUNES fallback", seedError);
+          }
+        } catch (e) {
+          console.warn("Supabase seed communes exception", e);
         }
+        activeCommunes = [...INITIAL_COMMUNES];
       }
       setCommunes(activeCommunes);
 
@@ -720,7 +726,8 @@ export default function App() {
       const savedParcelles = localStorage.getItem('hico_db_parcelles');
       const savedAbonnes = localStorage.getItem('hico_db_abonnes');
 
-      setCommunes(savedCommunes ? JSON.parse(savedCommunes) : INITIAL_COMMUNES);
+      const parsedC = savedCommunes ? JSON.parse(savedCommunes) : null;
+      setCommunes(Array.isArray(parsedC) && parsedC.length > 0 ? parsedC : INITIAL_COMMUNES);
       setAvenues(savedAvenues ? JSON.parse(savedAvenues) : INITIAL_AVENUES);
       setParcelles(savedParcelles ? JSON.parse(savedParcelles) : INITIAL_PARCELLES);
       setAbonnes(savedAbonnes ? JSON.parse(savedAbonnes) : INITIAL_ABONNES);
