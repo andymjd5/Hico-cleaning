@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle, Home, UserPlus, FileText, Check, Plus, MapPin, Navigation, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Home, UserPlus, FileText, Check, Plus, MapPin, Navigation, RefreshCw, Smartphone, Laptop, Settings, HelpCircle, X, AlertTriangle } from 'lucide-react';
 import { Commune, Avenue, Parcelle, Abonne } from '../types';
 
 interface RecensementFormProps {
@@ -37,6 +37,13 @@ export default function RecensementForm({
   const [isFetchingGps, setIsFetchingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
 
+  // Help Modal State
+  const [showGpsHelpModal, setShowGpsHelpModal] = useState(false);
+  
+  // Detect if mobile
+  const isMobileDevice = typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const [gpsHelpTab, setGpsHelpTab] = useState<'smartphone' | 'computer'>(isMobileDevice ? 'smartphone' : 'computer');
+
   // Retrieve high-accuracy GPS coordinates using Web Geolocation API (bridges to Android app frame)
   const handleGetGpsCoordinates = () => {
     setIsFetchingGps(true);
@@ -53,23 +60,26 @@ export default function RecensementForm({
         setLatitude(position.coords.latitude);
         setLongitude(position.coords.longitude);
         setIsFetchingGps(false);
+        setGpsError(null);
+        setShowGpsHelpModal(false); // Close help modal if it succeeds
       },
       (error) => {
         console.error("Erreur de géolocalisation :", error);
         let msg = "Impossible de récupérer les coordonnées.";
         if (error.code === error.PERMISSION_DENIED) {
-          msg = "Autorisation de localisation refusée. Veuillez accorder la permission GPS à l'application.";
+          msg = "L'accès à la localisation a été refusé. Veuillez autoriser l'accès GPS dans les permissions de votre navigateur ou appareil.";
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          msg = "Position GPS indisponible. Vérifiez que la puce GPS/Localisation est activée sur votre appareil Android.";
+          msg = "La localisation GPS de l'appareil est désactivée ou introuvable. Veuillez activer le GPS.";
         } else if (error.code === error.TIMEOUT) {
-          msg = "Le délai d'attente pour obtenir la position GPS a expiré.";
+          msg = "Le délai d'attente pour obtenir la position GPS a expiré. Veuillez réessayer dans un endroit plus dégagé.";
         }
         setGpsError(msg);
         setIsFetchingGps(false);
+        setShowGpsHelpModal(true); // Automatically open the help modal to guide them
       },
       {
         enableHighAccuracy: true,
-        timeout: 12000,
+        timeout: 10000,
         maximumAge: 0
       }
     );
@@ -292,9 +302,17 @@ export default function RecensementForm({
             {/* GPS Capture Block */}
             <div className="mt-2 p-4 bg-background/50 border border-outline-variant/60 rounded-2xl flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <MapPin size={18} className="text-secondary" />
                   <span className="text-xs font-bold uppercase tracking-wider text-on-surface">Coordonnées GPS</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowGpsHelpModal(true)}
+                    className="p-1 hover:bg-surface rounded-full text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                    title="Guide d'activation du GPS"
+                  >
+                    <HelpCircle size={14} />
+                  </button>
                 </div>
                 {latitude && longitude && (
                   <span className="text-[10px] bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
@@ -308,8 +326,16 @@ export default function RecensementForm({
               </p>
 
               {gpsError && (
-                <div className="text-xs text-error font-semibold bg-error/10 border border-error/20 p-2.5 rounded-xl">
-                  ⚠️ {gpsError}
+                <div className="flex flex-col gap-2 p-2.5 bg-error/10 border border-error/20 rounded-xl">
+                  <span className="text-xs text-error font-semibold">⚠️ {gpsError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowGpsHelpModal(true)}
+                    className="self-start text-[10px] font-bold uppercase tracking-wider text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Settings size={12} className="animate-spin-slow" />
+                    <span>Comment activer le GPS / les permissions ? 🛠️</span>
+                  </button>
                 </div>
               )}
 
@@ -691,6 +717,161 @@ export default function RecensementForm({
           )}
         </div>
       )}
+
+      {/* Interactive GPS Help Modal Overlay */}
+      {showGpsHelpModal && (
+        <div className="fixed inset-0 bg-background/85 backdrop-blur-md flex items-center justify-center z-[10000] p-4 animate-fade-in">
+          <div className="bg-surface border border-outline-variant rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant">
+              <div className="flex items-center gap-2">
+                <Settings className="text-primary animate-spin-slow" size={20} />
+                <h3 className="text-sm font-bold text-on-surface uppercase tracking-wider">
+                  Activer le GPS & Autorisations
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGpsHelpModal(false)}
+                className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-background rounded-full transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 overflow-y-auto flex flex-col gap-4 text-left">
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Le recensement nécessite de récupérer de vraies coordonnées GPS pour valider précisément la localisation de la parcelle. Veuillez suivre les instructions ci-dessous pour activer le GPS de votre appareil.
+              </p>
+
+              {/* Tabs */}
+              <div className="flex border-b border-outline-variant/60">
+                <button
+                  type="button"
+                  onClick={() => setGpsHelpTab('smartphone')}
+                  className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    gpsHelpTab === 'smartphone'
+                      ? 'border-primary text-primary bg-primary/5'
+                      : 'border-transparent text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <Smartphone size={14} />
+                  <span>Sur Téléphone / Mobile</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGpsHelpTab('computer')}
+                  className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    gpsHelpTab === 'computer'
+                      ? 'border-primary text-primary bg-primary/5'
+                      : 'border-transparent text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <Laptop size={14} />
+                  <span>Sur Ordinateur / PC</span>
+                </button>
+              </div>
+
+              {/* Tab Contents */}
+              {gpsHelpTab === 'smartphone' ? (
+                <div className="flex flex-col gap-3 text-xs leading-relaxed">
+                  <div className="flex gap-2.5 items-start">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px]">1</span>
+                    <div>
+                      <strong className="text-on-surface">Activez la localisation de l'appareil :</strong>
+                      <p className="text-on-surface-variant mt-0.5">Glissez votre doigt du haut vers le bas de l'écran pour ouvrir le volet d'accès rapide, puis activez l'icône <span className="font-bold">"Localisation"</span> ou <span className="font-bold">"GPS"</span> 📍.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5 items-start">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px]">2</span>
+                    <div>
+                      <strong className="text-on-surface">Autorisez le navigateur :</strong>
+                      <p className="text-on-surface-variant mt-0.5">Lorsque l'application ou le navigateur vous demande l'accès à votre position géographique, appuyez impérativement sur <span className="font-bold text-success">"Autoriser"</span> ou <span className="font-bold text-success">"Lorsque vous utilisez l'application"</span>.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5 items-start">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px]">3</span>
+                    <div>
+                      <strong className="text-on-surface">Vider le cache des permissions (si bloqué) :</strong>
+                      <p className="text-on-surface-variant mt-0.5">Si vous aviez déjà refusé auparavant : appuyez sur les trois points (ou icône de menu) du navigateur &gt; Paramètres du site &gt; Localisation &gt; Recherchez ce site et supprimez-le de la liste des sites bloqués.</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 text-xs leading-relaxed">
+                  <div className="flex gap-2.5 items-start">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px]">1</span>
+                    <div>
+                      <strong className="text-on-surface">Cliquez sur le cadenas ou l'icône de réglage :</strong>
+                      <p className="text-on-surface-variant mt-0.5">Dans la barre d'adresse de votre navigateur (à gauche du lien <code className="bg-background px-1.5 py-0.5 rounded text-[11px] font-mono border border-outline-variant/50 text-secondary">https://...</code>), cliquez sur le symbole de cadenas 🔒 ou de curseur.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5 items-start">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px]">2</span>
+                    <div>
+                      <strong className="text-on-surface">Autorisez la Localisation :</strong>
+                      <p className="text-on-surface-variant mt-0.5">Dans le menu contextuel, repérez l'autorisation <span className="font-bold">"Localisation"</span> (ou <span className="font-bold">"Location"</span>) et modifiez-la pour choisir <span className="font-bold text-success text-xs font-mono">"Autoriser"</span>.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5 items-start">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px]">3</span>
+                    <div>
+                      <strong className="text-on-surface">Vérifiez les paramètres Windows / macOS :</strong>
+                      <p className="text-on-surface-variant mt-0.5">Assurez-vous que les services de localisation globaux sont bien activés dans les Paramètres système de votre système d'exploitation et que le navigateur a l'autorisation d'y accéder.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Show current GPS status/error inside modal to give active feedback */}
+              {gpsError && (
+                <div className="bg-error/10 border border-error/20 rounded-xl p-3 flex items-start gap-2.5 text-xs text-error font-semibold mt-1">
+                  <AlertTriangle size={15} className="flex-shrink-0 mt-0.5" />
+                  <span>{gpsError}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Footer with actions */}
+            <div className="px-5 py-4 bg-background border-t border-outline-variant flex flex-col sm:flex-row gap-2 items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowGpsHelpModal(false)}
+                className="w-full sm:w-auto px-4 py-2 border border-outline-variant text-on-surface-variant hover:bg-surface rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+              >
+                Fermer
+              </button>
+
+              <button
+                type="button"
+                onClick={handleGetGpsCoordinates}
+                disabled={isFetchingGps}
+                className="w-full sm:w-auto px-5 py-2.5 bg-primary text-on-primary hover:bg-primary-container rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-60"
+              >
+                {isFetchingGps ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Prélèvement en cours...</span>
+                  </>
+                ) : (
+                  <>
+                    <Navigation size={14} className="animate-pulse" />
+                    <span>Réessayer de prélever la position 📍</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
