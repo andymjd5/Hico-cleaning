@@ -2003,7 +2003,7 @@ export default function App() {
                     onReportTrashFull={handleReportTrashFull}
                     messages={inboxMessages}
                     onSendMessage={handleSendInboxMessage}
-                    onRecordOnlinePayment={(amount, provider, phone) => {
+                    onRecordOnlinePayment={async (amount, provider, phone) => {
                       // Add payment directly to receipts registry
                       const pay: SubscriptionPayment = {
                         id: 'PAY-ONL-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
@@ -2026,6 +2026,18 @@ export default function App() {
                         }
                         return d;
                       }));
+
+                      if (isSupabaseConfigured && dbStatus === 'connected') {
+                        try {
+                          await supabase.from('subscription_payments').insert([pay]);
+                        } catch (_) {}
+                        try {
+                          await supabase.from('dis_signals').update({ status: 'resolved' }).eq('abonne_id', userAbonne.id).eq('status', 'active');
+                        } catch (_) {}
+                        try {
+                          await supabase.from('dispute_signals').update({ status: 'resolved' }).eq('abonne_id', userAbonne.id).eq('status', 'active');
+                        } catch (_) {}
+                      }
                     }}
                     onLogout={handleLogout}
                   />
@@ -2345,9 +2357,7 @@ CREATE TABLE IF NOT EXISTS abonnes (
 );
 
 -- 5. Extension des rôles utilisateurs
--- (On assume que la table existante des agents ou profils dispose d'une colonne 'role')
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS role VARCHAR(30) DEFAULT 'recenseur'; 
--- Valeurs possibles : 'admin', 'recenseur', 'bailleur', 'eboueur'
 
 -- 6. Table pour l'état GPS en temps réel des éboueurs
 CREATE TABLE IF NOT EXISTS eboueurs_gps (
@@ -2364,30 +2374,137 @@ CREATE TABLE IF NOT EXISTS signaux_poubelles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
   bailleur_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
-  statut VARCHAR(20) DEFAULT 'en_attente', -- 'en_attente', 'assigne', 'collecte'
+  statut VARCHAR(20) DEFAULT 'en_attente',
   eboueur_assigne_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   resolved_at TIMESTAMPTZ
 );
 
--- 8. Table de suivi des règlements par locataire (pour le calcul du montant)
+-- 8. Table de suivi des règlements par locataire
 CREATE TABLE IF NOT EXISTS validations_locataires (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   bailleur_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
-  mois_annee VARCHAR(7) NOT NULL, -- Format 'YYYY-MM'
-  locataires_payes INTEGER DEFAULT 0, -- Nombre de ménages ayant payé le mois en cours
-  paiement_effectue BOOLEAN DEFAULT FALSE, -- Statut global de la facture du bailleur (x $)
+  mois_annee VARCHAR(7) NOT NULL,
+  locataires_payes INTEGER DEFAULT 0,
+  paiement_effectue BOOLEAN DEFAULT FALSE,
   validated_at TIMESTAMPTZ
 );
 
 -- 9. Table des messages des autorités et de Hico-Cleaning
 CREATE TABLE IF NOT EXISTS messages_plateforme (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  expediteur VARCHAR(50) DEFAULT 'Hico-Cleaning', -- 'Hico-Cleaning' ou 'Autorités'
+  expediteur VARCHAR(50) DEFAULT 'Hico-Cleaning',
   titre VARCHAR(100) NOT NULL,
   contenu TEXT NOT NULL,
-  destinataire_role VARCHAR(20) DEFAULT 'bailleur', -- Pour cibler tout le monde, ou un bailleur spécifique
-  destinataire_id TEXT REFERENCES abonnes(id) ON DELETE SET NULL, -- Si message ciblé
+  destinataire_role VARCHAR(20) DEFAULT 'bailleur',
+  destinataire_id TEXT REFERENCES abonnes(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 10. Table des stocks de sachets par commune
+CREATE TABLE IF NOT EXISTS sachet_stocks (
+  id TEXT PRIMARY KEY,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  biodegradable INTEGER NOT NULL DEFAULT 0,
+  non_biodegradable INTEGER NOT NULL DEFAULT 0,
+  seuil_alerte INTEGER NOT NULL DEFAULT 10,
+  last_replenished TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 11. Table des distributions de sachets
+CREATE TABLE IF NOT EXISTS sachet_distributions (
+  id TEXT PRIMARY KEY,
+  parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
+  avenue_id TEXT REFERENCES avenues(id) ON DELETE CASCADE,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  date_distribution TIMESTAMPTZ DEFAULT NOW(),
+  quantite_biodegradable INTEGER NOT NULL DEFAULT 0,
+  quantite_non_biodegradable INTEGER NOT NULL DEFAULT 0,
+  distribue_par TEXT NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 12. Table des paiements d'abonnements (FlexPay)
+CREATE TABLE IF NOT EXISTS subscription_payments (
+  id TEXT PRIMARY KEY,
+  abonne_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
+  nom_complet TEXT NOT NULL,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
+  montant DOUBLE PRECISION NOT NULL,
+  date_paiement TIMESTAMPTZ DEFAULT NOW(),
+  mode_paiement VARCHAR(20) NOT NULL,
+  telephone_payeur VARCHAR(30) NOT NULL,
+  status VARCHAR(20) DEFAULT 'success',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 13. Table des paiements du personnel (Agents / Éboueurs)
+CREATE TABLE IF NOT EXISTS staff_payments (
+  id TEXT PRIMARY KEY,
+  recipient_id TEXT REFERENCES agents(id) ON DELETE CASCADE,
+  recipient_name TEXT NOT NULL,
+  recipient_role VARCHAR(20) NOT NULL,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  montant DOUBLE PRECISION NOT NULL,
+  date_paiement TIMESTAMPTZ DEFAULT NOW(),
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14. Table des dépenses matérielles
+CREATE TABLE IF NOT EXISTS material_expenses (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  montant DOUBLE PRECISION NOT NULL,
+  date_depense TIMESTAMPTZ DEFAULT NOW(),
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15. Table des litiges (Disputes) - Version standard et Version courte fallback
+CREATE TABLE IF NOT EXISTS dispute_signals (
+  id TEXT PRIMARY KEY,
+  abonne_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
+  nom_complet TEXT NOT NULL,
+  telephone VARCHAR(30) NOT NULL,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
+  montant_du DOUBLE PRECISION NOT NULL,
+  date_constat TIMESTAMPTZ DEFAULT NOW(),
+  status VARCHAR(20) DEFAULT 'active',
+  reminders_sent INTEGER DEFAULT 0,
+  last_reminder_date TIMESTAMPTZ,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS dis_signals (
+  id TEXT PRIMARY KEY,
+  abonne_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
+  nom_complet TEXT NOT NULL,
+  telephone VARCHAR(30) NOT NULL,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
+  montant_du DOUBLE PRECISION NOT NULL,
+  date_constat TIMESTAMPTZ DEFAULT NOW(),
+  status VARCHAR(20) DEFAULT 'active',
+  reminders_sent INTEGER DEFAULT 0,
+  last_reminder_date TIMESTAMPTZ,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 16. Table de messagerie interne (Inbox)
+CREATE TABLE IF NOT EXISTS inbox_messages (
+  id TEXT PRIMARY KEY,
+  sender VARCHAR(100) NOT NULL,
+  content TEXT NOT NULL,
+  sent_at TIMESTAMPTZ DEFAULT NOW(),
+  read BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -2466,27 +2583,29 @@ CREATE TABLE IF NOT EXISTS parcelles (
   id TEXT PRIMARY KEY,
   avenue_id TEXT REFERENCES avenues(id) ON DELETE CASCADE,
   numero_parcelle TEXT NOT NULL,
-  type_logement TEXT,
-  presence_locataire TEXT,
+  type_logement TEXT CHECK (type_logement IN ('maison_basse', 'appartement')),
+  presence_locataire TEXT CHECK (presence_locataire IN ('oui', 'non')),
   nombre_menages INTEGER NOT NULL DEFAULT 1,
   created_by TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION
 );
 
--- Migration pour ajouter les colonnes GPS si existantes
+-- Migration pour ajouter les colonnes GPS si les tables existaient déjà
 ALTER TABLE parcelles ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
 ALTER TABLE parcelles ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 
--- 4. Table des abonnés
+-- 4. Table des abonnés (responsables)
 CREATE TABLE IF NOT EXISTS abonnes (
   id TEXT PRIMARY KEY,
   parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
   nom_complet TEXT NOT NULL,
   telephone_principal TEXT NOT NULL,
   telephone_secondaire TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 5. Extension des rôles utilisateurs
@@ -2532,7 +2651,149 @@ CREATE TABLE IF NOT EXISTS messages_plateforme (
   destinataire_role VARCHAR(20) DEFAULT 'bailleur',
   destinataire_id TEXT REFERENCES abonnes(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
-);`},TargetContent:
+);
+
+-- 10. Table des stocks de sachets par commune
+CREATE TABLE IF NOT EXISTS sachet_stocks (
+  id TEXT PRIMARY KEY,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  biodegradable INTEGER NOT NULL DEFAULT 0,
+  non_biodegradable INTEGER NOT NULL DEFAULT 0,
+  seuil_alerte INTEGER NOT NULL DEFAULT 10,
+  last_replenished TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 11. Table des distributions de sachets
+CREATE TABLE IF NOT EXISTS sachet_distributions (
+  id TEXT PRIMARY KEY,
+  parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
+  avenue_id TEXT REFERENCES avenues(id) ON DELETE CASCADE,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  date_distribution TIMESTAMPTZ DEFAULT NOW(),
+  quantite_biodegradable INTEGER NOT NULL DEFAULT 0,
+  quantite_non_biodegradable INTEGER NOT NULL DEFAULT 0,
+  distribue_par TEXT NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 12. Table des paiements d'abonnements (FlexPay)
+CREATE TABLE IF NOT EXISTS subscription_payments (
+  id TEXT PRIMARY KEY,
+  abonne_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
+  nom_complet TEXT NOT NULL,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
+  montant DOUBLE PRECISION NOT NULL,
+  date_paiement TIMESTAMPTZ DEFAULT NOW(),
+  mode_paiement VARCHAR(20) NOT NULL,
+  telephone_payeur VARCHAR(30) NOT NULL,
+  status VARCHAR(20) DEFAULT 'success',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 13. Table des paiements du personnel (Agents / Éboueurs)
+CREATE TABLE IF NOT EXISTS staff_payments (
+  id TEXT PRIMARY KEY,
+  recipient_id TEXT REFERENCES agents(id) ON DELETE CASCADE,
+  recipient_name TEXT NOT NULL,
+  recipient_role VARCHAR(20) NOT NULL,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  montant DOUBLE PRECISION NOT NULL,
+  date_paiement TIMESTAMPTZ DEFAULT NOW(),
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14. Table des dépenses matérielles
+CREATE TABLE IF NOT EXISTS material_expenses (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  montant DOUBLE PRECISION NOT NULL,
+  date_depense TIMESTAMPTZ DEFAULT NOW(),
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15. Table des litiges (Disputes) - Version standard et Version courte fallback
+CREATE TABLE IF NOT EXISTS dispute_signals (
+  id TEXT PRIMARY KEY,
+  abonne_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
+  nom_complet TEXT NOT NULL,
+  telephone VARCHAR(30) NOT NULL,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
+  montant_du DOUBLE PRECISION NOT NULL,
+  date_constat TIMESTAMPTZ DEFAULT NOW(),
+  status VARCHAR(20) DEFAULT 'active',
+  reminders_sent INTEGER DEFAULT 0,
+  last_reminder_date TIMESTAMPTZ,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS dis_signals (
+  id TEXT PRIMARY KEY,
+  abonne_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
+  nom_complet TEXT NOT NULL,
+  telephone VARCHAR(30) NOT NULL,
+  commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
+  parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
+  montant_du DOUBLE PRECISION NOT NULL,
+  date_constat TIMESTAMPTZ DEFAULT NOW(),
+  status VARCHAR(20) DEFAULT 'active',
+  reminders_sent INTEGER DEFAULT 0,
+  last_reminder_date TIMESTAMPTZ,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 16. Table de messagerie interne (Inbox)
+CREATE TABLE IF NOT EXISTS inbox_messages (
+  id TEXT PRIMARY KEY,
+  sender VARCHAR(100) NOT NULL,
+  content TEXT NOT NULL,
+  sent_at TIMESTAMPTZ DEFAULT NOW(),
+  read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insérer par défaut des agents et communes de Kinshasa si vides
+INSERT INTO agents (id, nom, telephone, role, created_at) VALUES
+('agent-1', 'Jean Malonga', '0612345678', 'agent', NOW()),
+('admin-1', 'Hico Admin', '0600000000', 'admin', NOW()),
+('abonne-demo', 'Papa Mavula', '0821111111', 'abonne', NOW()),
+('eboueur-demo', 'Chauffeur Kabeya', '0892222222', 'eboueur', NOW())
+ON CONFLICT (telephone) DO NOTHING;
+
+INSERT INTO communes (id, nom) VALUES
+('c-bandalungwa', 'Bandalungwa'),
+('c-barumbu', 'Barumbu'),
+('c-bumbu', 'Bumbu'),
+('c-gombe', 'Gombe'),
+('c-kalamu', 'Kalamu'),
+('c-kasa-vubu', 'Kasa-Vubu'),
+('c-kimbanseke', 'Kimbanseke'),
+('c-kinshasa', 'Kinshasa'),
+('c-kintambo', 'Kintambo'),
+('c-kisenso', 'Kisenso'),
+('c-lemba', 'Lemba'),
+('c-limete', 'Limete'),
+('c-lingwala', 'Lingwala'),
+('c-makala', 'Makala'),
+('c-maluku', 'Maluku'),
+('c-masina', 'Masina'),
+('c-matete', 'Matete'),
+('c-mont-ngafula', 'Mont-Ngafula'),
+('c-ndjili', 'Ndjili'),
+('c-ngaba', 'Ngaba'),
+('c-ngaliema', 'Ngaliema'),
+('c-ngiringiri', 'Ngiri-Ngiri'),
+('c-nsele', 'Nsele'),
+('c-selembao', 'Selembao')
+ON CONFLICT (nom) DO NOTHING;`}
                     </pre>
                   </div>
 

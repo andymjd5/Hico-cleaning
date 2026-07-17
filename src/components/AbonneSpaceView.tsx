@@ -26,6 +26,7 @@ import {
   ArrowRight,
   LogOut
 } from 'lucide-react';
+import { initiateMobileMoneyPayment, checkFlexPayStatus } from '../lib/flexpay';
 
 interface AbonneSpaceViewProps {
   currentAbonne: Abonne;
@@ -77,6 +78,10 @@ export default function AbonneSpaceView({
   const [paymentPhoneNumber, setPaymentPhoneNumber] = useState(currentAbonne.telephone_principal);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [paymentStep, setPaymentStep] = useState<'form' | 'waiting_pin' | 'success'>('form');
+  const [currentReference, setCurrentReference] = useState('');
+  const [paymentMessage, setPaymentMessage] = useState('');
+  const [isSimulated, setIsSimulated] = useState(false);
   
   // Dynamic subscription status state
   const [subscriptionPaidUntil, setSubscriptionPaidUntil] = useState<string>(() => {
@@ -134,23 +139,61 @@ export default function AbonneSpaceView({
     alert("Message envoyé avec succès au support Hico-Cleaning !");
   };
 
-  const handleProcessCheckout = (e: React.FormEvent) => {
+  const handleProcessCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessingPayment(true);
     
-    setTimeout(() => {
+    const reference = 'HICO-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+    setCurrentReference(reference);
+
+    const currency = currencySymbol === '$' ? 'USD' : 'CDF';
+
+    try {
+      const res = await initiateMobileMoneyPayment({
+        phone: paymentPhoneNumber,
+        amount: totalAmountDue,
+        currency: currency,
+        operator: selectedPaymentProvider,
+        reference: reference
+      });
+
       setIsProcessingPayment(false);
-      setPaymentSuccess(true);
+      setIsSimulated(!!res.isSimulated);
+      setPaymentMessage(res.message || '');
+      setPaymentStep('waiting_pin');
+    } catch (err: any) {
+      console.error(err);
+      setIsProcessingPayment(false);
+      alert("Erreur lors de l'initiation du paiement.");
+    }
+  };
+
+  const handleCheckStatus = async () => {
+    setIsProcessingPayment(true);
+    try {
+      const res = await checkFlexPayStatus(currentReference);
+      setIsProcessingPayment(false);
       
-      if (onRecordOnlinePayment) {
-        onRecordOnlinePayment(totalAmountDue, selectedPaymentProvider, paymentPhoneNumber);
+      if (res.success && res.status === 'SUCCESS') {
+        setPaymentStep('success');
+        setPaymentSuccess(true);
+        
+        if (onRecordOnlinePayment) {
+          onRecordOnlinePayment(totalAmountDue, selectedPaymentProvider, paymentPhoneNumber);
+        }
+        
+        // Update subscription date to next month
+        const nextMonth = new Date();
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        setSubscriptionPaidUntil(nextMonth.toLocaleDateString('fr-FR'));
+      } else {
+        alert("Paiement non encore détecté ou en cours. Veuillez valider le code PIN sur votre téléphone puis réessayez.");
       }
-      
-      // Update subscription date to next month
-      const nextMonth = new Date();
-      nextMonth.setMonth(nextMonth.getMonth() + 1);
-      setSubscriptionPaidUntil(nextMonth.toLocaleDateString('fr-FR'));
-    }, 2000);
+    } catch (err) {
+      console.error(err);
+      setIsProcessingPayment(false);
+      alert("Impossible de vérifier le statut. Veuillez réessayer.");
+    }
   };
 
   return (
@@ -523,6 +566,9 @@ export default function AbonneSpaceView({
                   if (!isProcessingPayment) {
                     setShowCheckoutModal(false);
                     setPaymentSuccess(false);
+                    setPaymentStep('form');
+                    setCurrentReference('');
+                    setPaymentMessage('');
                   }
                 }}
                 className="text-gray-400 hover:text-white"
@@ -531,7 +577,7 @@ export default function AbonneSpaceView({
               </button>
             </div>
 
-            {paymentSuccess ? (
+            {paymentStep === 'success' || paymentSuccess ? (
               <div className="text-center py-6 flex flex-col items-center gap-4 animate-fade-in">
                 <div className="w-14 h-14 rounded-full bg-[#10b981]/20 border border-[#10b981]/40 text-[#10b981] flex items-center justify-center">
                   <Check className="w-8 h-8" strokeWidth={3.5} />
@@ -546,10 +592,75 @@ export default function AbonneSpaceView({
                   onClick={() => {
                     setShowCheckoutModal(false);
                     setPaymentSuccess(false);
+                    setPaymentStep('form');
+                    setCurrentReference('');
+                    setPaymentMessage('');
                   }}
                   className="mt-2 w-full h-10 bg-white text-black font-extrabold rounded-xl text-xs hover:bg-gray-200"
                 >
                   Fermer
+                </button>
+              </div>
+            ) : paymentStep === 'waiting_pin' ? (
+              <div className="flex flex-col gap-4 py-2 text-center items-center">
+                <div className="relative flex items-center justify-center">
+                  <div className="w-14 h-14 rounded-full border-2 border-dashed border-secondary animate-spin" />
+                  <Clock className="w-6 h-6 text-secondary absolute" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-secondary">En attente de votre validation</h4>
+                  <p className="text-[10px] text-gray-400 mt-1 uppercase font-semibold">Référence : {currentReference}</p>
+                </div>
+
+                <div className="text-xs bg-white/5 border border-white/5 rounded-2xl p-4 text-left leading-relaxed text-gray-300 w-full flex flex-col gap-2">
+                  <p className="font-semibold text-center text-white text-[11px] mb-1">
+                    📥 Instructions de paiement
+                  </p>
+                  <p className="text-[11px] text-center text-secondary font-semibold">
+                    {paymentMessage}
+                  </p>
+                  <div className="border-t border-white/5 my-1" />
+                  <p className="text-[10px]">
+                    1. Un message flash (push USSD) de votre opérateur ({selectedPaymentProvider.toUpperCase()}) a été envoyé à votre téléphone <strong>{paymentPhoneNumber}</strong>.
+                  </p>
+                  <p className="text-[10px]">
+                    2. Saisissez votre code PIN secret pour confirmer la transaction de <strong>{totalAmountDue} {currencySymbol === '$' ? 'USD' : 'CDF'}</strong>.
+                  </p>
+                  <p className="text-[10px]">
+                    3. Une fois le code PIN saisi, cliquez sur le bouton ci-dessous pour valider votre abonnement.
+                  </p>
+                </div>
+
+                {isSimulated && (
+                  <div className="text-[9px] bg-amber-500/10 border border-amber-500/25 text-amber-400 p-2 rounded-xl text-left w-full leading-normal">
+                    <strong>Mode Simulation :</strong> Aucun frais réel ne sera débité. Cliquez sur "Vérifier" pour valider l'abonnement.
+                  </div>
+                )}
+
+                <button
+                  onClick={handleCheckStatus}
+                  disabled={isProcessingPayment}
+                  className="w-full h-11 bg-white text-black font-extrabold rounded-xl text-xs mt-2 flex items-center justify-center gap-1.5 hover:bg-gray-200 cursor-pointer disabled:opacity-40"
+                >
+                  {isProcessingPayment ? (
+                    <>
+                      <Clock size={14} className="animate-spin" />
+                      <span>Vérification en cours...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck size={14} />
+                      <span>Vérifier le statut du paiement</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setPaymentStep('form')}
+                  disabled={isProcessingPayment}
+                  className="text-[10px] text-gray-400 hover:text-white font-bold transition-colors mt-1"
+                >
+                  Retour / Corriger le numéro
                 </button>
               </div>
             ) : (
