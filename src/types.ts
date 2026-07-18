@@ -105,7 +105,7 @@ export interface InboxMessage {
 
 export interface SachetStock {
   id: string;
-  commune_id: string;
+  commune_id: string | null;
   biodegradable: number;
   non_biodegradable: number;
   seuil_alerte: number;

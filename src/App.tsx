@@ -451,6 +451,15 @@ export default function App() {
   useEffect(() => {
     const seedSachetStocks = async () => {
       if (communes.length > 0 && sachetStocks.length === 0) {
+        const centralStock: SachetStock = {
+          id: 'stk-central',
+          commune_id: null,
+          biodegradable: 10000, // Stock global central initial
+          non_biodegradable: 10000, // Stock global central initial
+          seuil_alerte: 50,
+          last_replenished: new Date().toISOString()
+        };
+
         const initialStocks: SachetStock[] = communes.map(c => ({
           id: 'stk-' + c.id,
           commune_id: c.id,
@@ -459,13 +468,15 @@ export default function App() {
           seuil_alerte: 50,
           last_replenished: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
         }));
+
+        const allInitialStocks = [centralStock, ...initialStocks];
         
-        setSachetStocks(initialStocks);
+        setSachetStocks(allInitialStocks);
 
         // Si Supabase est configuré et connecté, persister immédiatement ces stocks initiaux
         if (isSupabaseConfigured && dbStatus === 'connected') {
           try {
-            const { error } = await supabase.from('sachet_stocks').upsert(initialStocks);
+            const { error } = await supabase.from('sachet_stocks').upsert(allInitialStocks);
             if (error) {
               console.warn("Erreur de persistance du stock initial sur Supabase:", error);
             } else {
@@ -480,6 +491,37 @@ export default function App() {
 
     seedSachetStocks();
   }, [communes, sachetStocks, isSupabaseConfigured, dbStatus]);
+
+  // S'assurer de la présence du Stock Central si le tableau sachetStocks est chargé mais ne l'inclut pas
+  useEffect(() => {
+    if (sachetStocks.length > 0) {
+      const hasCentral = sachetStocks.some(s => s.commune_id === null || s.id === 'stk-central');
+      if (!hasCentral) {
+        const centralStock: SachetStock = {
+          id: 'stk-central',
+          commune_id: null,
+          biodegradable: 10000,
+          non_biodegradable: 10000,
+          seuil_alerte: 50,
+          last_replenished: new Date().toISOString()
+        };
+        
+        setSachetStocks(prev => [centralStock, ...prev]);
+
+        if (isSupabaseConfigured && dbStatus === 'connected') {
+          const syncCentral = async () => {
+            try {
+              const { error } = await supabase.from('sachet_stocks').upsert([centralStock]);
+              if (error) throw error;
+            } catch (err) {
+              console.warn("Erreur d'initialisation du stock central manquant sur Supabase:", err);
+            }
+          };
+          syncCentral();
+        }
+      }
+    }
+  }, [sachetStocks, isSupabaseConfigured, dbStatus]);
 
   // Dynamic screen permission verification helper
   const isScreenAllowed = (screenId: string) => {
@@ -1032,23 +1074,70 @@ export default function App() {
   // ==========================================
   // GESTION DES DECHETS ET EBOUEURS HANDLERS
   // ==========================================
-  const handleReplenishStock = async (communeId: string, bioQty: number, nonBioQty: number) => {
-    let updatedStock: SachetStock | null = null;
+  const handleReplenishStock = async (communeId: string | null, bioQty: number, nonBioQty: number): Promise<{ success: boolean; error?: string }> => {
+    let errorMsg: string | undefined;
+    let updatedStocksToSave: SachetStock[] = [];
+    let success = false;
+
     setSachetStocks(prev => {
+      const centralStock = prev.find(s => s.commune_id === null || s.id === 'stk-central');
+
+      if (communeId !== null && communeId !== 'central') {
+        if (!centralStock) {
+          errorMsg = "Le stock central n'est pas initialisé.";
+          return prev;
+        }
+        if (centralStock.biodegradable < bioQty) {
+          errorMsg = `Stock central insuffisant en sachets biodégradables (${centralStock.biodegradable} disponibles, ${bioQty} requis).`;
+          return prev;
+        }
+        if (centralStock.non_biodegradable < nonBioQty) {
+          errorMsg = `Stock central insuffisant en sachets non dégradables (${centralStock.non_biodegradable} disponibles, ${nonBioQty} requis).`;
+          return prev;
+        }
+      }
+
+      success = true;
+
       const updated = prev.map(stock => {
-        if (stock.commune_id === communeId) {
-          updatedStock = {
-            ...stock,
-            biodegradable: stock.biodegradable + bioQty,
-            non_biodegradable: stock.non_biodegradable + nonBioQty,
-            last_replenished: new Date().toISOString()
-          };
-          return updatedStock!;
+        if (communeId === null || communeId === 'central') {
+          if (stock.commune_id === null || stock.id === 'stk-central') {
+            const newStock = {
+              ...stock,
+              biodegradable: stock.biodegradable + bioQty,
+              non_biodegradable: stock.non_biodegradable + nonBioQty,
+              last_replenished: new Date().toISOString()
+            };
+            updatedStocksToSave.push(newStock);
+            return newStock;
+          }
+        } else {
+          if (stock.commune_id === null || stock.id === 'stk-central') {
+            const newStock = {
+              ...stock,
+              biodegradable: stock.biodegradable - bioQty,
+              non_biodegradable: stock.non_biodegradable - nonBioQty,
+              last_replenished: new Date().toISOString()
+            };
+            updatedStocksToSave.push(newStock);
+            return newStock;
+          }
+          if (stock.commune_id === communeId) {
+            const newStock = {
+              ...stock,
+              biodegradable: stock.biodegradable + bioQty,
+              non_biodegradable: stock.non_biodegradable + nonBioQty,
+              last_replenished: new Date().toISOString()
+            };
+            updatedStocksToSave.push(newStock);
+            return newStock;
+          }
         }
         return stock;
       });
-      if (!updated.some(s => s.commune_id === communeId)) {
-        updatedStock = {
+
+      if (communeId !== null && communeId !== 'central' && !updated.some(s => s.commune_id === communeId)) {
+        const newCommuneStock: SachetStock = {
           id: 'stk-' + communeId,
           commune_id: communeId,
           biodegradable: bioQty,
@@ -1056,18 +1145,23 @@ export default function App() {
           seuil_alerte: 50,
           last_replenished: new Date().toISOString()
         };
-        updated.push(updatedStock!);
+        updated.push(newCommuneStock);
+        updatedStocksToSave.push(newCommuneStock);
       }
+
       return updated;
     });
 
-    if (isSupabaseConfigured && dbStatus === 'connected' && updatedStock) {
+    if (success && isSupabaseConfigured && dbStatus === 'connected' && updatedStocksToSave.length > 0) {
       try {
-        await supabase.from('sachet_stocks').upsert([updatedStock]);
-      } catch (err) {
-        console.warn("Supabase sachet_stocks upsert failed:", err);
+        const { error } = await supabase.from('sachet_stocks').upsert(updatedStocksToSave);
+        if (error) throw error;
+      } catch (err: any) {
+        console.warn("Échec d'upsert Supabase de sachet_stocks :", err);
       }
     }
+
+    return { success, error: errorMsg };
   };
 
   const handleDistributeSachets = async (distribution: Omit<SachetDistribution, 'id'>) => {

@@ -30,7 +30,7 @@ interface SachetsManagementViewProps {
   agents: Agent[];
   stocks: SachetStock[];
   distributions: SachetDistribution[];
-  onReplenishStock: (communeId: string, bioQty: number, nonBioQty: number) => void;
+  onReplenishStock: (communeId: string | null, bioQty: number, nonBioQty: number) => Promise<{ success: boolean; error?: string }> | { success: boolean; error?: string };
   onDistributeSachets: (distribution: Omit<SachetDistribution, 'id'>) => boolean | Promise<boolean>;
 }
 
@@ -52,10 +52,12 @@ export default function SachetsManagementView({
   const [searchCommune, setSearchCommune] = useState('');
 
   // Replenish Form State
+  const [repType, setRepType] = useState<'usine' | 'transfert'>('transfert');
   const [repCommuneId, setRepCommuneId] = useState(communes[0]?.id || '');
   const [repBioQty, setRepBioQty] = useState<number>(100);
   const [repNonBioQty, setRepNonBioQty] = useState<number>(100);
   const [repSuccess, setRepSuccess] = useState(false);
+  const [repError, setRepError] = useState<string | null>(null);
 
   // Distribution Form State
   const [distCommuneId, setDistCommuneId] = useState(communes[0]?.id || '');
@@ -104,31 +106,45 @@ export default function SachetsManagementView({
   }, [stocks, communes, searchCommune]);
 
   // Handle replenishment submission
-  const handleReplenishSubmit = (e: React.FormEvent) => {
+  const handleReplenishSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!repCommuneId) return;
+    setRepError(null);
+    setRepSuccess(false);
 
-    onReplenishStock(repCommuneId, repBioQty, repNonBioQty);
-    setRepSuccess(true);
-    setTimeout(() => setRepSuccess(false), 3000);
+    const targetedCommuneId = repType === 'usine' ? null : repCommuneId;
+    if (repType === 'transfert' && !targetedCommuneId) {
+      setRepError("Veuillez sélectionner une commune.");
+      return;
+    }
 
-    // Add to replenishment log
-    const savedLogs = localStorage.getItem('hico_replenish_logs') || '[]';
-    const logs = JSON.parse(savedLogs);
-    const communeObj = communes.find(c => c.id === repCommuneId);
-    logs.unshift({
-      id: 'rep-' + Date.now(),
-      commune_id: repCommuneId,
-      commune_nom: communeObj?.nom || 'Inconnue',
-      biodegradable: repBioQty,
-      non_biodegradable: repNonBioQty,
-      date: new Date().toISOString()
-    });
-    localStorage.setItem('hico_replenish_logs', JSON.stringify(logs));
+    const res = await onReplenishStock(targetedCommuneId, repBioQty, repNonBioQty);
+    
+    if (res.success) {
+      setRepSuccess(true);
+      setTimeout(() => setRepSuccess(false), 3000);
 
-    // Reset Qty
-    setRepBioQty(100);
-    setRepNonBioQty(100);
+      // Add to replenishment log
+      const savedLogs = localStorage.getItem('hico_replenish_logs') || '[]';
+      const logs = JSON.parse(savedLogs);
+      const communeObj = communes.find(c => c.id === targetedCommuneId);
+      
+      logs.unshift({
+        id: 'rep-' + Date.now(),
+        commune_id: targetedCommuneId,
+        commune_nom: repType === 'usine' ? '🏢 Dépôt Central (Usine)' : `🚚 Transfert -> ${communeObj?.nom || 'Inconnue'}`,
+        biodegradable: repBioQty,
+        non_biodegradable: repNonBioQty,
+        type_operation: repType === 'usine' ? 'RÉCEPTION USINE' : 'TRANSFERT LOCAL',
+        date: new Date().toISOString()
+      });
+      localStorage.setItem('hico_replenish_logs', JSON.stringify(logs));
+
+      // Reset quantities
+      setRepBioQty(100);
+      setRepNonBioQty(100);
+    } else {
+      setRepError(res.error || "Une erreur est survenue lors du traitement.");
+    }
   };
 
   // Get replenishment logs
@@ -199,13 +215,22 @@ export default function SachetsManagementView({
     }
   };
 
-  // Total statistics helper
+  // Find central/global stock and filter local commune stocks
+  const centralStock = useMemo(() => {
+    return stocks.find(s => s.commune_id === null || s.id === 'stk-central');
+  }, [stocks]);
+
+  const communeStocks = useMemo(() => {
+    return stocks.filter(s => s.commune_id !== null && s.id !== 'stk-central');
+  }, [stocks]);
+
+  // Total statistics helper (communes only)
   const totalStats = useMemo(() => {
     let totalBio = 0;
     let totalNonBio = 0;
     let alertsCount = 0;
 
-    stocks.forEach(s => {
+    communeStocks.forEach(s => {
       totalBio += s.biodegradable;
       totalNonBio += s.non_biodegradable;
       if (s.biodegradable <= s.seuil_alerte || s.non_biodegradable <= s.seuil_alerte) {
@@ -214,7 +239,7 @@ export default function SachetsManagementView({
     });
 
     return { totalBio, totalNonBio, alertsCount };
-  }, [stocks]);
+  }, [communeStocks]);
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-on-background pb-12" id="sachets_management_view">
@@ -227,7 +252,7 @@ export default function SachetsManagementView({
           </div>
           <div>
             <h2 className="text-xl font-bold text-on-background font-sans leading-tight">Gestion des Sachets Poubelles</h2>
-            <p className="text-xs text-on-surface-variant">Suivi du stock communal, réapprovisionnement et distribution aux parcelles abonnées.</p>
+            <p className="text-xs text-on-surface-variant">Suivi du stock central, réapprovisionnement communal et distribution de sachets.</p>
           </div>
         </div>
         <span className="bg-secondary/20 text-indigo-400 text-xs px-3 py-1 rounded-full font-bold border border-secondary/25 uppercase tracking-wider font-mono">
@@ -237,26 +262,49 @@ export default function SachetsManagementView({
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4" id="sachets_stats_grid">
+        {/* Card 1: Central Stock */}
+        <div className="bg-surface border border-outline-variant rounded-2xl p-4 flex items-center gap-4 shadow-sm">
+          <div className="p-3 rounded-xl bg-secondary/15 text-indigo-400 border border-secondary/20">
+            <Package size={22} className="text-indigo-400" />
+          </div>
+          <div className="flex-1">
+            <span className="text-[9px] uppercase font-bold tracking-widest text-on-surface-variant">🏢 Stock Global (Dépôt Central)</span>
+            <div className="flex items-center gap-4 mt-0.5">
+              <div>
+                <span className="text-[9px] text-emerald-400 font-bold uppercase block">Bio</span>
+                <span className="text-sm font-black text-on-surface font-mono">{centralStock?.biodegradable ?? 0}</span>
+              </div>
+              <div className="border-l border-outline-variant h-6"></div>
+              <div>
+                <span className="text-[9px] text-indigo-400 font-bold uppercase block">Non-Bio</span>
+                <span className="text-sm font-black text-on-surface font-mono">{centralStock?.non_biodegradable ?? 0}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Communal Stock Sum */}
         <div className="bg-surface border border-outline-variant rounded-2xl p-4 flex items-center gap-4 shadow-sm">
           <div className="p-3 rounded-xl bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/15">
-            <Package size={22} />
+            <MapPin size={22} />
           </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant">Sachets Biodégradables (Stock)</span>
-            <div className="text-2xl font-black text-on-surface font-mono mt-0.5">{totalStats.totalBio} <span className="text-xs text-on-surface-variant">unités</span></div>
+          <div className="flex-1">
+            <span className="text-[9px] uppercase font-bold tracking-widest text-on-surface-variant">📍 Stocks des Communes (Total)</span>
+            <div className="flex items-center gap-4 mt-0.5">
+              <div>
+                <span className="text-[9px] text-emerald-400 font-bold uppercase block">Bio</span>
+                <span className="text-sm font-black text-on-surface font-mono">{totalStats.totalBio}</span>
+              </div>
+              <div className="border-l border-outline-variant h-6"></div>
+              <div>
+                <span className="text-[9px] text-indigo-400 font-bold uppercase block">Non-Bio</span>
+                <span className="text-sm font-black text-on-surface font-mono">{totalStats.totalNonBio}</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="bg-surface border border-outline-variant rounded-2xl p-4 flex items-center gap-4 shadow-sm">
-          <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/15">
-            <Package size={22} />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant">Sachets Non Dégradables (Stock)</span>
-            <div className="text-2xl font-black text-on-surface font-mono mt-0.5">{totalStats.totalNonBio} <span className="text-xs text-on-surface-variant">unités</span></div>
-          </div>
-        </div>
-
+        {/* Card 3: Alert Counts */}
         <div className={`border rounded-2xl p-4 flex items-center gap-4 shadow-sm transition-all ${
           totalStats.alertsCount > 0 
             ? 'bg-amber-500/10 border-amber-500/25 text-amber-500' 
@@ -348,6 +396,30 @@ export default function SachetsManagementView({
                 onChange={(e) => setSearchCommune(e.target.value)}
                 className="w-full h-10 pl-10 pr-4 bg-background border border-outline-variant rounded-xl text-on-surface text-xs focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-medium"
               />
+            </div>
+          </div>
+
+          {/* Dépôt Central Info Banner */}
+          <div className="bg-background/40 border border-outline-variant rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-secondary/15 text-indigo-400 flex items-center justify-center border border-secondary/20">
+                <Package size={20} />
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-on-surface">🏢 Hub d'Approvisionnement (Dépôt Central)</h4>
+                <p className="text-[10px] text-on-surface-variant">C'est la réserve globale nationale d'où proviennent tous les sachets rechargés.</p>
+              </div>
+            </div>
+            <div className="flex gap-6 pr-4">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-bold uppercase text-[#10b981] tracking-wider">Biodégradables (Dispo)</span>
+                <span className="text-sm font-black text-on-surface font-mono">{centralStock?.biodegradable ?? 0} <span className="text-[10px] text-on-surface-variant">u</span></span>
+              </div>
+              <div className="border-l border-outline-variant h-8 self-center"></div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-bold uppercase text-indigo-400 tracking-wider">Non Dégradables (Dispo)</span>
+                <span className="text-sm font-black text-on-surface font-mono">{centralStock?.non_biodegradable ?? 0} <span className="text-[10px] text-on-surface-variant">u</span></span>
+              </div>
             </div>
           </div>
 
@@ -443,30 +515,90 @@ export default function SachetsManagementView({
       {activeTab === 'replenish' && (
         <div className="bg-surface border border-outline-variant rounded-3xl p-6 shadow-xl flex flex-col gap-5 animate-fade-in">
           <div>
-            <h3 className="text-base font-black text-on-surface">Réapprovisionner les Stocks Communaux</h3>
-            <p className="text-xs text-on-surface-variant">Enregistrez l'arrivée d'un lot de sachets poubelles de rechange dans le stock d'une commune.</p>
+            <h3 className="text-base font-black text-on-surface">Réapprovisionnement & Logistique des Sachets</h3>
+            <p className="text-xs text-on-surface-variant">Gérez l'approvisionnement global : réceptionnez les lots d'usine ou transférez du stock vers les dépôts communaux.</p>
           </div>
 
-          <form onSubmit={handleReplenishSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-2">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="rep_comm">
-                  Commune concernée
-                </label>
-                <select
-                  id="rep_comm"
-                  value={repCommuneId}
-                  onChange={(e) => setRepCommuneId(e.target.value)}
-                  className="w-full h-11 px-3 bg-background border border-outline-variant rounded-xl text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-bold"
-                  required
-                >
-                  {communes.map(c => (
-                    <option key={c.id} value={c.id}>{c.nom}</option>
-                  ))}
-                </select>
-              </div>
+          {/* Toggle Type d'Opération */}
+          <div className="flex gap-2 p-1 bg-background rounded-xl border border-outline-variant max-w-md">
+            <button
+              type="button"
+              onClick={() => { setRepType('transfert'); setRepError(null); }}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                repType === 'transfert'
+                  ? 'bg-secondary text-white shadow'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              🚚 Transfert vers une Commune
+            </button>
+            <button
+              type="button"
+              onClick={() => { setRepType('usine'); setRepError(null); }}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                repType === 'usine'
+                  ? 'bg-secondary text-white shadow'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              🏢 Réception d'Usine (Stock Central)
+            </button>
+          </div>
 
-              <div className="bg-background/50 border border-outline-variant p-4 rounded-2xl flex items-start gap-3 mt-1 text-xs">
+          {repError && (
+            <div className="bg-error/15 border border-error/20 text-error p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2">
+              <AlertTriangle size={15} />
+              <span>{repError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleReplenishSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-1">
+            <div className="flex flex-col gap-4">
+              {repType === 'transfert' ? (
+                <>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="rep_comm">
+                      Commune bénéficiaire
+                    </label>
+                    <select
+                      id="rep_comm"
+                      value={repCommuneId}
+                      onChange={(e) => setRepCommuneId(e.target.value)}
+                      className="w-full h-11 px-3 bg-background border border-outline-variant rounded-xl text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-bold"
+                      required
+                    >
+                      {communes.map(c => (
+                        <option key={c.id} value={c.id}>{c.nom}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Stock disponible au Central Hub */}
+                  <div className="bg-indigo-500/[0.04] border border-indigo-500/15 p-4 rounded-2xl text-xs">
+                    <span className="font-bold text-indigo-400 block mb-1.5">📦 Stock disponible au Dépôt Central :</span>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] font-medium text-on-surface-variant">
+                      <div className="flex justify-between bg-background/50 p-2 rounded-lg border border-outline-variant/40">
+                        <span>Biodégradables :</span>
+                        <span className="font-bold text-emerald-400 font-mono">{centralStock?.biodegradable ?? 0} u</span>
+                      </div>
+                      <div className="flex justify-between bg-background/50 p-2 rounded-lg border border-outline-variant/40">
+                        <span>Non Dégradables :</span>
+                        <span className="font-bold text-indigo-400 font-mono">{centralStock?.non_biodegradable ?? 0} u</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="bg-emerald-500/[0.04] border border-emerald-500/15 p-4 rounded-2xl flex items-start gap-3 text-xs">
+                  <Info size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="flex flex-col gap-0.5 text-on-surface-variant">
+                    <span className="font-bold text-on-surface text-emerald-400">Réception d'usine (Entrée de stock)</span>
+                    Cette opération permet d'ajouter des sachets poubelles livrés directement par l'usine de production dans le Dépôt Central Global de Hico-Cleaning. C'est le point de départ de la chaîne de distribution.
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-background/50 border border-outline-variant p-4 rounded-2xl flex items-start gap-3 text-xs">
                 <Info size={16} className="text-secondary shrink-0 mt-0.5" />
                 <div className="flex flex-col gap-0.5 text-on-surface-variant">
                   <span className="font-bold text-on-surface">Règle de distribution Hico-Cleaning</span>
@@ -479,7 +611,7 @@ export default function SachetsManagementView({
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="rep_bio">
-                    Sachets Biodégradables (+)
+                    {repType === 'usine' ? "Sachets Biodégradables (+)" : "Sachets Biodégradables à transférer"}
                   </label>
                   <input
                     type="number"
@@ -495,7 +627,7 @@ export default function SachetsManagementView({
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="rep_nonbio">
-                    Sachets Non Dégradables (+)
+                    {repType === 'usine' ? "Sachets Non Dégradables (+)" : "Sachets Non Dégradables à transférer"}
                   </label>
                   <input
                     type="number"
@@ -512,15 +644,16 @@ export default function SachetsManagementView({
 
               <div className="flex justify-end gap-3 mt-4">
                 {repSuccess && (
-                  <span className="text-xs text-[#10b981] font-bold self-center flex items-center gap-1 bg-[#10b981]/15 border border-[#10b981]/20 px-3 py-1.5 rounded-xl">
-                    <Check size={14} /> Stock mis à jour et loggé !
+                  <span className="text-xs text-[#10b981] font-bold self-center flex items-center gap-1 bg-[#10b981]/15 border border-[#10b981]/20 px-3 py-1.5 rounded-xl animate-fade-in">
+                    <Check size={14} /> Opération effectuée avec succès !
                   </span>
                 )}
                 <button
                   type="submit"
                   className="px-6 h-11 bg-secondary text-white font-bold text-xs rounded-xl hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-md flex items-center gap-2"
                 >
-                  <Plus size={16} /> Enregistrer le Réapprovisionnement
+                  <Plus size={16} /> 
+                  {repType === 'usine' ? "Enregistrer la Réception Usine" : "Valider le Transfert vers la Commune"}
                 </button>
               </div>
             </div>
@@ -815,8 +948,12 @@ export default function SachetsManagementView({
                         +{log.non_biodegradable}
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="text-[10px] uppercase font-bold tracking-widest bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/20 px-2 py-0.5 rounded">
-                          RECHARGE STOCK
+                        <span className={`text-[10px] uppercase font-bold tracking-widest border px-2 py-0.5 rounded ${
+                          log.type_operation === 'RÉCEPTION USINE' 
+                            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' 
+                            : 'bg-indigo-500/15 text-indigo-400 border-indigo-500/20'
+                        }`}>
+                          {log.type_operation || 'RECHARGE STOCK'}
                         </span>
                       </td>
                     </tr>
