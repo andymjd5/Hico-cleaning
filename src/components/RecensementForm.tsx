@@ -55,6 +55,7 @@ export default function RecensementForm({
       return;
     }
 
+    // Try first with High Accuracy (GPS hardware)
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLatitude(position.coords.latitude);
@@ -64,23 +65,51 @@ export default function RecensementForm({
         setShowGpsHelpModal(false); // Close help modal if it succeeds
       },
       (error) => {
-        console.error("Erreur de géolocalisation :", error);
-        let msg = "Impossible de récupérer les coordonnées.";
+        console.warn("High accuracy fetch failed, trying standard fallback...", error);
+        
+        // If permission was denied, we cannot fallback because the user explicitly blocked it
         if (error.code === error.PERMISSION_DENIED) {
-          msg = "L'accès à la localisation a été refusé. Veuillez autoriser l'accès GPS dans les permissions de votre navigateur ou appareil.";
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          msg = "La localisation GPS de l'appareil est désactivée ou introuvable. Veuillez activer le GPS.";
-        } else if (error.code === error.TIMEOUT) {
-          msg = "Le délai d'attente pour obtenir la position GPS a expiré. Veuillez réessayer dans un endroit plus dégagé.";
+          setGpsError("L'accès à la localisation a été refusé. Veuillez autoriser l'accès GPS dans les permissions de votre navigateur ou appareil.");
+          setIsFetchingGps(false);
+          setShowGpsHelpModal(true);
+          return;
         }
-        setGpsError(msg);
-        setIsFetchingGps(false);
-        setShowGpsHelpModal(true); // Automatically open the help modal to guide them
+
+        // Try second attempt with relaxed constraints (Standard precision fallback using Wi-Fi / Cell tower / IP geolocation)
+        // This is incredibly robust as it resolves the timeout or position unavailable issues on computers & indoors
+        navigator.geolocation.getCurrentPosition(
+          (fallbackPosition) => {
+            setLatitude(fallbackPosition.coords.latitude);
+            setLongitude(fallbackPosition.coords.longitude);
+            setIsFetchingGps(false);
+            setGpsError(null);
+            setShowGpsHelpModal(false);
+          },
+          (fallbackError) => {
+            console.error("Erreur complète de géolocalisation :", fallbackError);
+            let msg = "Impossible de récupérer les coordonnées.";
+            if (fallbackError.code === fallbackError.PERMISSION_DENIED) {
+              msg = "L'accès à la localisation a été refusé. Veuillez autoriser l'accès GPS dans les permissions de votre navigateur ou appareil.";
+            } else if (fallbackError.code === fallbackError.POSITION_UNAVAILABLE) {
+              msg = "La localisation GPS de l'appareil est désactivée ou introuvable. Veuillez activer le GPS de votre appareil.";
+            } else if (fallbackError.code === fallbackError.TIMEOUT) {
+              msg = "Le délai d'attente pour obtenir la position GPS a expiré. Veuillez vous placer dans un endroit dégagé ou rafraîchir la page.";
+            }
+            setGpsError(msg);
+            setIsFetchingGps(false);
+            setShowGpsHelpModal(true);
+          },
+          {
+            enableHighAccuracy: false,
+            timeout: 15000,
+            maximumAge: 60000 // Accept a cached position of up to 1 minute
+          }
+        );
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+        timeout: 8000, // 8-second timeout for rapid high accuracy check, then fallback quickly
+        maximumAge: 10000 // Accept a cached position of up to 10 seconds
       }
     );
   };
