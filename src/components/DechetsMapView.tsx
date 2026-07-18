@@ -40,6 +40,8 @@ interface DechetsMapViewProps {
   abonnes: Abonne[];
   onAssignMission: (signalId: string, eboueurId: string) => void;
   onSimulateSignal: (parcelleId: string, typePoubelle?: 'biodegradable' | 'non_biodegradable') => void;
+  initialSelectedSignalId?: string | null;
+  onSelectSignalId?: (id: string | null) => void;
 }
 
 export default function DechetsMapView({
@@ -50,10 +52,29 @@ export default function DechetsMapView({
   parcelles,
   abonnes,
   onAssignMission,
-  onSimulateSignal
+  onSimulateSignal,
+  initialSelectedSignalId,
+  onSelectSignalId
 }: DechetsMapViewProps) {
-  const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
+  const [selectedSignalId, setSelectedSignalIdState] = useState<string | null>(initialSelectedSignalId || null);
   const [selectedEboueurId, setSelectedEboueurId] = useState<string | null>(null);
+
+  // Synchronize state with incoming initialSelectedSignalId prop
+  useEffect(() => {
+    if (initialSelectedSignalId !== undefined) {
+      setSelectedSignalIdState(initialSelectedSignalId);
+      if (initialSelectedSignalId) {
+        setSelectedEboueurId(null);
+      }
+    }
+  }, [initialSelectedSignalId]);
+
+  const setSelectedSignalId = (id: string | null) => {
+    setSelectedSignalIdState(id);
+    if (onSelectSignalId) {
+      onSelectSignalId(id);
+    }
+  };
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'assigned' | 'completed'>('all');
   const [simulationCommuneId, setSimulationCommuneId] = useState<string>('');
   const [simulationAvenueId, setSimulationAvenueId] = useState<string>('');
@@ -227,7 +248,13 @@ export default function DechetsMapView({
 
       let markerColor = 'bg-error';
       let iconHtml = '🚨';
-      let pingHtml = isPending ? '<span class="absolute inline-flex h-8 w-8 rounded-full bg-red-500/30 animate-ping"></span>' : '';
+      let pingHtml = '';
+      if (isPending) {
+        pingHtml = `
+          <span class="absolute inline-flex h-12 w-12 rounded-full bg-red-500/30 animate-ping" style="animation-duration: 1.5s;"></span>
+          <span class="absolute inline-flex h-7 w-7 rounded-full bg-red-500/50 animate-ping" style="animation-duration: 1s;"></span>
+        `;
+      }
 
       if (isPending) {
         markerColor = 'bg-red-600';

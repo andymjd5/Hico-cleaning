@@ -5,9 +5,10 @@ interface BottomNavBarProps {
   currentScreen: Screen;
   onScreenChange: (screen: Screen) => void;
   userRole?: 'admin' | 'agent' | 'abonne' | 'eboueur';
+  hasNewSignals?: boolean;
 }
 
-export default function BottomNavBar({ currentScreen, onScreenChange, userRole = 'agent' }: BottomNavBarProps) {
+export default function BottomNavBar({ currentScreen, onScreenChange, userRole = 'agent', hasNewSignals = false }: BottomNavBarProps) {
   // Define tabs dynamically based on user role
   const getTabsForRole = () => {
     if (userRole === 'abonne') {
@@ -55,13 +56,19 @@ export default function BottomNavBar({ currentScreen, onScreenChange, userRole =
             className="flex flex-col items-center justify-center w-16 group active:scale-95 transition-all duration-100"
           >
             <div
-              className={`flex items-center justify-center rounded-xl px-4.5 py-1.5 mb-1 transition-colors duration-200 ${
+              className={`flex items-center justify-center rounded-xl px-4.5 py-1.5 mb-1 transition-colors duration-200 relative ${
                 isActive
                   ? 'bg-primary/20 text-indigo-400 font-bold border border-primary/20 shadow-inner'
                   : 'text-gray-400 hover:bg-white/5 hover:text-white'
               }`}
             >
               <IconComponent size={18} strokeWidth={isActive ? 2.5 : 1.75} />
+              {tab.id === 'dechets_map' && hasNewSignals && (
+                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-sm shadow-red-500/50"></span>
+                </span>
+              )}
             </div>
             <span
               className={`text-[9px] font-medium tracking-wide ${

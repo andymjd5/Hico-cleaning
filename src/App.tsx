@@ -28,7 +28,7 @@ import SachetsManagementView from './components/SachetsManagementView';
 import FinanceManagementView from './components/FinanceManagementView';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -303,6 +303,55 @@ export default function App() {
       }
     ];
   });
+
+  // Real-time and notifications states
+  const [activeNotification, setActiveNotification] = useState<PoubelleSignal | null>(null);
+  const [hasNewSignals, setHasNewSignals] = useState(false);
+  const [mapSelectedSignalId, setMapSelectedSignalId] = useState<string | null>(null);
+
+  // Clear new signals notification when entering the waste signal map view
+  useEffect(() => {
+    if (currentScreen === 'dechets_map') {
+      setHasNewSignals(false);
+    }
+  }, [currentScreen]);
+
+  // Real-time subscription to signaux_poubelles table in Supabase
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    console.log("Setting up Supabase Realtime for signaux_poubelles...");
+    const channel = supabase
+      .channel('public:signaux_poubelles_changes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'signaux_poubelles' },
+        (payload) => {
+          console.log("Realtime INSERT received:", payload);
+          const newSig = payload.new as PoubelleSignal;
+          if (!newSig) return;
+
+          setPoubelleSignals(prev => {
+            // Prevent duplicate entries (Idempotency rule)
+            if (prev.some(s => s.id === newSig.id)) return prev;
+
+            // Trigger notification popup and sidebar flashing badge
+            setActiveNotification(newSig);
+            setHasNewSignals(true);
+
+            return [newSig, ...prev];
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log("Supabase Realtime subscription status:", status);
+      });
+
+    return () => {
+      console.log("Cleaning up Supabase Realtime channel...");
+      supabase.removeChannel(channel);
+    };
+  }, [isSupabaseConfigured]);
 
   // Local Storage Synchronization for waste management
   useEffect(() => {
@@ -1235,6 +1284,8 @@ export default function App() {
     };
 
     setPoubelleSignals(prev => [newSignal, ...prev]);
+    setActiveNotification(newSignal);
+    setHasNewSignals(true);
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {
@@ -1487,6 +1538,8 @@ export default function App() {
     };
 
     setPoubelleSignals(prev => [newSignal, ...prev]);
+    setActiveNotification(newSignal);
+    setHasNewSignals(true);
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {
@@ -1712,15 +1765,26 @@ export default function App() {
 
                   {/* Waste Signals Map View */}
                   <button 
-                    onClick={() => setCurrentScreen('dechets_map')}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                    onClick={() => {
+                      setCurrentScreen('dechets_map');
+                      setHasNewSignals(false);
+                    }}
+                    className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
                       currentScreen === 'dechets_map'
                         ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
                         : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
                     }`}
                   >
-                    <Trash2 size={18} />
-                    <span>Poubelles & Éboueurs</span>
+                    <div className="flex items-center gap-3">
+                      <Trash2 size={18} />
+                      <span>Poubelles & Éboueurs</span>
+                    </div>
+                    {hasNewSignals && (
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-sm shadow-red-500/50"></span>
+                      </span>
+                    )}
                   </button>
 
                   {/* Rapports tab */}
@@ -2015,6 +2079,8 @@ export default function App() {
                   abonnes={abonnes}
                   onAssignMission={handleAssignEboueur}
                   onSimulateSignal={handleSimulateSignal}
+                  initialSelectedSignalId={mapSelectedSignalId}
+                  onSelectSignalId={setMapSelectedSignalId}
                 />
               )}
 
@@ -2173,6 +2239,7 @@ export default function App() {
           <BottomNavBar 
             currentScreen={currentScreen} 
             userRole={currentUser?.role}
+            hasNewSignals={hasNewSignals}
             onScreenChange={(screenId) => {
               // Clear temporary selection indices when moving randomly through footer
               if (screenId !== 'avenues' && screenId !== 'recensement_form') {
@@ -2182,6 +2249,69 @@ export default function App() {
               setCurrentScreen(screenId);
             }} 
           />
+
+          {/* Real-time Notification Popup for Waste Signals (Alerte Poubelle Pleine) */}
+          {activeNotification && (
+            <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 max-w-sm w-[calc(100vw-2rem)] bg-gradient-to-br from-red-600/95 to-red-950/95 backdrop-blur-md border border-red-500/30 rounded-2xl shadow-[0_12px_40px_rgba(239,68,68,0.35)] p-4 text-white z-50 animate-slide-in-up hover:scale-[1.02] transition-transform duration-200">
+              <div className="flex items-start gap-3">
+                {/* Flashing light icon */}
+                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center bg-red-600 rounded-xl shadow-lg border border-red-400/20">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60"></span>
+                  <Trash2 size={18} className="animate-bounce" />
+                </div>
+                
+                <div className="flex-grow min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-red-300 flex items-center gap-1 animate-pulse">
+                      <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-ping"></span>
+                      Alerte Poubelle Pleine !
+                    </span>
+                    <button 
+                      onClick={() => setActiveNotification(null)}
+                      className="text-white/70 hover:text-white hover:bg-white/10 p-1 rounded-full transition-all cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  
+                  <p className="text-xs font-semibold leading-tight text-white mb-2 line-clamp-3">
+                    Une poubelle <span className="underline decoration-red-400 font-extrabold">{activeNotification.type_poubelle === 'biodegradable' ? 'biodégradable' : 'non-biodégradable'}</span> est signalée pleine par <span className="font-extrabold">{activeNotification.bailleur_nom}</span> !
+                  </p>
+                  
+                  <div className="bg-black/25 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-red-200 flex flex-col gap-0.5 mb-3 border border-red-500/10">
+                    <div className="truncate">📍 <strong className="text-white">Parcelle:</strong> N° {activeNotification.numero_parcelle}</div>
+                    <div className="truncate">🛣️ <strong className="text-white">Avenue:</strong> {activeNotification.avenue_nom}</div>
+                    <div className="truncate">🏢 <strong className="text-white">Commune:</strong> {activeNotification.commune_nom}</div>
+                  </div>
+
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => setActiveNotification(null)}
+                      className="px-3 py-1 bg-white/10 hover:bg-white/15 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all cursor-pointer"
+                    >
+                      Fermer
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Switch to the map screen
+                        setCurrentScreen('dechets_map');
+                        // Center the map on this signal
+                        setMapSelectedSignalId(activeNotification.id);
+                        // Clear notification popup
+                        setActiveNotification(null);
+                        // Also clear the new signal indicator since we are navigating to see it
+                        setHasNewSignals(false);
+                      }}
+                      className="px-3 py-1 bg-white text-red-950 hover:bg-white/95 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all flex items-center gap-1 shadow-md cursor-pointer active:scale-95 duration-75"
+                    >
+                      <MapPin size={10} />
+                      Voir sur la carte 📍
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ==================================== */}
           {/*   MODALS OVERLAYS (Ajout commune/av) */}
