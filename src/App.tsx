@@ -30,6 +30,17 @@ import FinanceManagementView from './components/FinanceManagementView';
 // Lucide Icons
 import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin } from 'lucide-react';
 
+const sanitizeAgentForDb = (agent: Agent) => {
+  return {
+    id: agent.id,
+    nom: agent.nom,
+    telephone: agent.telephone,
+    role: agent.role,
+    created_at: agent.created_at,
+    password: agent.password || 'password'
+  };
+};
+
 export default function App() {
   // Theme state
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -632,7 +643,8 @@ export default function App() {
             };
             mergedAgents.unshift(defaultAdmin);
             try {
-              await supabase.from('agents').upsert([defaultAdmin]);
+              const { error } = await supabase.from('agents').upsert([sanitizeAgentForDb(defaultAdmin)]);
+              if (error) console.warn("Failed to auto-upsert default admin:", error);
             } catch (err) {
               console.warn("Failed to auto-upsert default admin:", err);
             }
@@ -959,9 +971,11 @@ export default function App() {
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {
-        await supabase.from('agents').insert([newAgent]);
-      } catch (err) {
-        console.warn("Supabase agent insert skipped or failed:", err);
+        const { error } = await supabase.from('agents').insert([sanitizeAgentForDb(newAgent)]);
+        if (error) throw error;
+      } catch (err: any) {
+        console.error("Supabase agent insert failed:", err);
+        alert("Erreur lors de l'enregistrement du compte dans Supabase :\n" + (err.message || err));
       }
     }
   };
@@ -975,9 +989,11 @@ export default function App() {
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {
-        await supabase.from('agents').update(updatedAgent).eq('id', updatedAgent.id);
-      } catch (err) {
-        console.warn("Supabase agent update skipped or failed:", err);
+        const { error } = await supabase.from('agents').update(sanitizeAgentForDb(updatedAgent)).eq('id', updatedAgent.id);
+        if (error) throw error;
+      } catch (err: any) {
+        console.warn("Supabase agent update failed:", err);
+        alert("Erreur lors de la mise à jour du compte dans Supabase :\n" + (err.message || err));
       }
     }
   };
