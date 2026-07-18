@@ -132,9 +132,10 @@ export interface SubscriptionPayment {
   parcelle_id: string;
   montant: number;
   date_paiement: string;
-  mode_paiement: 'mpesa' | 'orange' | 'airtel';
+  mode_paiement: string;
   telephone_payeur: string;
   status: 'success';
+  reference_transaction?: string;
 }
 
 export interface StaffPayment {

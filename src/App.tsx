@@ -2753,6 +2753,7 @@ CREATE TABLE IF NOT EXISTS subscription_payments (
   mode_paiement VARCHAR(20) NOT NULL,
   telephone_payeur VARCHAR(30) NOT NULL,
   status VARCHAR(20) DEFAULT 'success',
+  reference_transaction TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -3025,6 +3026,7 @@ CREATE TABLE IF NOT EXISTS subscription_payments (
   mode_paiement VARCHAR(20) NOT NULL,
   telephone_payeur VARCHAR(30) NOT NULL,
   status VARCHAR(20) DEFAULT 'success',
+  reference_transaction TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

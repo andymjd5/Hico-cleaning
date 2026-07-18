@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Commune, 
   Avenue, 
@@ -87,8 +87,14 @@ export default function FinanceManagementView({
   // Form State - Manual Payment
   const [newPayAbonneId, setNewPayAbonneId] = useState('');
   const [newPayAmount, setNewPayAmount] = useState('');
-  const [newPayProvider, setNewPayProvider] = useState<'mpesa' | 'orange' | 'airtel'>('mpesa');
+  const [newPayProvider, setNewPayProvider] = useState<string>('cash');
   const [newPayPhone, setNewPayPhone] = useState('');
+
+  // New filtered parcel selection states for Agent lookup
+  const [searchPayCommuneId, setSearchPayCommuneId] = useState('');
+  const [searchPayAvenueId, setSearchPayAvenueId] = useState('');
+  const [searchPayParcelleId, setSearchPayParcelleId] = useState('');
+  const [transactionReference, setTransactionReference] = useState('');
 
   // Form State - Staff Payment
   const [newStaffId, setNewStaffId] = useState('');
@@ -146,6 +152,58 @@ export default function FinanceManagementView({
     });
     return map;
   }, [abonnes, parcelles, avenues, communes]);
+
+  // Filtered lists for manual payment lookups
+  const filteredPayAvenues = useMemo(() => {
+    if (!searchPayCommuneId) return [];
+    return avenues.filter(a => a.commune_id === searchPayCommuneId);
+  }, [avenues, searchPayCommuneId]);
+
+  const filteredPayParcelles = useMemo(() => {
+    if (!searchPayAvenueId) return [];
+    return parcelles.filter(p => p.avenue_id === searchPayAvenueId);
+  }, [parcelles, searchPayAvenueId]);
+
+  const foundAbonneForParcelle = useMemo(() => {
+    if (!searchPayParcelleId) return null;
+    return abonnes.find(ab => ab.parcelle_id === searchPayParcelleId);
+  }, [abonnes, searchPayParcelleId]);
+
+  const automaticPrice = useMemo(() => {
+    if (!foundAbonneForParcelle) return 0;
+    const info = abonneInfoMap[foundAbonneForParcelle.id];
+    if (info) {
+      return info.parcelle.nombre_menages * getSubscriptionPrice(info.commune.id);
+    }
+    return 0;
+  }, [foundAbonneForParcelle, abonneInfoMap]);
+
+  // Synchronize search filters with actual payment fields
+  useEffect(() => {
+    if (foundAbonneForParcelle) {
+      setNewPayAbonneId(foundAbonneForParcelle.id);
+      setNewPayAmount(automaticPrice.toString());
+      setNewPayPhone(foundAbonneForParcelle.telephone_principal);
+    } else {
+      setNewPayAbonneId('');
+      setNewPayAmount('');
+      setNewPayPhone('');
+    }
+  }, [foundAbonneForParcelle, automaticPrice]);
+
+  // Reset fields when modal is opened or closed
+  useEffect(() => {
+    if (showAddPaymentModal) {
+      setSearchPayCommuneId('');
+      setSearchPayAvenueId('');
+      setSearchPayParcelleId('');
+      setTransactionReference('');
+      setNewPayAbonneId('');
+      setNewPayAmount('');
+      setNewPayPhone('');
+      setNewPayProvider('cash');
+    }
+  }, [showAddPaymentModal]);
 
   // Financial calculations
   const stats = useMemo(() => {
@@ -309,13 +367,18 @@ export default function FinanceManagementView({
       date_paiement: new Date().toISOString(),
       mode_paiement: newPayProvider,
       telephone_payeur: newPayPhone || info.abonne.telephone_principal,
-      status: 'success'
+      status: 'success',
+      reference_transaction: transactionReference || undefined
     });
 
     // Reset
     setNewPayAbonneId('');
     setNewPayAmount('');
     setNewPayPhone('');
+    setSearchPayCommuneId('');
+    setSearchPayAvenueId('');
+    setSearchPayParcelleId('');
+    setTransactionReference('');
     setShowAddPaymentModal(false);
     alert("Paiement manuel enregistré avec succès !");
   };
@@ -784,10 +847,26 @@ export default function FinanceManagementView({
                           </div>
                         </td>
                         <td className="p-3 font-bold text-on-surface-variant">{communeObj?.nom || 'Commune Inconnue'}</td>
-                        <td className="p-3 font-bold text-on-surface-variant">
-                          <span className="uppercase tracking-wider text-[10px] bg-outline-variant/30 px-2 py-0.5 rounded border border-outline-variant/30 mr-1.5">
-                            {p.mode_paimet || p.mode_paiement || 'M-Pesa'}
-                          </span>
+                        <td className="p-3 text-on-surface-variant font-medium">
+                          <div className="flex flex-col gap-1">
+                            <span className="uppercase tracking-wider text-[9px] bg-secondary/15 text-indigo-400 font-black px-2 py-0.5 rounded border border-secondary/20 w-fit">
+                              {(() => {
+                                const pMode = (p.mode_paimet || p.mode_paiement || 'cash').toLowerCase();
+                                if (pMode === 'mpesa') return 'M-Pesa';
+                                if (pMode === 'orange') return 'Orange Money';
+                                if (pMode === 'airtel') return 'Airtel Money';
+                                if (pMode === 'virement') return 'Virement Bancaire';
+                                if (pMode === 'carte') return 'Carte Bancaire';
+                                if (pMode === 'cash') return 'CASH / Espèces';
+                                return p.mode_paimet || p.mode_paiement || 'CASH / Espèces';
+                              })()}
+                            </span>
+                            {p.reference_transaction && (
+                              <span className="text-[10px] text-gray-400 font-mono italic">
+                                Réf: <span className="font-bold text-on-surface select-all">{p.reference_transaction}</span>
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-3 font-black text-emerald-400">+{p.montant} {currencySymbol}</td>
                         <td className="p-3 text-[10px] text-on-surface-variant">
@@ -1393,48 +1472,106 @@ export default function FinanceManagementView({
           <div className="bg-[#141414] border border-white/10 rounded-3xl p-6 w-full max-w-md flex flex-col gap-6 shadow-2xl text-white">
             <div className="flex justify-between items-center border-b border-white/5 pb-3">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-primary flex items-center gap-1.5">
-                <DollarSign size={16} /> Saisie de Paiement Manuel (Offline)
+                <DollarSign size={16} /> Saisie de Paiement Manuel
               </h3>
               <button 
                 onClick={() => setShowAddPaymentModal(false)}
-                className="text-gray-400 hover:text-white"
+                className="text-gray-400 hover:text-white transition-colors"
               >
                 <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleAddPaymentSubmit} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] text-gray-400 font-bold uppercase">Abonné (Bailleur)</span>
-                <select
-                  value={newPayAbonneId}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setNewPayAbonneId(val);
-                    if (val) {
-                      const info = abonneInfoMap[val];
-                      if (info) {
-                        const amount = info.parcelle.nombre_menages * getSubscriptionPrice(info.commune.id);
-                        setNewPayAmount(amount.toString());
-                        setNewPayPhone(info.abonne.telephone_principal);
-                      }
-                    }
-                  }}
-                  className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary w-full cursor-pointer"
-                  required
-                >
-                  <option value="">Sélectionner l'abonné payeur...</option>
-                  {abonnes.map(ab => {
-                    const info = abonneInfoMap[ab.id];
-                    return (
-                      <option key={ab.id} value={ab.id}>
-                        {ab.nom_complet} ({info?.commune.nom || 'Inconnu'})
-                      </option>
-                    );
-                  })}
-                </select>
+              {/* Step 1: Commune, Avenue, Parcelle selects */}
+              <div className="bg-black/40 border border-white/5 p-4 rounded-2xl flex flex-col gap-3">
+                <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-wider block">📍 Localisation de la parcelle</span>
+                
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase">Commune</span>
+                  <select
+                    value={searchPayCommuneId}
+                    onChange={(e) => {
+                      setSearchPayCommuneId(e.target.value);
+                      setSearchPayAvenueId('');
+                      setSearchPayParcelleId('');
+                    }}
+                    className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary w-full cursor-pointer font-bold"
+                    required
+                  >
+                    <option value="">Sélectionner la commune...</option>
+                    {communes.map(c => (
+                      <option key={c.id} value={c.id}>{c.nom}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[9px] text-gray-400 font-bold uppercase">Avenue</span>
+                    <select
+                      value={searchPayAvenueId}
+                      onChange={(e) => {
+                        setSearchPayAvenueId(e.target.value);
+                        setSearchPayParcelleId('');
+                      }}
+                      className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary w-full cursor-pointer"
+                      required
+                      disabled={!searchPayCommuneId}
+                    >
+                      <option value="">Sélectionner l'avenue...</option>
+                      {filteredPayAvenues.map(a => (
+                        <option key={a.id} value={a.id}>{a.nom}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[9px] text-gray-400 font-bold uppercase">Numéro de parcelle</span>
+                    <select
+                      value={searchPayParcelleId}
+                      onChange={(e) => setSearchPayParcelleId(e.target.value)}
+                      className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary w-full cursor-pointer"
+                      required
+                      disabled={!searchPayAvenueId}
+                    >
+                      <option value="">N° de parcelle...</option>
+                      {filteredPayParcelles.map(p => (
+                        <option key={p.id} value={p.id}>
+                          N° {p.numero} ({p.nombre_menages} mén.)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
 
+              {/* Step 2: Verification Indicator */}
+              {searchPayParcelleId && (
+                <div className="animate-fade-in">
+                  {foundAbonneForParcelle ? (
+                    <div className="bg-emerald-500/[0.04] border border-[#10b981]/25 p-4 rounded-2xl flex flex-col gap-1.5">
+                      <div className="flex items-center gap-1.5 text-[#10b981] font-bold text-xs uppercase tracking-wider">
+                        <CheckCircle2 size={14} />
+                        <span>Bailleur Officiel Identifié</span>
+                      </div>
+                      <div className="text-sm font-black text-white">{foundAbonneForParcelle.nom_complet}</div>
+                      <div className="text-[11px] text-gray-400 flex items-center gap-1">
+                        <Phone size={10} /> Téléphone : {foundAbonneForParcelle.telephone_principal}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-500/5 border border-amber-500/20 p-4 rounded-2xl flex flex-col gap-1 text-xs text-amber-400">
+                      <span className="font-bold flex items-center gap-1.5">
+                        <AlertTriangle size={14} /> Aucun abonné pour cette parcelle
+                      </span>
+                      <span>Veuillez vérifier les informations de localisation ou recenser cette parcelle au préalable.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 3: Payment details */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[10px] text-gray-400 font-bold uppercase">Montant perçu ({currencySymbol})</span>
@@ -1452,30 +1589,48 @@ export default function FinanceManagementView({
                   <span className="text-[10px] text-gray-400 font-bold uppercase">Mode de Paiement</span>
                   <select
                     value={newPayProvider}
-                    onChange={(e) => setNewPayProvider(e.target.value as any)}
-                    className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary cursor-pointer"
+                    onChange={(e) => setNewPayProvider(e.target.value)}
+                    className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary cursor-pointer font-bold text-indigo-400"
                   >
-                    <option value="mpesa">CASH / Espèces</option>
-                    <option value="orange">Orange Money</option>
-                    <option value="airtel">Airtel Money</option>
+                    <option value="cash">💵 CASH / Espèces</option>
+                    <option value="mpesa">📱 M-Pesa</option>
+                    <option value="orange">🍊 Orange Money</option>
+                    <option value="airtel">🔴 Airtel Money</option>
+                    <option value="virement">🏢 Virement Bancaire</option>
+                    <option value="carte">💳 Carte Bancaire</option>
                   </select>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] text-gray-400 font-bold uppercase">Téléphone de l'émetteur</span>
-                <input
-                  type="text"
-                  placeholder="ex. 082 345 6789"
-                  value={newPayPhone}
-                  onChange={(e) => setNewPayPhone(e.target.value)}
-                  className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary"
-                />
+              {/* Transaction Reference & Phone */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] text-gray-400 font-bold uppercase">Téléphone de l'émetteur</span>
+                  <input
+                    type="text"
+                    placeholder="ex. 082 345 6789"
+                    value={newPayPhone}
+                    onChange={(e) => setNewPayPhone(e.target.value)}
+                    className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] text-gray-400 font-bold uppercase">Réf. de transaction</span>
+                  <input
+                    type="text"
+                    placeholder="Réf. ou ID de transaction"
+                    value={transactionReference}
+                    onChange={(e) => setTransactionReference(e.target.value)}
+                    className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary font-mono placeholder:text-gray-600"
+                  />
+                </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full h-11 bg-primary text-on-primary font-extrabold rounded-xl text-xs mt-2 flex items-center justify-center gap-1.5 hover:opacity-95 active:scale-95 transition-all cursor-pointer"
+                disabled={!newPayAbonneId}
+                className="w-full h-11 bg-primary text-on-primary font-extrabold rounded-xl text-xs mt-2 flex items-center justify-center gap-1.5 hover:opacity-95 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 transition-all cursor-pointer shadow-lg"
               >
                 <Check size={14} />
                 <span>Confirmer l'Enregistrement</span>
