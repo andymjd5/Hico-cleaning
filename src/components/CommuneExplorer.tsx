@@ -18,7 +18,10 @@ import {
   MapIcon,
   Layers3,
   SlidersHorizontal,
-  Info
+  Info,
+  RefreshCw,
+  Navigation,
+  AlertTriangle
 } from 'lucide-react';
 
 interface CommuneExplorerProps {
@@ -26,6 +29,7 @@ interface CommuneExplorerProps {
   avenues: Avenue[];
   parcelles: Parcelle[];
   abonnes: Abonne[];
+  onUpdateParcelleGps?: (parcelleId: string, latitude: number, longitude: number) => Promise<void> | void;
 }
 
 type ExplorerViewMode = 'accordion' | 'table';
@@ -34,10 +38,110 @@ export default function CommuneExplorer({
   communes,
   avenues,
   parcelles,
-  abonnes
+  abonnes,
+  onUpdateParcelleGps
 }: CommuneExplorerProps) {
   const [selectedCommuneId, setSelectedCommuneId] = useState<string>('');
   const [viewMode, setViewMode] = useState<ExplorerViewMode>('table'); // Default to table as requested
+  
+  // GPS Update States
+  const [updatingParcelleId, setUpdatingParcelleId] = useState<string | null>(null);
+  const [gpsStatusMessage, setGpsStatusMessage] = useState<string | null>(null);
+
+  const handleLiveUpdateGps = (parcelleId: string) => {
+    if (!onUpdateParcelleGps) return;
+    setUpdatingParcelleId(parcelleId);
+    setGpsStatusMessage("Recherche du signal GPS de haute précision...");
+
+    if (!navigator.geolocation) {
+      alert("La géolocalisation n'est pas prise en charge par cet appareil.");
+      setUpdatingParcelleId(null);
+      setGpsStatusMessage(null);
+      return;
+    }
+
+    let bestPos: GeolocationPosition | null = null;
+    let attempts = 0;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        attempts++;
+        const currentAccuracy = position.coords.accuracy;
+        setGpsStatusMessage(`Précision : ±${currentAccuracy.toFixed(1)}m (Recherche...)`);
+        
+        if (!bestPos || currentAccuracy < bestPos.coords.accuracy) {
+          bestPos = position;
+        }
+
+        // If very high accuracy reached (<= 8 meters), save immediately!
+        if (currentAccuracy <= 8) {
+          navigator.geolocation.clearWatch(watchId);
+          onUpdateParcelleGps(parcelleId, position.coords.latitude, position.coords.longitude);
+          setUpdatingParcelleId(null);
+          setGpsStatusMessage(null);
+          alert(`🎯 Position GPS de haute précision enregistrée ! (±${currentAccuracy.toFixed(1)} mètres)`);
+        }
+      },
+      (error) => {
+        console.warn("watchPosition failed, trying standard fallback...", error);
+        
+        if (bestPos) {
+          navigator.geolocation.clearWatch(watchId);
+          onUpdateParcelleGps(parcelleId, bestPos.coords.latitude, bestPos.coords.longitude);
+          setUpdatingParcelleId(null);
+          setGpsStatusMessage(null);
+          return;
+        }
+
+        // Fallback
+        navigator.geolocation.getCurrentPosition(
+          (fallbackPos) => {
+            onUpdateParcelleGps(parcelleId, fallbackPos.coords.latitude, fallbackPos.coords.longitude);
+            setUpdatingParcelleId(null);
+            setGpsStatusMessage(null);
+            alert(`📍 Position GPS enregistrée ! (Précision : ±${fallbackPos.coords.accuracy.toFixed(1)}m)`);
+          },
+          (err) => {
+            let msg = "Erreur de géolocalisation.";
+            if (err.code === err.PERMISSION_DENIED) {
+              msg = "Autorisation d'accès GPS refusée.";
+            } else if (err.code === err.POSITION_UNAVAILABLE) {
+              msg = "Signal GPS indisponible ou désactivé.";
+            } else if (err.code === err.TIMEOUT) {
+              msg = "Délai d'attente dépassé.";
+            }
+            alert(`⚠️ Impossible de mettre à jour le GPS : ${msg}`);
+            setUpdatingParcelleId(null);
+            setGpsStatusMessage(null);
+          },
+          { enableHighAccuracy: false, timeout: 10000 }
+        );
+        navigator.geolocation.clearWatch(watchId);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+
+    // Timeout fallback (8.5 seconds)
+    setTimeout(() => {
+      navigator.geolocation.clearWatch(watchId);
+      setUpdatingParcelleId((currentId) => {
+        if (currentId === parcelleId) {
+          if (bestPos) {
+            onUpdateParcelleGps(parcelleId, bestPos.coords.latitude, bestPos.coords.longitude);
+            alert(`📍 Position GPS optimale enregistrée ! (Précision : ±${bestPos.coords.accuracy.toFixed(1)}m)`);
+          } else {
+            alert("⚠️ La recherche GPS a expiré sans obtenir de signal précis. Veuillez réessayer dans un endroit dégagé.");
+          }
+        }
+        return null;
+      });
+      setGpsStatusMessage(null);
+    }, 8500);
+  };
   
   // Accordion mode states
   const [searchAvenueQuery, setSearchAvenueQuery] = useState('');
@@ -498,19 +602,45 @@ export default function CommuneExplorer({
 
                               {/* Action buttons */}
                               <td className="px-5 py-4 text-right">
-                                {hasGps ? (
-                                  <a
-                                    href={`https://www.google.com/maps/search/?api=1&query=${parcelle.latitude},${parcelle.longitude}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-secondary bg-secondary/15 hover:bg-secondary/25 border border-secondary/20 px-3 py-1.5 rounded-xl transition-all"
-                                  >
-                                    <span>Carte</span>
-                                    <ExternalLink size={12} />
-                                  </a>
-                                ) : (
-                                  <span className="text-[11px] text-on-surface-variant italic">Indisponible</span>
-                                )}
+                                <div className="flex items-center justify-end gap-2 flex-wrap">
+                                  {onUpdateParcelleGps && (
+                                    <button
+                                      type="button"
+                                      disabled={updatingParcelleId !== null}
+                                      onClick={() => handleLiveUpdateGps(parcelle.id)}
+                                      className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer ${
+                                        updatingParcelleId === parcelle.id
+                                          ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30 animate-pulse'
+                                          : hasGps
+                                          ? 'bg-primary/10 hover:bg-primary/25 text-primary border border-primary/20'
+                                          : 'bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-500 border border-emerald-500/20 font-extrabold shadow-sm'
+                                      }`}
+                                    >
+                                      {updatingParcelleId === parcelle.id ? (
+                                        <>
+                                          <RefreshCw size={12} className="animate-spin" />
+                                          <span className="text-[10px]">{gpsStatusMessage || 'Recherche...'}</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Compass size={12} />
+                                          <span>{hasGps ? 'Mettre à jour GPS 📍' : 'Prélèvement GPS 📍'}</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                  {hasGps && (
+                                    <a
+                                      href={`https://www.google.com/maps/search/?api=1&query=${parcelle.latitude},${parcelle.longitude}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 text-xs font-bold text-secondary bg-secondary/15 hover:bg-secondary/25 border border-secondary/20 px-3 py-1.5 rounded-xl transition-all"
+                                    >
+                                      <span>Carte</span>
+                                      <ExternalLink size={12} />
+                                    </a>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -576,28 +706,56 @@ export default function CommuneExplorer({
                           </div>
 
                           {/* GPS Section */}
-                          <div className="flex justify-between items-center border-t border-outline-variant/30 pt-2 mt-1">
-                            <div className="flex items-center gap-1">
-                              <MapPin size={12} className={hasGps ? 'text-[#10b981]' : 'text-on-surface-variant opacity-40'} />
-                              {hasGps ? (
-                                <span className="font-mono text-[10px] text-[#10b981] font-bold">
-                                  {parcelle.latitude?.toFixed(5)}, {parcelle.longitude?.toFixed(5)}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] text-on-surface-variant italic">Pas de GPS</span>
+                          <div className="flex flex-col gap-2 border-t border-outline-variant/30 pt-2.5 mt-1">
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-1">
+                                <MapPin size={12} className={hasGps ? 'text-[#10b981]' : 'text-on-surface-variant opacity-40'} />
+                                {hasGps ? (
+                                  <span className="font-mono text-[10px] text-[#10b981] font-bold">
+                                    {parcelle.latitude?.toFixed(5)}, {parcelle.longitude?.toFixed(5)}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-on-surface-variant italic">Pas de coordonnées GPS</span>
+                                )}
+                              </div>
+                              {hasGps && (
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${parcelle.latitude},${parcelle.longitude}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-secondary bg-secondary/15 px-2.5 py-1 rounded-lg border border-secondary/25"
+                                >
+                                  <span>Itinéraire</span>
+                                  <ExternalLink size={10} />
+                                </a>
                               )}
                             </div>
 
-                            {hasGps && (
-                              <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${parcelle.latitude},${parcelle.longitude}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[10px] font-bold text-secondary bg-secondary/15 px-2.5 py-1 rounded-lg border border-secondary/25"
+                            {onUpdateParcelleGps && (
+                              <button
+                                type="button"
+                                disabled={updatingParcelleId !== null}
+                                onClick={() => handleLiveUpdateGps(parcelle.id)}
+                                className={`w-full py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 border transition-all active:scale-95 disabled:opacity-50 cursor-pointer ${
+                                  updatingParcelleId === parcelle.id
+                                    ? 'bg-amber-500/20 text-amber-500 border-amber-500/35 animate-pulse'
+                                    : hasGps
+                                    ? 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/20'
+                                    : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-[#10b981] border-emerald-500/20 font-extrabold'
+                                }`}
                               >
-                                <span>Itinéraire</span>
-                                <ExternalLink size={10} />
-                              </a>
+                                {updatingParcelleId === parcelle.id ? (
+                                  <>
+                                    <RefreshCw size={11} className="animate-spin" />
+                                    <span>{gpsStatusMessage || 'Recherche GPS...'}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Compass size={11} />
+                                    <span>{hasGps ? 'Mettre à jour position GPS 📍' : 'Prélèvement GPS de la parcelle 📍'}</span>
+                                  </>
+                                )}
+                              </button>
                             )}
                           </div>
                         </div>
@@ -731,30 +889,59 @@ export default function CommuneExplorer({
                                       </div>
 
                                       {/* GPS Action footer */}
-                                      <div className="border-t border-outline-variant/30 pt-2.5 mt-1 flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-1.5">
-                                          <MapPin size={14} className={hasGps ? 'text-[#10b981]' : 'text-on-surface-variant opacity-40'} />
-                                          {hasGps ? (
-                                            <span className="font-mono text-[10px] text-[#10b981] font-bold">
-                                              {parcelle.latitude?.toFixed(5)}, {parcelle.longitude?.toFixed(5)}
-                                            </span>
-                                          ) : (
-                                            <span className="text-[10px] text-on-surface-variant font-medium italic">
-                                              Aucune position GPS
-                                            </span>
+                                      <div className="border-t border-outline-variant/30 pt-2.5 mt-1 flex flex-col gap-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="flex items-center gap-1.5">
+                                            <MapPin size={14} className={hasGps ? 'text-[#10b981]' : 'text-on-surface-variant opacity-40'} />
+                                            {hasGps ? (
+                                              <span className="font-mono text-[10px] text-[#10b981] font-bold">
+                                                {parcelle.latitude?.toFixed(5)}, {parcelle.longitude?.toFixed(5)}
+                                              </span>
+                                            ) : (
+                                              <span className="text-[10px] text-on-surface-variant font-medium italic">
+                                                Aucune position GPS
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          {hasGps && (
+                                            <a
+                                              href={`https://www.google.com/maps/search/?api=1&query=${parcelle.latitude},${parcelle.longitude}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center gap-1 text-[10px] font-bold text-secondary hover:underline py-1 px-2 bg-secondary/10 border border-secondary/20 rounded-lg transition-all"
+                                            >
+                                              <span>Itinéraire</span>
+                                              <ExternalLink size={10} />
+                                            </a>
                                           )}
                                         </div>
 
-                                        {hasGps && (
-                                          <a
-                                            href={`https://www.google.com/maps/search/?api=1&query=${parcelle.latitude},${parcelle.longitude}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 text-[10px] font-bold text-secondary hover:underline py-1 px-2 bg-secondary/10 border border-secondary/20 rounded-lg transition-all"
+                                        {onUpdateParcelleGps && (
+                                          <button
+                                            type="button"
+                                            disabled={updatingParcelleId !== null}
+                                            onClick={() => handleLiveUpdateGps(parcelle.id)}
+                                            className={`w-full py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 border transition-all active:scale-[0.97] disabled:opacity-50 cursor-pointer ${
+                                              updatingParcelleId === parcelle.id
+                                                ? 'bg-amber-500/20 text-amber-500 border-amber-500/35 animate-pulse'
+                                                : hasGps
+                                                ? 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/20'
+                                                : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-[#10b981] border-emerald-500/20 font-extrabold'
+                                            }`}
                                           >
-                                            <span>Itinéraire</span>
-                                            <ExternalLink size={10} />
-                                          </a>
+                                            {updatingParcelleId === parcelle.id ? (
+                                              <>
+                                                <RefreshCw size={11} className="animate-spin" />
+                                                <span>{gpsStatusMessage || 'Recherche...'}</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Compass size={11} />
+                                                <span>{hasGps ? 'Mettre à jour GPS 📍' : 'Prélèvement GPS 📍'}</span>
+                                              </>
+                                            )}
+                                          </button>
                                         )}
                                       </div>
                                     </div>

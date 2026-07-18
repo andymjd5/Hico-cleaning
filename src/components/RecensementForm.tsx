@@ -36,6 +36,7 @@ export default function RecensementForm({
   const [longitude, setLongitude] = useState<number | null>(null);
   const [isFetchingGps, setIsFetchingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
 
   // Help Modal State
   const [showGpsHelpModal, setShowGpsHelpModal] = useState(false);
@@ -48,6 +49,7 @@ export default function RecensementForm({
   const handleGetGpsCoordinates = () => {
     setIsFetchingGps(true);
     setGpsError(null);
+    setGpsAccuracy(null);
     
     if (!navigator.geolocation) {
       setGpsError("La géolocalisation n'est pas prise en charge par votre appareil ou navigateur.");
@@ -55,32 +57,57 @@ export default function RecensementForm({
       return;
     }
 
-    // Try first with High Accuracy (GPS hardware)
-    navigator.geolocation.getCurrentPosition(
+    let bestPosition: GeolocationPosition | null = null;
+    let attempts = 0;
+
+    // Use watchPosition to continuously get points and refine accuracy
+    const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        setLatitude(position.coords.latitude);
-        setLongitude(position.coords.longitude);
-        setIsFetchingGps(false);
-        setGpsError(null);
-        setShowGpsHelpModal(false); // Close help modal if it succeeds
+        attempts++;
+        const currentAccuracy = position.coords.accuracy;
+        console.log(`Lecture GPS #${attempts}: lat=${position.coords.latitude}, lon=${position.coords.longitude}, précision=${currentAccuracy}m`);
+        
+        // If this is the first point or a more accurate point (smaller accuracy circle), keep it
+        if (!bestPosition || currentAccuracy < bestPosition.coords.accuracy) {
+          bestPosition = position;
+          setLatitude(position.coords.latitude);
+          setLongitude(position.coords.longitude);
+          setGpsAccuracy(currentAccuracy);
+        }
+
+        // If accuracy is highly precise (<= 8 meters), we can finish early!
+        if (currentAccuracy <= 8) {
+          navigator.geolocation.clearWatch(watchId);
+          setIsFetchingGps(false);
+          setGpsError(null);
+          setShowGpsHelpModal(false);
+        }
       },
       (error) => {
-        console.warn("High accuracy fetch failed, trying standard fallback...", error);
+        console.warn("Erreur watchPosition, tentative de repli immédiat...", error);
         
-        // If permission was denied, we cannot fallback because the user explicitly blocked it
+        // If the user already declined, stop immediately
         if (error.code === error.PERMISSION_DENIED) {
           setGpsError("L'accès à la localisation a été refusé. Veuillez autoriser l'accès GPS dans les permissions de votre navigateur ou appareil.");
           setIsFetchingGps(false);
           setShowGpsHelpModal(true);
+          navigator.geolocation.clearWatch(watchId);
           return;
         }
 
-        // Try second attempt with relaxed constraints (Standard precision fallback using Wi-Fi / Cell tower / IP geolocation)
-        // This is incredibly robust as it resolves the timeout or position unavailable issues on computers & indoors
+        // If we already captured a point before the error, keep it and stop
+        if (bestPosition) {
+          navigator.geolocation.clearWatch(watchId);
+          setIsFetchingGps(false);
+          return;
+        }
+
+        // Fallback to simpler single query if watch fails completely
         navigator.geolocation.getCurrentPosition(
           (fallbackPosition) => {
             setLatitude(fallbackPosition.coords.latitude);
             setLongitude(fallbackPosition.coords.longitude);
+            setGpsAccuracy(fallbackPosition.coords.accuracy);
             setIsFetchingGps(false);
             setGpsError(null);
             setShowGpsHelpModal(false);
@@ -101,17 +128,36 @@ export default function RecensementForm({
           },
           {
             enableHighAccuracy: false,
-            timeout: 15000,
-            maximumAge: 60000 // Accept a cached position of up to 1 minute
+            timeout: 10000,
+            maximumAge: 30000
           }
         );
+        navigator.geolocation.clearWatch(watchId);
       },
       {
         enableHighAccuracy: true,
-        timeout: 8000, // 8-second timeout for rapid high accuracy check, then fallback quickly
-        maximumAge: 10000 // Accept a cached position of up to 10 seconds
+        timeout: 10000,
+        maximumAge: 0
       }
     );
+
+    // Timeout fallback: after 8 seconds, keep the best reading we got or show an error if none
+    setTimeout(() => {
+      navigator.geolocation.clearWatch(watchId);
+      setIsFetchingGps((wasFetching) => {
+        if (wasFetching) {
+          if (bestPosition) {
+            setGpsError(null);
+            setShowGpsHelpModal(false);
+            return false;
+          } else {
+            setGpsError("La recherche de précision a expiré. Veuillez vous déplacer à l'extérieur ou vérifier vos paramètres de localisation.");
+            return false;
+          }
+        }
+        return false;
+      });
+    }, 8500);
   };
 
   // Errors state
@@ -413,6 +459,20 @@ export default function RecensementForm({
                     <span className="text-[10px] text-on-surface-variant font-bold uppercase">Longitude</span>
                     <span className="font-bold text-on-surface">{longitude.toFixed(7)}</span>
                   </div>
+                  {gpsAccuracy !== null && (
+                    <div className="col-span-2 mt-1.5 pt-1.5 border-t border-outline-variant/30 flex items-center justify-between text-[11px] font-sans">
+                      <span className="text-on-surface-variant">Précision actuelle :</span>
+                      <span className={`font-bold px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider ${
+                        gpsAccuracy <= 10 
+                          ? 'bg-emerald-500/15 text-[#10b981] border border-emerald-500/20' 
+                          : gpsAccuracy <= 25 
+                          ? 'bg-amber-500/15 text-amber-500 border border-amber-500/20' 
+                          : 'bg-red-500/15 text-red-500 border border-red-500/20'
+                      }`}>
+                        ±{gpsAccuracy.toFixed(1)}m ({gpsAccuracy <= 10 ? 'Excellente 🎯' : gpsAccuracy <= 25 ? 'Moyenne ⚠️' : 'Faible ❌'})
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

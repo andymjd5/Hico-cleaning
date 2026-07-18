@@ -1057,6 +1057,55 @@ export default function App() {
     }
   };
 
+  const handleUpdateParcelleGps = async (parcelleId: string, latitude: number, longitude: number) => {
+    // Update local state
+    setParcelles(prev => prev.map(p => {
+      if (p.id === parcelleId) {
+        return {
+          ...p,
+          latitude,
+          longitude,
+          updated_at: new Date().toISOString()
+        };
+      }
+      return p;
+    }));
+
+    // Save in localStorage backup
+    const storedParcelles = localStorage.getItem('hico_parcelles');
+    if (storedParcelles) {
+      try {
+        const parsed = JSON.parse(storedParcelles) as Parcelle[];
+        const updated = parsed.map(p => p.id === parcelleId ? { ...p, latitude, longitude, updated_at: new Date().toISOString() } : p);
+        localStorage.setItem('hico_parcelles', JSON.stringify(updated));
+      } catch (err) {
+        console.warn("localStorage update skipped or failed:", err);
+      }
+    }
+
+    // Update Supabase in real time
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        const { error } = await supabase
+          .from('parcelles')
+          .update({
+            latitude,
+            longitude,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', parcelleId);
+        
+        if (error) {
+          console.error("Erreur de mise à jour GPS Supabase:", error.message);
+        } else {
+          console.log(`GPS de la parcelle ${parcelleId} mis à jour avec succès dans Supabase.`);
+        }
+      } catch (err) {
+        console.warn("Erreur d'envoi GPS à Supabase :", err);
+      }
+    }
+  };
+
   const handleAddAgentSync = async (newAgent: Agent) => {
     setAgents(prev => {
       if (prev.some(a => a.id === newAgent.id)) return prev;
@@ -2228,6 +2277,7 @@ export default function App() {
                   avenues={avenues}
                   parcelles={parcelles}
                   abonnes={abonnes}
+                  onUpdateParcelleGps={handleUpdateParcelleGps}
                 />
               )}
 
