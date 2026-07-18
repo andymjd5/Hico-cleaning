@@ -30,7 +30,7 @@ export interface Abonne {
   parcelle_id: string;
   nom_complet: string;
   telephone_principal: string;
-  telephone_secondaire?: string;
+  telephone_secondaire?: string | null;
   created_at: string;
   updated_at: string;
 }

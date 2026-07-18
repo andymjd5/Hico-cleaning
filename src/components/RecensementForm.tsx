@@ -190,7 +190,7 @@ export default function RecensementForm({
       parcelle_id: newParcelleId,
       nom_complet: nomResponsable.trim(),
       telephone_principal: phonePrincipal.trim(),
-      telephone_secondaire: phoneSecondaire.trim() || undefined,
+      telephone_secondaire: phoneSecondaire.trim() || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };

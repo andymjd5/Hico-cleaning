@@ -58,6 +58,7 @@ export default function DechetsMapView({
 }: DechetsMapViewProps) {
   const [selectedSignalId, setSelectedSignalIdState] = useState<string | null>(initialSelectedSignalId || null);
   const [selectedEboueurId, setSelectedEboueurId] = useState<string | null>(null);
+  const [showAllParcelles, setShowAllParcelles] = useState<boolean>(true);
 
   // Synchronize state with incoming initialSelectedSignalId prop
   useEffect(() => {
@@ -342,7 +343,52 @@ export default function DechetsMapView({
       marker.addTo(markerGroup);
     });
 
-  }, [isMapReady, signals, eboueurs, selectedSignalId, selectedEboueurId]);
+    // Plot All Surveyed Parcelles (GPS Validés) if enabled
+    if (showAllParcelles) {
+      parcelGpsPoints.forEach((p) => {
+        // Skip if this parcelle already has an active trash alert to avoid double-marking
+        const hasActiveSignal = signals.some(s => s.parcelle_id === p.id && s.status !== 'completed');
+        if (hasActiveSignal) return;
+
+        const bailleur = abonnes.find(ab => ab.parcelle_id === p.id);
+        const avenueObj = avenues.find(a => a.id === p.avenue_id);
+        const communeObj = avenueObj ? communes.find(c => c.id === avenueObj.commune_id) : null;
+
+        const customIcon = window.L.divIcon({
+          className: 'custom-leaflet-marker',
+          html: `
+            <div class="relative flex items-center justify-center transition-all duration-300" style="z-index: 50;">
+              <div class="p-1 rounded-full bg-emerald-500 text-white border border-white shadow-sm flex items-center justify-center font-bold" style="width: 22px; height: 22px; font-size: 11px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                🏡
+              </div>
+            </div>
+          `,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        });
+
+        const marker = window.L.marker([p.latitude, p.longitude], { icon: customIcon });
+
+        marker.bindPopup(`
+          <div class="text-xs p-1 leading-normal" style="color: #0b1c30; font-family: sans-serif; min-width: 170px;">
+            <strong class="text-emerald-600 block font-bold text-[13px] mb-1">🏡 GPS Validé (N° ${p.numero_parcelle})</strong>
+            <strong style="color: #4b5563;">Avenue:</strong> ${avenueObj?.nom || 'Inconnue'}<br/>
+            <strong style="color: #4b5563;">Commune:</strong> ${communeObj?.nom || 'Inconnue'}<br/>
+            <strong style="color: #4b5563;">Bailleur:</strong> ${bailleur?.nom_complet || 'Responsable non saisi'}<br/>
+            <strong style="color: #4b5563;">Téléphone:</strong> ${bailleur?.telephone_principal || 'N/A'}<br/>
+            <strong style="color: #4b5563;">Type Logement:</strong> ${p.type_logement === 'maison_basse' ? 'Maison basse' : 'Appartement'}<br/>
+            <strong style="color: #4b5563;">Ménages:</strong> ${p.nombre_menages}<br/>
+            <div class="mt-1.5 font-bold text-[9px] uppercase inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+              Recensement Validé ✔
+            </div>
+          </div>
+        `);
+
+        marker.addTo(markerGroup);
+      });
+    }
+
+  }, [isMapReady, signals, eboueurs, selectedSignalId, selectedEboueurId, showAllParcelles, parcelGpsPoints, abonnes, avenues, communes]);
 
   // Center & fly map to selected items
   useEffect(() => {
@@ -435,6 +481,18 @@ export default function DechetsMapView({
                 Carte interactive de Kinshasa
               </span>
               <div className="flex gap-3 items-center">
+                <button
+                  type="button"
+                  onClick={() => setShowAllParcelles(!showAllParcelles)}
+                  className={`border font-bold text-[11px] px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-[0.98] cursor-pointer ${
+                    showAllParcelles 
+                      ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-[#10b981] border-emerald-500/20' 
+                      : 'bg-surface hover:bg-surface/80 text-on-surface-variant border-outline-variant'
+                  }`}
+                >
+                  <span>🏡</span>
+                  <span>{showAllParcelles ? 'Masquer Parcelles' : 'Afficher Parcelles'}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsLocalisationModalOpen(true)}
