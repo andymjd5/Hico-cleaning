@@ -42,6 +42,12 @@ const sanitizeAgentForDb = (agent: Agent) => {
 };
 
 export default function App() {
+  // 5. Supabase connection feedback state
+  const [dbStatus, setDbStatus] = useState<'loading' | 'connected' | 'error_missing_tables' | 'offline'>('loading');
+  const [dbErrorMsg, setDbErrorMsg] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [showSqlGuide, setShowSqlGuide] = useState(false);
+
   // Theme state
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('hico_theme');
@@ -443,18 +449,37 @@ export default function App() {
 
   // Seed sachet stocks when communes are loaded and stocks are empty
   useEffect(() => {
-    if (communes.length > 0 && sachetStocks.length === 0) {
-      const initialStocks: SachetStock[] = communes.map(c => ({
-        id: 'stk-' + c.id,
-        commune_id: c.id,
-        biodegradable: 450 + Math.floor(Math.random() * 100), // ~500
-        non_biodegradable: 400 + Math.floor(Math.random() * 150), // ~500
-        seuil_alerte: 50,
-        last_replenished: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
-      }));
-      setSachetStocks(initialStocks);
-    }
-  }, [communes, sachetStocks]);
+    const seedSachetStocks = async () => {
+      if (communes.length > 0 && sachetStocks.length === 0) {
+        const initialStocks: SachetStock[] = communes.map(c => ({
+          id: 'stk-' + c.id,
+          commune_id: c.id,
+          biodegradable: 500, // Stock de départ uniforme et professionnel
+          non_biodegradable: 500, // Stock de départ uniforme et professionnel
+          seuil_alerte: 50,
+          last_replenished: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
+        }));
+        
+        setSachetStocks(initialStocks);
+
+        // Si Supabase est configuré et connecté, persister immédiatement ces stocks initiaux
+        if (isSupabaseConfigured && dbStatus === 'connected') {
+          try {
+            const { error } = await supabase.from('sachet_stocks').upsert(initialStocks);
+            if (error) {
+              console.warn("Erreur de persistance du stock initial sur Supabase:", error);
+            } else {
+              console.log("Stock de sachets initial synchronisé avec succès sur Supabase.");
+            }
+          } catch (e) {
+            console.warn("Échec de la synchronisation du stock de sachets initial :", e);
+          }
+        }
+      }
+    };
+
+    seedSachetStocks();
+  }, [communes, sachetStocks, isSupabaseConfigured, dbStatus]);
 
   // Dynamic screen permission verification helper
   const isScreenAllowed = (screenId: string) => {
@@ -550,12 +575,6 @@ export default function App() {
   }, [currentScreen, currentUser]);
 
   // Removed demo seeding to allow starting with a clean production database as requested.
-
-  // 5. Supabase connection feedback state
-  const [dbStatus, setDbStatus] = useState<'loading' | 'connected' | 'error_missing_tables' | 'offline'>('loading');
-  const [dbErrorMsg, setDbErrorMsg] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [showSqlGuide, setShowSqlGuide] = useState(false);
 
   // Load from Supabase on mount with localStorage as reactive offline fallback
   const fetchAllData = async () => {
@@ -2743,7 +2762,27 @@ INSERT INTO communes (id, nom) VALUES
 ('c-ngiringiri', 'Ngiri-Ngiri'),
 ('c-nsele', 'Nsele'),
 ('c-selembao', 'Selembao')
-ON CONFLICT (nom) DO NOTHING;`);
+ON CONFLICT (nom) DO NOTHING;
+
+-- Désactiver RLS (Row Level Security) sur toutes les tables pour permettre les opérations de synchronisation directe
+ALTER TABLE agents DISABLE ROW LEVEL SECURITY;
+ALTER TABLE communes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE avenues DISABLE ROW LEVEL SECURITY;
+ALTER TABLE parcelles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE abonnes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE eboueurs_gps DISABLE ROW LEVEL SECURITY;
+ALTER TABLE signaux_poubelles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE validations_locataires DISABLE ROW LEVEL SECURITY;
+ALTER TABLE messages_plateforme DISABLE ROW LEVEL SECURITY;
+ALTER TABLE sachet_stocks DISABLE ROW LEVEL SECURITY;
+ALTER TABLE sachet_distributions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE subscription_payments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE staff_payments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE material_expenses DISABLE ROW LEVEL SECURITY;
+ALTER TABLE dispute_signals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE dis_signals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE inbox_messages DISABLE ROW LEVEL SECURITY;
+`);
                           alert("Code SQL copié dans le presse-papiers !");
                         }}
                         className="px-3 py-1 bg-primary text-on-primary hover:opacity-90 text-[10px] font-bold rounded-lg transition-all cursor-pointer"
@@ -2995,7 +3034,27 @@ INSERT INTO communes (id, nom) VALUES
 ('c-ngiringiri', 'Ngiri-Ngiri'),
 ('c-nsele', 'Nsele'),
 ('c-selembao', 'Selembao')
-ON CONFLICT (nom) DO NOTHING;`}
+ON CONFLICT (nom) DO NOTHING;
+
+-- Désactiver RLS (Row Level Security) sur toutes les tables pour permettre les opérations de synchronisation directe
+ALTER TABLE agents DISABLE ROW LEVEL SECURITY;
+ALTER TABLE communes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE avenues DISABLE ROW LEVEL SECURITY;
+ALTER TABLE parcelles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE abonnes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE eboueurs_gps DISABLE ROW LEVEL SECURITY;
+ALTER TABLE signaux_poubelles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE validations_locataires DISABLE ROW LEVEL SECURITY;
+ALTER TABLE messages_plateforme DISABLE ROW LEVEL SECURITY;
+ALTER TABLE sachet_stocks DISABLE ROW LEVEL SECURITY;
+ALTER TABLE sachet_distributions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE subscription_payments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE staff_payments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE material_expenses DISABLE ROW LEVEL SECURITY;
+ALTER TABLE dispute_signals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE dis_signals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE inbox_messages DISABLE ROW LEVEL SECURITY;
+`}
                     </pre>
                   </div>
 
