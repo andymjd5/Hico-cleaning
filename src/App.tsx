@@ -835,6 +835,39 @@ export default function App() {
         console.warn("Table 'inbox_messages' not accessible, using localStorage fallback.", e);
       }
 
+      // 14. Fetch System Settings
+      try {
+        const { data: dbSettings, error: dbSettingsError } = await supabase
+          .from('system_settings')
+          .select('*');
+        if (!dbSettingsError && dbSettings && dbSettings.length > 0) {
+          dbSettings.forEach((setting: any) => {
+            const rawVal = setting.value;
+            let valStr = '';
+            if (typeof rawVal === 'object' && rawVal !== null) {
+              valStr = JSON.stringify(rawVal);
+            } else {
+              valStr = String(rawVal);
+              // Strip quotes if they were double-serialized
+              if (valStr.startsWith('"') && valStr.endsWith('"')) {
+                valStr = valStr.substring(1, valStr.length - 1);
+              }
+            }
+            if (setting.id === 'subscription_price') {
+              localStorage.setItem('hico_subscription_price', valStr);
+            } else if (setting.id === 'subscription_currency') {
+              localStorage.setItem('hico_subscription_currency', valStr);
+            } else if (setting.id === 'commune_prices') {
+              localStorage.setItem('hico_commune_prices', valStr);
+            } else if (setting.id === 'role_permissions') {
+              localStorage.setItem('hico_role_permissions', valStr);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("Table 'system_settings' not accessible, using localStorage fallback.", e);
+      }
+
       setDbStatus('connected');
       setDbErrorMsg(null);
     } catch (err: any) {
@@ -2358,6 +2391,9 @@ export default function App() {
                     setCurrentScreen(screenMap[tab]);
                   }}
                   communes={communes}
+                  isSupabaseConfigured={isSupabaseConfigured}
+                  dbStatus={dbStatus}
+                  supabase={supabase}
                 />
               )}
 
@@ -2824,6 +2860,21 @@ CREATE TABLE IF NOT EXISTS inbox_messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 17. Table des paramètres système (tarification, devises, permissions)
+CREATE TABLE IF NOT EXISTS system_settings (
+  id TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insérer les paramètres par défaut
+INSERT INTO system_settings (id, value) VALUES
+('subscription_price', '1.0'::jsonb),
+('subscription_currency', '"$"'::jsonb),
+('commune_prices', '{}'::jsonb),
+('role_permissions', '{"admin": ["dashboard", "communes", "avenues", "recensement_form", "abonne_list", "abonne_detail", "rapports", "commune_explorer", "dechets_map", "sachets_management", "finance_management", "admin_settings_screens", "admin_settings_pricing", "admin_settings_accounts", "admin_settings_passwords"], "agent": ["dashboard", "communes", "avenues", "recensement_form", "abonne_list", "abonne_detail", "commune_explorer", "dechets_map", "sachets_management", "finance_management"], "abonne": ["abonne_space"], "eboueur": ["eboueur_space"]}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
 -- Insérer par défaut des agents et communes de Kinshasa si vides
 INSERT INTO agents (id, nom, telephone, role, created_at) VALUES
 ('agent-1', 'Jean Malonga', '0612345678', 'agent', NOW()),
@@ -2877,6 +2928,7 @@ ALTER TABLE material_expenses DISABLE ROW LEVEL SECURITY;
 ALTER TABLE dispute_signals DISABLE ROW LEVEL SECURITY;
 ALTER TABLE dis_signals DISABLE ROW LEVEL SECURITY;
 ALTER TABLE inbox_messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE system_settings DISABLE ROW LEVEL SECURITY;
 `);
                           alert("Code SQL copié dans le presse-papiers !");
                         }}
@@ -3097,6 +3149,21 @@ CREATE TABLE IF NOT EXISTS inbox_messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 17. Table des paramètres système (tarification, devises, permissions)
+CREATE TABLE IF NOT EXISTS system_settings (
+  id TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insérer les paramètres par défaut
+INSERT INTO system_settings (id, value) VALUES
+('subscription_price', '1.0'::jsonb),
+('subscription_currency', '"$"'::jsonb),
+('commune_prices', '{}'::jsonb),
+('role_permissions', '{"admin": ["dashboard", "communes", "avenues", "recensement_form", "abonne_list", "abonne_detail", "rapports", "commune_explorer", "dechets_map", "sachets_management", "finance_management", "admin_settings_screens", "admin_settings_pricing", "admin_settings_accounts", "admin_settings_passwords"], "agent": ["dashboard", "communes", "avenues", "recensement_form", "abonne_list", "abonne_detail", "commune_explorer", "dechets_map", "sachets_management", "finance_management"], "abonne": ["abonne_space"], "eboueur": ["eboueur_space"]}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
 -- Insérer par défaut des agents et communes de Kinshasa si vides
 INSERT INTO agents (id, nom, telephone, role, created_at) VALUES
 ('agent-1', 'Jean Malonga', '0612345678', 'agent', NOW()),
@@ -3150,6 +3217,7 @@ ALTER TABLE material_expenses DISABLE ROW LEVEL SECURITY;
 ALTER TABLE dispute_signals DISABLE ROW LEVEL SECURITY;
 ALTER TABLE dis_signals DISABLE ROW LEVEL SECURITY;
 ALTER TABLE inbox_messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE system_settings DISABLE ROW LEVEL SECURITY;
 `}
                     </pre>
                   </div>

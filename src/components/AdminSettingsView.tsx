@@ -23,6 +23,9 @@ interface AdminSettingsViewProps {
   defaultTab?: 'screens' | 'pricing' | 'accounts' | 'passwords';
   onTabChange?: (tab: 'screens' | 'pricing' | 'accounts' | 'passwords') => void;
   communes?: Commune[];
+  isSupabaseConfigured?: boolean;
+  dbStatus?: string;
+  supabase?: any;
 }
 
 export default function AdminSettingsView({
@@ -32,7 +35,10 @@ export default function AdminSettingsView({
   onDeleteAgent,
   defaultTab = 'screens',
   onTabChange,
-  communes = []
+  communes = [],
+  isSupabaseConfigured = false,
+  dbStatus = 'disconnected',
+  supabase = null
 }: AdminSettingsViewProps) {
   // 1. Tab State
   const [activeTab, setActiveTab] = useState<'screens' | 'pricing' | 'accounts' | 'passwords'>(defaultTab);
@@ -133,19 +139,90 @@ export default function AdminSettingsView({
   const [searchTerm, setSearchTerm] = useState('');
   const [tempPasswordShow, setTempPasswordShow] = useState<{ userId: string; pass: string } | null>(null);
 
+  // Effect to load system settings from Supabase if connected
+  React.useEffect(() => {
+    const fetchSystemSettings = async () => {
+      if (isSupabaseConfigured && dbStatus === 'connected' && supabase) {
+        try {
+          const { data, error } = await supabase.from('system_settings').select('*');
+          if (!error && data && data.length > 0) {
+            data.forEach((setting: any) => {
+              const rawVal = setting.value;
+              let valStr = '';
+              if (typeof rawVal === 'object' && rawVal !== null) {
+                valStr = JSON.stringify(rawVal);
+              } else {
+                valStr = String(rawVal);
+                if (valStr.startsWith('"') && valStr.endsWith('"')) {
+                  valStr = valStr.substring(1, valStr.length - 1);
+                }
+              }
+
+              if (setting.id === 'subscription_price') {
+                const p = parseFloat(valStr);
+                if (!isNaN(p)) {
+                  setSubscriptionPrice(p);
+                  localStorage.setItem('hico_subscription_price', valStr);
+                }
+              } else if (setting.id === 'subscription_currency') {
+                setCurrency(valStr);
+                localStorage.setItem('hico_subscription_currency', valStr);
+              } else if (setting.id === 'commune_prices') {
+                const parsed = typeof rawVal === 'string' ? JSON.parse(rawVal) : rawVal;
+                setCommunePrices(parsed || {});
+                localStorage.setItem('hico_commune_prices', valStr);
+              } else if (setting.id === 'role_permissions') {
+                const parsed = typeof rawVal === 'string' ? JSON.parse(rawVal) : rawVal;
+                setRolePermissions(parsed || {});
+                localStorage.setItem('hico_role_permissions', valStr);
+              }
+            });
+          }
+        } catch (err) {
+          console.warn("Erreur lors du chargement des paramètres système depuis Supabase:", err);
+        }
+      }
+    };
+    fetchSystemSettings();
+  }, [isSupabaseConfigured, dbStatus, supabase]);
+
   // Handle saving subscription prices
-  const handleSavePricing = (e: React.FormEvent) => {
+  const handleSavePricing = async (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('hico_subscription_price', subscriptionPrice.toString());
     localStorage.setItem('hico_subscription_currency', currency);
     localStorage.setItem('hico_commune_prices', JSON.stringify(communePrices));
+
+    if (isSupabaseConfigured && dbStatus === 'connected' && supabase) {
+      try {
+        await supabase.from('system_settings').upsert([
+          { id: 'subscription_price', value: subscriptionPrice.toString() },
+          { id: 'subscription_currency', value: currency },
+          { id: 'commune_prices', value: communePrices }
+        ]);
+      } catch (err) {
+        console.warn("Échec d'enregistrement des tarifs sur Supabase :", err);
+      }
+    }
+
     setPriceSuccess(true);
     setTimeout(() => setPriceSuccess(false), 3000);
   };
 
   // Handle saving custom screen permissions per role
-  const handleSavePermissions = () => {
+  const handleSavePermissions = async () => {
     localStorage.setItem('hico_role_permissions', JSON.stringify(rolePermissions));
+
+    if (isSupabaseConfigured && dbStatus === 'connected' && supabase) {
+      try {
+        await supabase.from('system_settings').upsert([
+          { id: 'role_permissions', value: rolePermissions }
+        ]);
+      } catch (err) {
+        console.warn("Échec d'enregistrement des permissions sur Supabase :", err);
+      }
+    }
+
     setPermissionsSuccess(true);
     setTimeout(() => setPermissionsSuccess(false), 3000);
   };
@@ -314,9 +391,20 @@ export default function AdminSettingsView({
       {/* TAB CONTENT 1: Screens Display options per role */}
       {activeTab === 'screens' && (
         <div className="bg-surface border border-outline-variant rounded-3xl p-6 shadow-xl flex flex-col gap-4 animate-fade-in" id="screens_settings_card">
-          <div className="flex flex-col gap-1" id="screens_settings_header">
-            <h3 className="text-base font-black text-on-surface tracking-tight">Configuration des options d'affichage par rôle</h3>
-            <p className="text-xs text-on-surface-variant">Configurez quels écrans ou menus s'affichent dans la barre latérale pour chaque rôle utilisateur.</p>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-outline-variant/60 pb-3" id="screens_settings_header">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-base font-black text-on-surface tracking-tight">Configuration des options d'affichage par rôle</h3>
+              <p className="text-xs text-on-surface-variant">Configurez quels écrans ou menus s'affichent dans la barre latérale pour chaque rôle utilisateur.</p>
+            </div>
+            {isSupabaseConfigured && dbStatus === 'connected' ? (
+              <span className="text-[10px] bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/25 px-2.5 py-1 rounded-xl font-bold font-mono h-max w-max flex items-center gap-1">
+                <Check size={10} /> CLOUD SYNC
+              </span>
+            ) : (
+              <span className="text-[10px] bg-amber-500/15 text-amber-500 border border-amber-500/25 px-2.5 py-1 rounded-xl font-bold font-mono h-max w-max flex items-center gap-1">
+                ⚠️ LOCAL ONLY
+              </span>
+            )}
           </div>
 
           <div className="overflow-x-auto mt-2 border border-outline-variant rounded-2xl" id="screens_table_wrapper">
@@ -395,9 +483,20 @@ export default function AdminSettingsView({
       {/* TAB CONTENT 2: Subscription Pricing */}
       {activeTab === 'pricing' && (
         <div className="bg-surface border border-outline-variant rounded-3xl p-6 shadow-xl flex flex-col gap-4 animate-fade-in" id="pricing_settings_card">
-          <div className="flex flex-col gap-1" id="pricing_settings_header">
-            <h3 className="text-base font-black text-on-surface tracking-tight">Modification des Tarifs d'Abonnement</h3>
-            <p className="text-xs text-on-surface-variant">Modifiez le prix facturé mensuellement par ménage recensé pour l'abonnement d'évacuation des déchets.</p>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-outline-variant/60 pb-3" id="pricing_settings_header">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-base font-black text-on-surface tracking-tight">Modification des Tarifs d'Abonnement</h3>
+              <p className="text-xs text-on-surface-variant">Modifiez le prix facturé mensuellement par ménage recensé pour l'abonnement d'évacuation des déchets.</p>
+            </div>
+            {isSupabaseConfigured && dbStatus === 'connected' ? (
+              <span className="text-[10px] bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/25 px-2.5 py-1 rounded-xl font-bold font-mono h-max w-max flex items-center gap-1">
+                <Check size={10} /> CLOUD SYNC
+              </span>
+            ) : (
+              <span className="text-[10px] bg-amber-500/15 text-amber-500 border border-amber-500/25 px-2.5 py-1 rounded-xl font-bold font-mono h-max w-max flex items-center gap-1">
+                ⚠️ LOCAL ONLY
+              </span>
+            )}
           </div>
 
           <form onSubmit={handleSavePricing} className="flex flex-col gap-4 mt-2" id="pricing_form">
