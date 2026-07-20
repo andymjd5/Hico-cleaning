@@ -236,6 +236,8 @@ export default function App() {
     return [];
   });
 
+  const [eboueursGpsList, setEboueursGpsList] = useState<{ agent_id: string; latitude: number; longitude: number; en_service: boolean }[]>([]);
+
   const [sachetStocks, setSachetStocks] = useState<SachetStock[]>(() => {
     const saved = localStorage.getItem('hico_sachet_stocks');
     return saved ? JSON.parse(saved) : [];
@@ -333,31 +335,66 @@ export default function App() {
     }
   }, [currentScreen]);
 
-  // Real-time subscription to signaux_poubelles table in Supabase
+  // Real-time subscription to signaux_poubelles and eboueurs_gps tables in Supabase
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
-    console.log("Setting up Supabase Realtime for signaux_poubelles...");
+    console.log("Setting up Supabase Realtime for signaux_poubelles and eboueurs_gps...");
     const channel = supabase
-      .channel('public:signaux_poubelles_changes')
+      .channel('public:realtime_changes')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'signaux_poubelles' },
+        { event: '*', schema: 'public', table: 'signaux_poubelles' },
         (payload) => {
-          console.log("Realtime INSERT received:", payload);
-          const newSig = payload.new as PoubelleSignal;
-          if (!newSig) return;
-
-          setPoubelleSignals(prev => {
-            // Prevent duplicate entries (Idempotency rule)
-            if (prev.some(s => s.id === newSig.id)) return prev;
-
-            // Trigger notification popup and sidebar flashing badge
-            setActiveNotification(newSig);
-            setHasNewSignals(true);
-
-            return [newSig, ...prev];
-          });
+          console.log("Realtime signaux_poubelles change received:", payload);
+          if (payload.eventType === 'INSERT') {
+            const newSig = payload.new as PoubelleSignal;
+            if (!newSig) return;
+            setPoubelleSignals(prev => {
+              if (prev.some(s => s.id === newSig.id)) return prev;
+              setActiveNotification(newSig);
+              setHasNewSignals(true);
+              return [newSig, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedSig = payload.new as PoubelleSignal;
+            if (!updatedSig) return;
+            setPoubelleSignals(prev => prev.map(s => s.id === updatedSig.id ? {
+              ...s,
+              ...updatedSig,
+              status: updatedSig.status as 'pending' | 'assigned' | 'completed'
+            } : s));
+          } else if (payload.eventType === 'DELETE') {
+            const oldSig = payload.old as { id: string };
+            if (oldSig) {
+              setPoubelleSignals(prev => prev.filter(s => s.id !== oldSig.id));
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'eboueurs_gps' },
+        (payload) => {
+          console.log("Realtime eboueurs_gps change received:", payload);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updatedRow = payload.new as any;
+            if (!updatedRow) return;
+            setEboueursGpsList(prev => {
+              const filtered = prev.filter(g => g.agent_id !== updatedRow.agent_id);
+              return [...filtered, {
+                agent_id: updatedRow.agent_id,
+                latitude: updatedRow.latitude,
+                longitude: updatedRow.longitude,
+                en_service: updatedRow.en_service
+              }];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const oldRow = payload.old as any;
+            if (oldRow && oldRow.agent_id) {
+              setEboueursGpsList(prev => prev.filter(g => g.agent_id !== oldRow.agent_id));
+            }
+          }
         }
       )
       .subscribe((status) => {
@@ -399,25 +436,49 @@ export default function App() {
 
     eboueursFromAgents.forEach(agent => {
       const exists = updatedEboueurs.some(e => e.telephone === agent.telephone || e.id === agent.id);
+      const gpsInfo = eboueursGpsList.find(g => g.agent_id === agent.id);
+
       if (!exists) {
         const offset = updatedEboueurs.length;
         updatedEboueurs.push({
           id: agent.id,
           nom: agent.nom,
           telephone: agent.telephone,
-          latitude: -4.3316 + (offset % 5) * 0.015 - 0.03,
-          longitude: 15.3139 + (offset % 5) * 0.012 - 0.02,
+          latitude: gpsInfo ? gpsInfo.latitude : (-4.3316 + (offset % 5) * 0.015 - 0.03),
+          longitude: gpsInfo ? gpsInfo.longitude : (15.3139 + (offset % 5) * 0.012 - 0.02),
           status: 'idle',
-          gps_active: false // Désactivé par défaut pour ne pas s'afficher sur la carte avant de s'activer réellement
+          gps_active: gpsInfo ? gpsInfo.en_service : false
         });
         hasChanges = true;
+      } else {
+        const currentIdx = updatedEboueurs.findIndex(e => e.id === agent.id || e.telephone === agent.telephone);
+        if (currentIdx !== -1) {
+          const currentEb = updatedEboueurs[currentIdx];
+          const cloudLat = gpsInfo ? gpsInfo.latitude : currentEb.latitude;
+          const cloudLng = gpsInfo ? gpsInfo.longitude : currentEb.longitude;
+          const cloudActive = gpsInfo ? gpsInfo.en_service : currentEb.gps_active;
+
+          if (
+            currentEb.latitude !== cloudLat ||
+            currentEb.longitude !== cloudLng ||
+            currentEb.gps_active !== cloudActive
+          ) {
+            updatedEboueurs[currentIdx] = {
+              ...currentEb,
+              latitude: cloudLat,
+              longitude: cloudLng,
+              gps_active: cloudActive
+            };
+            hasChanges = true;
+          }
+        }
       }
     });
 
     if (hasChanges) {
       setEboueurs(updatedEboueurs);
     }
-  }, [agents, eboueurs]);
+  }, [agents, eboueursGpsList]);
 
   useEffect(() => {
     localStorage.setItem('hico_inbox_messages', JSON.stringify(inboxMessages));
@@ -714,6 +775,23 @@ export default function App() {
         }
       } catch (agentErr) {
         console.warn("Table 'agents' not accessible or doesn't exist yet in Supabase. Using localStorage fallback.", agentErr);
+      }
+
+      // 5b. Fetch Eboueurs GPS from Supabase
+      try {
+        const { data: gpsData, error: gpsError } = await supabase
+          .from('eboueurs_gps')
+          .select('*');
+        if (!gpsError && gpsData) {
+          setEboueursGpsList(gpsData.map((g: any) => ({
+            agent_id: g.agent_id,
+            latitude: g.latitude,
+            longitude: g.longitude,
+            en_service: g.en_service
+          })));
+        }
+      } catch (gpsErr) {
+        console.warn("Table 'eboueurs_gps' not accessible or doesn't exist yet in Supabase.", gpsErr);
       }
 
       // 6. Fetch Poubelle Signals
@@ -1621,6 +1699,50 @@ export default function App() {
     }
   };
 
+  const syncEboueurGpsToSupabase = async (agentId: string, enService: boolean, lat: number, lng: number) => {
+    if (!isSupabaseConfigured || dbStatus !== 'connected') return;
+    try {
+      // Check if row already exists
+      const { data, error } = await supabase
+        .from('eboueurs_gps')
+        .select('id')
+        .eq('agent_id', agentId);
+        
+      if (error) {
+        console.warn("Error querying eboueurs_gps:", error);
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        // Update existing row
+        const { error: updErr } = await supabase
+          .from('eboueurs_gps')
+          .update({
+            latitude: lat,
+            longitude: lng,
+            en_service: enService,
+            derniere_mise_a_jour: new Date().toISOString()
+          })
+          .eq('agent_id', agentId);
+        if (updErr) console.warn("Error updating eboueurs_gps:", updErr);
+      } else {
+        // Insert new row
+        const { error: insErr } = await supabase
+          .from('eboueurs_gps')
+          .insert([{
+            agent_id: agentId,
+            latitude: lat,
+            longitude: lng,
+            en_service: enService,
+            derniere_mise_a_jour: new Date().toISOString()
+          }]);
+        if (insErr) console.warn("Error inserting eboueurs_gps:", insErr);
+      }
+    } catch (err) {
+      console.warn("syncEboueurGpsToSupabase failed:", err);
+    }
+  };
+
   // Real Geolocation watching for the logged-in Éboueur when GPS is active
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'eboueur') return;
@@ -1645,6 +1767,7 @@ export default function App() {
         }
         return eb;
       }));
+      syncEboueurGpsToSupabase(currentUser.id, true, latitude, longitude);
     };
 
     const handleError = (error: GeolocationPositionError) => {
@@ -1679,6 +1802,9 @@ export default function App() {
       return eb;
     }));
 
+    // Instantly sync off state or current coordinates
+    syncEboueurGpsToSupabase(currentEb.id, nextGpsState, currentEb.latitude, currentEb.longitude);
+
     if (nextGpsState && navigator.geolocation) {
       // Fetch initial position immediately upon turning GPS on
       navigator.geolocation.getCurrentPosition(
@@ -1694,6 +1820,7 @@ export default function App() {
             }
             return eb;
           }));
+          syncEboueurGpsToSupabase(currentEb.id, true, latitude, longitude);
         },
         (err) => {
           console.warn("Position initiale indisponible, en attente du tracker :", err.message);
@@ -1715,6 +1842,9 @@ export default function App() {
       }
       return eb;
     }));
+    const currentEb = eboueurs.find(e => e.telephone === currentUser.telephone);
+    const active = currentEb ? currentEb.gps_active : true;
+    syncEboueurGpsToSupabase(currentUser.id, active, latitude, longitude);
   };
 
   const handleSendInboxMessage = async (sender: string, content: string) => {
