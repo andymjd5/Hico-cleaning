@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Eboueur, 
   PoubelleSignal 
@@ -15,7 +15,16 @@ import {
   History, 
   Radio, 
   Phone,
-  LogOut
+  LogOut,
+  Compass,
+  HelpCircle,
+  Info,
+  Globe,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ShieldAlert
 } from 'lucide-react';
 
 interface EboueurSpaceViewProps {
@@ -23,6 +32,7 @@ interface EboueurSpaceViewProps {
   assignedMissions: PoubelleSignal[];
   completedMissions: PoubelleSignal[];
   onToggleGps: () => void;
+  onUpdateGpsCoords?: (latitude: number, longitude: number) => void;
   onCompleteMission: (signalId: string) => void;
   onLogout?: () => void;
 }
@@ -32,11 +42,36 @@ export default function EboueurSpaceView({
   assignedMissions,
   completedMissions,
   onToggleGps,
+  onUpdateGpsCoords,
   onCompleteMission,
   onLogout
 }: EboueurSpaceViewProps) {
   
+  const [showExplanation, setShowExplanation] = useState(true);
+  const [simulationActive, setSimulationActive] = useState(true);
+  
   const hasActiveMission = assignedMissions.length > 0;
+
+  // Coordinate adjustments for the Simulator
+  const handleTeleport = (lat: number, lng: number) => {
+    if (onUpdateGpsCoords) {
+      onUpdateGpsCoords(lat, lng);
+    }
+  };
+
+  const handleMove = (direction: 'up' | 'down' | 'left' | 'right') => {
+    if (!onUpdateGpsCoords) return;
+    const step = 0.0015; // roughly 150 meters
+    let newLat = currentEboueur.latitude;
+    let newLng = currentEboueur.longitude;
+
+    if (direction === 'up') newLat += step;
+    if (direction === 'down') newLat -= step;
+    if (direction === 'left') newLng -= step;
+    if (direction === 'right') newLng += step;
+
+    onUpdateGpsCoords(newLat, newLng);
+  };
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-on-background">
@@ -109,6 +144,163 @@ export default function EboueurSpaceView({
           </div>
         </div>
       </header>
+
+      {/* GPS Troubleshooting & Simulator Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-surface/40 border border-outline-variant/60 rounded-3xl p-5 md:p-6 shadow-lg">
+        
+        {/* Left Column: Pedagogical Explanations */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between border-b border-outline-variant/30 pb-2.5">
+            <h3 className="text-sm font-black text-on-surface flex items-center gap-2">
+              <HelpCircle size={18} className="text-primary animate-pulse" />
+              Pourquoi mon GPS n'apparaît pas sur la carte de Kinshasa ?
+            </h3>
+          </div>
+
+          <div className="flex flex-col gap-3 text-xs leading-relaxed text-on-surface-variant">
+            <div className="bg-background/50 border border-outline-variant/50 p-3 rounded-2xl flex gap-2.5 items-start">
+              <ShieldAlert size={20} className="text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-extrabold text-on-surface">1. Autorisation refusée par le navigateur</p>
+                <p className="mt-1">
+                  Si Chrome affiche l'alerte <span className="font-bold text-amber-400">"Autorisation d'accès GPS refusée"</span>, l'application ne peut pas lire votre position.
+                </p>
+                <p className="mt-1 font-semibold text-primary">
+                  ➜ Solution : Cliquez sur le cadenas 🔒 à gauche de la barre d'adresse de votre navigateur et configurez "Position" (Location) sur "Autoriser", puis rechargez la page.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-background/50 border border-outline-variant/50 p-3 rounded-2xl flex gap-2.5 items-start">
+              <Globe size={20} className="text-secondary shrink-0 mt-0.5" />
+              <div>
+                <p className="font-extrabold text-on-surface">2. Vous n'êtes pas physiquement à Kinshasa</p>
+                <p className="mt-1">
+                  Le système est centré sur la ville de <span className="font-bold">Kinshasa (RDC)</span>. Si votre ordinateur/appareil est situé en Europe, au Canada ou ailleurs, votre GPS réel envoie vos coordonnées réelles. Votre camion se retrouve donc tracé à des milliers de kilomètres de la carte active !
+                </p>
+                <p className="mt-1 font-semibold text-secondary">
+                  ➜ Solution : Utilisez le simulateur interactif à droite pour positionner instantanément votre camion à Kinshasa.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Interactive Kinshasa Simulator */}
+        <div className="flex flex-col gap-4 border-l border-dashed border-outline-variant/40 pl-0 md:pl-6">
+          <div className="flex items-center justify-between border-b border-outline-variant/30 pb-2.5">
+            <h3 className="text-sm font-black text-on-surface flex items-center gap-2">
+              <Compass size={18} className="text-secondary" />
+              Simulateur GPS Virtuel (Kinshasa)
+            </h3>
+            <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full font-bold ${currentEboueur.gps_active ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-error/10 text-error border border-error/20'}`}>
+              {currentEboueur.gps_active ? 'Prêt à simuler' : 'Activez le GPS d\'abord'}
+            </span>
+          </div>
+
+          {!currentEboueur.gps_active ? (
+            <div className="bg-background/20 border border-dashed border-outline-variant rounded-2xl p-6 flex flex-col items-center justify-center text-center flex-grow">
+              <Radio size={32} className="text-error animate-pulse mb-2" />
+              <p className="text-xs font-bold text-on-surface">GPS désactivé</p>
+              <p className="text-[11px] text-on-surface-variant max-w-xs mt-1 leading-normal">
+                Cliquez d'abord sur le bouton vert <span className="font-bold text-[#10b981]">"Activer mon GPS"</span> ci-dessus pour pouvoir simuler vos déplacements à Kinshasa !
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 flex-grow">
+              
+              {/* Teleport Presets */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[9px] font-black uppercase tracking-wider text-on-surface-variant">Téléportation rapide à Kinshasa</span>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => handleTeleport(-4.30307, 15.31215)}
+                    className="h-8 bg-background border border-outline-variant hover:bg-surface-variant text-[10px] font-extrabold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 text-on-surface"
+                  >
+                    <MapPin size={11} className="text-primary" />
+                    <span>Gombe (Cent.)</span>
+                  </button>
+                  <button
+                    onClick={() => handleTeleport(-4.34149, 15.28902)}
+                    className="h-8 bg-background border border-outline-variant hover:bg-surface-variant text-[10px] font-extrabold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 text-on-surface"
+                  >
+                    <MapPin size={11} className="text-secondary" />
+                    <span>Bandalungwa</span>
+                  </button>
+                  <button
+                    onClick={() => handleTeleport(-4.35418, 15.31502)}
+                    className="h-8 bg-background border border-outline-variant hover:bg-surface-variant text-[10px] font-extrabold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 text-on-surface"
+                  >
+                    <MapPin size={11} className="text-amber-500" />
+                    <span>Kalamu</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* D-Pad Arrow Controls for Driving the Truck */}
+              <div className="flex flex-col gap-1.5 flex-grow">
+                <span className="text-[9px] font-black uppercase tracking-wider text-on-surface-variant">Conduire le camion manuellement (D-Pad)</span>
+                
+                <div className="flex items-center gap-6 bg-background/30 border border-outline-variant/60 rounded-2xl p-3 flex-grow">
+                  
+                  {/* Virtual D-Pad Circle */}
+                  <div className="flex flex-col items-center justify-center relative w-24 h-24 bg-background border border-outline-variant rounded-full shadow-inner shrink-0 p-1">
+                    {/* Up */}
+                    <button
+                      onClick={() => handleMove('up')}
+                      className="absolute top-1 p-1.5 hover:bg-surface-variant text-on-surface rounded-lg transition-all active:scale-90 cursor-pointer"
+                      title="Nord"
+                    >
+                      <ArrowUp size={16} />
+                    </button>
+                    {/* Left */}
+                    <button
+                      onClick={() => handleMove('left')}
+                      className="absolute left-1 p-1.5 hover:bg-surface-variant text-on-surface rounded-lg transition-all active:scale-90 cursor-pointer"
+                      title="Ouest"
+                    >
+                      <ArrowLeft size={16} />
+                    </button>
+                    {/* Center Dot */}
+                    <div className="w-4.5 h-4.5 bg-primary rounded-full animate-pulse" />
+                    {/* Right */}
+                    <button
+                      onClick={() => handleMove('right')}
+                      className="absolute right-1 p-1.5 hover:bg-surface-variant text-on-surface rounded-lg transition-all active:scale-90 cursor-pointer"
+                      title="Est"
+                    >
+                      <ArrowRight size={16} />
+                    </button>
+                    {/* Down */}
+                    <button
+                      onClick={() => handleMove('down')}
+                      className="absolute bottom-1 p-1.5 hover:bg-surface-variant text-on-surface rounded-lg transition-all active:scale-90 cursor-pointer"
+                      title="Sud"
+                    >
+                      <ArrowDown size={16} />
+                    </button>
+                  </div>
+
+                  {/* Status & Help Text */}
+                  <div className="flex flex-col gap-1 text-[10px] text-on-surface-variant">
+                    <p className="font-extrabold text-on-surface">Position Actuelle :</p>
+                    <p className="font-mono text-primary font-bold text-[11px]">Lat: {currentEboueur.latitude.toFixed(5)}</p>
+                    <p className="font-mono text-primary font-bold text-[11px]">Lng: {currentEboueur.longitude.toFixed(5)}</p>
+                    <p className="leading-normal mt-1 italic text-secondary font-medium">
+                      ➜ Utilisez les flèches pour faire rouler le camion de ~150 mètres ! Allez ensuite sur l'onglet <span className="font-bold">"Poubelles & Éboueurs"</span> pour le voir bouger.
+                    </p>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
+        </div>
+
+      </div>
 
       {/* Main dashboard panel: Active Mission vs History */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

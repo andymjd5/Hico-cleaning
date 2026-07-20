@@ -1703,6 +1703,20 @@ export default function App() {
     }
   };
 
+  const handleUpdateEboueurGpsCoords = (latitude: number, longitude: number) => {
+    if (!currentUser || currentUser.role !== 'eboueur') return;
+    setEboueurs(prev => prev.map(eb => {
+      if (eb.telephone === currentUser.telephone) {
+        return {
+          ...eb,
+          latitude,
+          longitude
+        };
+      }
+      return eb;
+    }));
+  };
+
   const handleSendInboxMessage = async (sender: string, content: string) => {
     const newMsg: InboxMessage = {
       id: 'msg-' + Math.random().toString(36).substring(2, 11),
@@ -2397,6 +2411,7 @@ export default function App() {
                     assignedMissions={myAssignedMissions}
                     completedMissions={myCompletedMissions}
                     onToggleGps={handleToggleEboueurGps}
+                    onUpdateGpsCoords={handleUpdateEboueurGpsCoords}
                     onCompleteMission={handleCompleteMission}
                     onLogout={handleLogout}
                   />
