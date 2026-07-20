@@ -593,7 +593,7 @@ export default function CommuneExplorer({
                                     {parcelle.type_logement === 'maison_basse' && (
                                       <>
                                         <span className="mx-1">|</span>
-                                        Locataires : <strong>{parcelle.presence_locataire === 'oui' ? 'Oui' : 'Non'}</strong>
+                                        Locataires : <strong>{(parcelle.presence_locataire === 'oui' || parcelle.nombre_menages > 1) ? 'Oui' : 'Non'}</strong>
                                       </>
                                     )}
                                   </div>
@@ -700,7 +700,7 @@ export default function CommuneExplorer({
                             {parcelle.type_logement === 'maison_basse' && (
                               <>
                                 <span className="mx-1.5">|</span>
-                                Locataires : <strong>{parcelle.presence_locataire === 'oui' ? 'Oui' : 'Non'}</strong>
+                                Locataires : <strong>{(parcelle.presence_locataire === 'oui' || parcelle.nombre_menages > 1) ? 'Oui' : 'Non'}</strong>
                               </>
                             )}
                           </div>
@@ -882,7 +882,7 @@ export default function CommuneExplorer({
                                           {parcelle.type_logement === 'maison_basse' && (
                                             <>
                                               <span className="text-outline-variant">|</span>
-                                              <span>Locataires : <strong>{parcelle.presence_locataire === 'oui' ? 'Oui' : 'Non'}</strong></span>
+                                              <span>Locataires : <strong>{(parcelle.presence_locataire === 'oui' || parcelle.nombre_menages > 1) ? 'Oui' : 'Non'}</strong></span>
                                             </>
                                           )}
                                         </div>

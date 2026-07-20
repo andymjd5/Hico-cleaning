@@ -48,7 +48,7 @@ export default function AbonnesView({
       nombreMenages: parcelle?.nombre_menages || 1,
       avenueNom: avenue?.nom || 'Inconnue',
       communeNom: commune?.nom || 'Inconnue',
-      locataires: parcelle?.presence_locataire === 'oui' ? 'Oui' : 'Non',
+      locataires: (parcelle?.presence_locataire === 'oui' || (parcelle?.nombre_menages && parcelle.nombre_menages > 1)) ? 'Oui' : 'Non',
     };
   };
 
