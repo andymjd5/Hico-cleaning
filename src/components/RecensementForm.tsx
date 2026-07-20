@@ -600,17 +600,27 @@ export default function RecensementForm({
                     />
                     Oui
                   </label>
-                  <label className="flex items-center gap-2 text-sm text-on-surface font-semibold cursor-pointer">
+                  <label className={`flex items-center gap-2 text-sm text-on-surface font-semibold cursor-pointer ${nombreMenages > 1 ? 'opacity-40 cursor-not-allowed' : ''}`}>
                     <input 
                       type="radio" 
                       name="presence_loc"
                       checked={presenceLocataire === 'non'}
-                      onChange={() => setPresenceLocataire('non')}
+                      disabled={nombreMenages > 1}
+                      onChange={() => {
+                        if (nombreMenages <= 1) {
+                          setPresenceLocataire('non');
+                        }
+                      }}
                       className="text-primary focus:ring-primary w-4 h-4 border-outline-variant"
                     />
                     Non
                   </label>
                 </div>
+                {nombreMenages > 1 && (
+                  <p className="text-[11px] text-amber-500 font-sans font-medium mt-1">
+                    ℹ️ Puisqu'il y a {nombreMenages} ménages, la présence de locataires est automatique. Les ménages supplémentaires ({nombreMenages - 1}) sont considérés comme des ménages locataires concernés par la redevance.
+                  </p>
+                )}
               </div>
             )}
 
@@ -622,7 +632,15 @@ export default function RecensementForm({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setNombreMenages(Math.max(1, nombreMenages - 1))}
+                  onClick={() => {
+                    const newVal = Math.max(1, nombreMenages - 1);
+                    setNombreMenages(newVal);
+                    if (newVal > 1) {
+                      setPresenceLocataire('oui');
+                    } else if (newVal === 1) {
+                      setPresenceLocataire('non');
+                    }
+                  }}
                   className="w-10 h-10 rounded bg-background border border-outline-variant flex items-center justify-center font-bold text-lg hover:border-primary active:scale-95 transition-all text-on-surface cursor-pointer"
                 >
                   -
@@ -632,12 +650,24 @@ export default function RecensementForm({
                   type="number"
                   min="1"
                   value={nombreMenages}
-                  onChange={(e) => setNombreMenages(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(e) => {
+                    const newVal = Math.max(1, parseInt(e.target.value) || 1);
+                    setNombreMenages(newVal);
+                    if (newVal > 1) {
+                      setPresenceLocataire('oui');
+                    }
+                  }}
                   className="w-20 text-center h-10 border border-outline-variant rounded bg-background text-on-surface font-mono text-base font-bold"
                 />
                 <button
                   type="button"
-                  onClick={() => setNombreMenages(nombreMenages + 1)}
+                  onClick={() => {
+                    const newVal = nombreMenages + 1;
+                    setNombreMenages(newVal);
+                    if (newVal > 1) {
+                      setPresenceLocataire('oui');
+                    }
+                  }}
                   className="w-10 h-10 rounded bg-background border border-outline-variant flex items-center justify-center font-bold text-lg hover:border-primary active:scale-95 transition-all text-on-surface cursor-pointer"
                 >
                   +
@@ -690,8 +720,23 @@ export default function RecensementForm({
                 )}
                 <div className="flex justify-between">
                   <span className="text-on-surface-variant">Nombre de ménages recensés:</span>
-                  <span className="font-extrabold text-secondary">{nombreMenages}</span>
+                  <span className="font-extrabold text-secondary">{nombreMenages} ménage(s)</span>
                 </div>
+                {nombreMenages > 1 && (
+                  <div className="bg-background/80 p-3 rounded-xl border border-outline-variant/45 flex flex-col gap-1.5 text-xs font-sans mt-1">
+                    <div className="flex justify-between text-on-surface-variant">
+                      <span>Ménage Principal (Bailleur) :</span>
+                      <span className="font-semibold text-on-surface">1 ménage (15.00 $)</span>
+                    </div>
+                    <div className="flex justify-between text-on-surface-variant">
+                      <span>Ménages Locataires :</span>
+                      <span className="font-bold text-secondary">{nombreMenages - 1} ménage(s) ({((nombreMenages - 1) * 15).toFixed(2)} $)</span>
+                    </div>
+                    <p className="text-[10px] text-amber-500 font-medium leading-tight border-t border-outline-variant/35 pt-1.5 mt-0.5">
+                      ⚠️ Note : Les cotisations des ménages supplémentaires ({nombreMenages - 1}) concernent directement les locataires et sont inscrites à leur charge.
+                    </p>
+                  </div>
+                )}
                 <div className="flex justify-between border-t border-outline-variant/30 pt-1.5">
                   <span className="text-on-surface-variant">Coordonnées GPS:</span>
                   <span className="font-bold font-mono text-xs">
@@ -748,6 +793,11 @@ export default function RecensementForm({
               </p>
               <div className="mt-2 bg-secondary/10 border border-secondary/20 rounded-xl p-3.5 text-xs text-on-surface leading-relaxed font-sans text-left max-w-sm">
                 🎉 <span className="font-bold text-secondary">Abonnement généré :</span> Le système de salubrité a enregistré automatiquement <span className="font-bold">{nomResponsable}</span> comme nouvel abonné principal Hico-Cleaning pour cette parcelle.
+                {nombreMenages > 1 && (
+                  <p className="mt-2 text-[11px] text-on-surface-variant font-medium border-t border-outline-variant/30 pt-2">
+                     Les {nombreMenages - 1} ménage(s) locataire(s) supplémentaire(s) ont été rattachés aux comptes des locataires payeurs de la parcelle.
+                  </p>
+                )}
               </div>
             </div>
 

@@ -264,14 +264,34 @@ export default function AbonnesView({
                     <span className="text-[#10b981] text-[10px] font-bold tracking-widest bg-[#10b981]/15 px-2 py-0.5 rounded-full">STABLE</span>
                   </div>
                   <p className="text-xs text-on-surface-variant leading-relaxed font-sans mt-0.5">
-                    Sur base du type <span className="font-bold text-on-surface">{extra.typeLogement}</span> avec {extra.nombreMenages} ménages, la redevance mensuelle projetée est de :
+                    Sur base du type <span className="font-bold text-on-surface">{extra.typeLogement}</span> avec {extra.nombreMenages} ménage(s) :
                   </p>
-                  <div className="flex justify-between items-center border-t border-outline-variant pt-2.5 mt-1">
-                    <span className="text-xs text-on-surface-variant">Projet de Facture:</span>
+
+                  <div className="flex flex-col gap-1.5 text-xs border-t border-b border-outline-variant/30 py-2 my-1">
+                    <div className="flex justify-between">
+                      <span className="text-on-surface-variant">Ménage principal (Bailleur) :</span>
+                      <span className="font-bold text-on-surface">15.00 $ / mois</span>
+                    </div>
+                    {extra.nombreMenages > 1 && (
+                      <div className="flex justify-between">
+                        <span className="text-on-surface-variant">Ménages locataires ({extra.nombreMenages - 1}) :</span>
+                        <span className="font-extrabold text-secondary">{((extra.nombreMenages - 1) * 15).toFixed(2)} $ / mois</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-xs text-on-surface-variant">Projet de Facture Global:</span>
                     <span className="text-base font-extrabold text-primary font-mono">
                       {(randTaxe * extra.nombreMenages).toFixed(2)} $ / mois
                     </span>
                   </div>
+
+                  {extra.nombreMenages > 1 && (
+                    <p className="text-[10px] text-amber-500 font-sans leading-normal font-medium mt-1 border-t border-outline-variant/20 pt-1.5">
+                      ℹ️ Note : Les ménages locataires supplémentaires sont bien rattachés aux comptes des locataires payeurs et non à la charge du bailleur seul.
+                    </p>
+                  )}
                 </div>
               </div>
 
