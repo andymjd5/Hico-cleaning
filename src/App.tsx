@@ -443,12 +443,14 @@ export default function App() {
           const cloudActive = gpsInfo ? gpsInfo.en_service : currentEb.gps_active;
 
           if (
+            currentEb.id !== agent.id ||
             currentEb.latitude !== cloudLat ||
             currentEb.longitude !== cloudLng ||
             currentEb.gps_active !== cloudActive
           ) {
             updatedEboueurs[currentIdx] = {
               ...currentEb,
+              id: agent.id,
               latitude: cloudLat,
               longitude: cloudLng,
               gps_active: cloudActive
@@ -2516,8 +2518,22 @@ export default function App() {
                   status: 'idle' as const,
                   gps_active: false
                 };
-                const myAssignedMissions = poubelleSignals.filter(s => s.assigned_eboueur_id === currentEb.id && s.status === 'assigned');
-                const myCompletedMissions = poubelleSignals.filter(s => s.assigned_eboueur_id === currentEb.id && s.status === 'completed');
+                const myAssignedMissions = poubelleSignals.filter(s => 
+                  s.status === 'assigned' && 
+                  s.assigned_eboueur_id && (
+                    s.assigned_eboueur_id === currentEb.id || 
+                    s.assigned_eboueur_id === currentUser?.id ||
+                    (currentUser?.telephone && eboueurs.find(e => e.id === s.assigned_eboueur_id)?.telephone === currentUser.telephone)
+                  )
+                );
+                const myCompletedMissions = poubelleSignals.filter(s => 
+                  s.status === 'completed' && 
+                  s.assigned_eboueur_id && (
+                    s.assigned_eboueur_id === currentEb.id || 
+                    s.assigned_eboueur_id === currentUser?.id ||
+                    (currentUser?.telephone && eboueurs.find(e => e.id === s.assigned_eboueur_id)?.telephone === currentUser.telephone)
+                  )
+                );
 
                 return (
                   <EboueurSpaceView 
