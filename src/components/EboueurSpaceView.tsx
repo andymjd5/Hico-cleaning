@@ -26,7 +26,9 @@ interface EboueurSpaceViewProps {
   onUpdateGpsCoords?: (latitude: number, longitude: number) => void;
   onCompleteMission: (signalId: string) => void;
   onLogout?: () => void;
-  isGpsSimulated?: boolean;
+  currentUser?: any;
+  allRawSignals?: PoubelleSignal[];
+  allAgents?: any[];
 }
 
 export default function EboueurSpaceView({
@@ -37,34 +39,13 @@ export default function EboueurSpaceView({
   onUpdateGpsCoords,
   onCompleteMission,
   onLogout,
-  isGpsSimulated = false
+  currentUser,
+  allRawSignals = [],
+  allAgents = []
 }: EboueurSpaceViewProps) {
   
-  const [showExplanation, setShowExplanation] = useState(true);
-  const [simulationActive, setSimulationActive] = useState(true);
-  
+  const [showDiagnostic, setShowDiagnostic] = useState(false);
   const hasActiveMission = assignedMissions.length > 0;
-
-  // Coordinate adjustments for the Simulator
-  const handleTeleport = (lat: number, lng: number) => {
-    if (onUpdateGpsCoords) {
-      onUpdateGpsCoords(lat, lng);
-    }
-  };
-
-  const handleMove = (direction: 'up' | 'down' | 'left' | 'right') => {
-    if (!onUpdateGpsCoords) return;
-    const step = 0.0015; // roughly 150 meters
-    let newLat = currentEboueur.latitude;
-    let newLng = currentEboueur.longitude;
-
-    if (direction === 'up') newLat += step;
-    if (direction === 'down') newLat -= step;
-    if (direction === 'left') newLng -= step;
-    if (direction === 'right') newLng += step;
-
-    onUpdateGpsCoords(newLat, newLng);
-  };
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-on-background">
@@ -105,18 +86,16 @@ export default function EboueurSpaceView({
               <div className="flex items-center gap-3">
                 <div className={`w-3.5 h-3.5 rounded-full ${currentEboueur.gps_active ? 'bg-[#10b981] animate-ping' : 'bg-error'}`} />
                 <div className="flex flex-col text-xs pr-2">
-                  <span className="font-extrabold text-on-surface">GPS Tracker</span>
+                  <span className="font-extrabold text-on-surface">Traceur GPS Réel</span>
                   <span className="text-[10px] text-on-surface-variant font-mono">
                     {currentEboueur.gps_active 
-                      ? `Coordonnées : ${currentEboueur.latitude.toFixed(5)}, ${currentEboueur.longitude.toFixed(5)}` 
-                      : 'GPS désactivé'
+                      ? (currentEboueur.latitude === 0 && currentEboueur.longitude === 0
+                        ? "Recherche de signal GPS réel..."
+                        : `Position : ${currentEboueur.latitude.toFixed(5)}, ${currentEboueur.longitude.toFixed(5)}`
+                      )
+                      : 'GPS inactif'
                     }
                   </span>
-                  {currentEboueur.gps_active && isGpsSimulated && (
-                    <span className="text-[9px] text-[#10b981] font-extrabold font-sans mt-0.5 animate-pulse">
-                      🤖 Simulation GPS active
-                    </span>
-                  )}
                 </div>
               </div>
 
@@ -126,8 +105,8 @@ export default function EboueurSpaceView({
                   onToggleGps();
                   setTimeout(() => {
                     alert(targetState 
-                      ? "Traceur GPS de service allumé ! Votre position en temps réel est transmise au centre de répartition."
-                      : "Traceur GPS de service éteint."
+                      ? "Traceur GPS de service activé ! Votre position GPS réelle est diffusée en temps réel au centre."
+                      : "Traceur GPS désactivé."
                     );
                   }, 50);
                 }}
@@ -138,34 +117,238 @@ export default function EboueurSpaceView({
                 }`}
               >
                 <Radio size={14} className={currentEboueur.gps_active ? 'animate-pulse' : ''} />
-                <span>{currentEboueur.gps_active ? 'Couper mon GPS' : 'Activer mon GPS'}</span>
+                <span>{currentEboueur.gps_active ? 'Désactiver le GPS' : 'Activer le GPS Réel'}</span>
               </button>
             </div>
 
-            {currentEboueur.gps_active && isGpsSimulated && (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 text-[10px] text-emerald-300 leading-normal flex flex-col gap-1.5 max-w-sm">
+            {currentEboueur.gps_active && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 text-[10px] text-emerald-300 leading-normal flex flex-col gap-1 max-w-sm">
                 <p className="font-bold flex items-center gap-1">
-                  <span>ℹ️</span> Mode simulation de l'iframe actif
+                  <span>🛰️</span> Traceur GPS actif en arrière-plan
                 </p>
                 <p>
-                  Les permissions de géolocalisation sont restreintes dans l'iframe de prévisualisation. Le véhicule se déplace automatiquement vers vos missions de collecte !
+                  Votre navigateur transmet périodiquement vos coordonnées géographiques réelles. Assurez-vous d'accorder l'autorisation de localisation à l'application.
                 </p>
-                <div className="flex items-center justify-between gap-2 bg-emerald-950/20 p-1.5 rounded-lg border border-emerald-900/45 mt-1">
-                  <span className="font-semibold text-[9px] uppercase tracking-wide">Déplacement manuel :</span>
-                  <div className="flex gap-1 shrink-0">
-                    <button onClick={() => handleMove('left')} className="w-6 h-6 bg-emerald-800/40 hover:bg-emerald-800/70 border border-emerald-700/50 rounded flex items-center justify-center font-bold text-xs select-none active:scale-90 cursor-pointer">⬅</button>
-                    <button onClick={() => handleMove('down')} className="w-6 h-6 bg-emerald-800/40 hover:bg-emerald-800/70 border border-emerald-700/50 rounded flex items-center justify-center font-bold text-xs select-none active:scale-90 cursor-pointer">⬇</button>
-                    <button onClick={() => handleMove('up')} className="w-6 h-6 bg-emerald-800/40 hover:bg-emerald-800/70 border border-emerald-700/50 rounded flex items-center justify-center font-bold text-xs select-none active:scale-90 cursor-pointer">⬆</button>
-                    <button onClick={() => handleMove('right')} className="w-6 h-6 bg-emerald-800/40 hover:bg-emerald-800/70 border border-emerald-700/50 rounded flex items-center justify-center font-bold text-xs select-none active:scale-90 cursor-pointer">➡</button>
-                  </div>
-                </div>
               </div>
             )}
           </div>
         </div>
       </header>
 
+      {/* --- CONSOLE DE DIAGNOSTIC DE MISSION --- */}
+      <section className="bg-slate-900 border border-slate-700/60 rounded-3xl p-5 shadow-2xl relative overflow-hidden font-sans">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <div className="flex flex-col">
+              <h3 className="text-sm font-black text-slate-100 tracking-tight flex items-center gap-1.5">
+                <span>🔍</span> Console de Diagnostic de Mission
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Analyse en temps réel de l'affectation et de la synchronisation Supabase
+              </p>
+            </div>
+          </div>
+          
+          <button
+            onClick={() => setShowDiagnostic(!showDiagnostic)}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+          >
+            {showDiagnostic ? 'Masquer la console [-]' : 'Ouvrir la console [+]'}
+          </button>
+        </div>
 
+        {showDiagnostic && (() => {
+          const cleanPhone = (num: string) => {
+            if (!num) return '';
+            const cleaned = num.replace(/[\s\-\.\(\)\+]/g, '');
+            return cleaned.length >= 8 ? cleaned.slice(-8) : cleaned;
+          };
+
+          const diagnostics = allRawSignals.map(sig => {
+            const logs: string[] = [];
+            let isMatched = false;
+
+            const assignedId = sig.assigned_eboueur_id ? sig.assigned_eboueur_id.trim().toLowerCase() : '';
+            const currentUserId = currentUser?.id ? currentUser.id.trim().toLowerCase() : '';
+            const currentEbId = currentEboueur?.id ? currentEboueur.id.trim().toLowerCase() : '';
+
+            logs.push(`• Analyse du statut brut : "${sig.status}" (Attendu pour mission active: "assigned")`);
+            const statusOk = sig.status === 'assigned';
+            if (!statusOk) {
+              logs.push(`  ❌ ÉCHEC STATUT : Le statut n'est pas "assigned" (il est "${sig.status}").`);
+            } else {
+              logs.push(`  🟢 STATUT OK : Le signal est bien à l'état "assigned".`);
+            }
+
+            logs.push(`• Analyse de l'éboueur assigné : "${sig.assigned_eboueur_id || 'Aucun'}"`);
+            
+            if (!sig.assigned_eboueur_id) {
+              logs.push(`  ❌ ÉCHEC AFFECTATION : Aucun éboueur n'est assigné.`);
+            } else {
+              // 1. Direct ID match
+              if (assignedId === currentUserId) {
+                logs.push(`  🟢 MATCH DIRECT : ID assigné correspond exactement à votre ID Utilisateur Session ("${currentUser.id}").`);
+                isMatched = true;
+              } else if (assignedId === currentEbId) {
+                logs.push(`  🟢 MATCH DIRECT : ID assigné correspond exactement à votre ID Éboueur ("${currentEboueur.id}").`);
+                isMatched = true;
+              } else {
+                logs.push(`  ⚠️ ID éboueur assigné ("${assignedId}") ne correspond pas directement à votre ID session ("${currentUserId}") ou ID éboueur ("${currentEbId}").`);
+                
+                // 2. Name matches
+                const userNom = currentUser?.nom ? currentUser.nom.trim().toLowerCase() : '';
+                const currentEbNom = currentEboueur?.nom ? currentEboueur.nom.trim().toLowerCase() : '';
+                const cleanAssignedId = assignedId.replace(/\s+/g, '');
+                const cleanUserNom = userNom.replace(/\s+/g, '');
+                const cleanEbNom = currentEbNom.replace(/\s+/g, '');
+
+                if (cleanAssignedId === cleanUserNom || cleanAssignedId === cleanEbNom) {
+                  logs.push(`  🟢 MATCH PAR NOM : Correspondance via le nom d'utilisateur nettoyé.`);
+                  isMatched = true;
+                } else if (userNom && (userNom.includes(assignedId) || assignedId.includes(userNom))) {
+                  logs.push(`  🟢 MATCH PAR NOM : Votre nom de session ("${currentUser?.nom}") inclut ou est inclus dans l'ID assigné.`);
+                  isMatched = true;
+                } else if (currentEbNom && (currentEbNom.includes(assignedId) || assignedId.includes(currentEbNom))) {
+                  logs.push(`  🟢 MATCH PAR NOM : Votre nom d'éboueur ("${currentEboueur?.nom}") inclut ou est inclus dans l'ID assigné.`);
+                  isMatched = true;
+                } else {
+                  logs.push(`  ⚠️ Pas de correspondance par nom.`);
+
+                  // 3. Phone matches
+                  const userPhoneClean = cleanPhone(currentUser?.telephone);
+                  const currentEbPhoneClean = cleanPhone(currentEboueur?.telephone);
+                  const assignedPhoneClean = cleanPhone(sig.assigned_eboueur_id);
+
+                  if (userPhoneClean && assignedPhoneClean === userPhoneClean) {
+                    logs.push(`  🟢 MATCH PAR TÉLÉPHONE : Le téléphone de session correspond.`);
+                    isMatched = true;
+                  } else if (currentEbPhoneClean && assignedPhoneClean === currentEbPhoneClean) {
+                    logs.push(`  🟢 MATCH PAR TÉLÉPHONE : Le téléphone de l'éboueur correspond.`);
+                    isMatched = true;
+                  } else {
+                    logs.push(`  ⚠️ Pas de correspondance par téléphone.`);
+
+                    // 4. Look up database records to cross-reference
+                    const matchedAgent = allAgents.find(a => a.id.trim().toLowerCase() === assignedId);
+                    if (matchedAgent) {
+                      logs.push(`  💡 Agent trouvé en base pour cet ID assigné : "${matchedAgent.nom}" (Rôle: ${matchedAgent.role}, Tél: ${matchedAgent.telephone})`);
+                      const agentPhoneClean = cleanPhone(matchedAgent.telephone);
+                      const agentNomClean = matchedAgent.nom.trim().toLowerCase();
+                      const cleanAgentNom = agentNomClean.replace(/\s+/g, '');
+
+                      if (userPhoneClean && agentPhoneClean === userPhoneClean) {
+                        logs.push(`  🟢 MATCH PAR AGENT RÉFÉRENCÉ : Correspondance par téléphone.`);
+                        isMatched = true;
+                      } else if (cleanAgentNom === cleanUserNom) {
+                        logs.push(`  🟢 MATCH PAR AGENT RÉFÉRENCÉ : Le nom correspond exactement.`);
+                        isMatched = true;
+                      } else if (userNom.includes(agentNomClean) || agentNomClean.includes(userNom)) {
+                        logs.push(`  🟢 MATCH PAR AGENT RÉFÉRENCÉ : Correspondance par inclusion de nom.`);
+                        isMatched = true;
+                      } else {
+                        logs.push(`  ❌ ÉCHEC RÉSOLUTION AGENT : L'agent référencé ne correspond pas à votre profil.`);
+                      }
+                    } else {
+                      logs.push(`  ❌ ÉCHEC TOTAL : L'ID assigné ne correspond à aucun de vos profils et n'existe pas dans le référentiel des agents.`);
+                    }
+                  }
+                }
+              }
+            }
+
+            return {
+              signal: sig,
+              isMatched: isMatched && statusOk,
+              logs
+            };
+          });
+
+          return (
+            <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col gap-4 text-xs font-mono text-slate-300">
+              {/* Profile Details Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] text-amber-400 font-extrabold uppercase">Utilisateur Connecté (Session)</span>
+                  <p>🆔 ID: <span className="text-white font-bold">{currentUser?.id || 'N/A'}</span></p>
+                  <p>👤 Nom: <span className="text-white font-bold">{currentUser?.nom || 'N/A'}</span></p>
+                  <p>📞 Tél: <span className="text-white font-bold">{currentUser?.telephone || 'N/A'}</span></p>
+                  <p>🔑 Rôle: <span className="text-white font-bold">{currentUser?.role || 'N/A'}</span></p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] text-indigo-400 font-extrabold uppercase font-sans">Éboueur Cartographié (Profil)</span>
+                  <p>🆔 ID: <span className="text-white font-bold">{currentEboueur?.id || 'N/A'}</span></p>
+                  <p>👤 Nom: <span className="text-white font-bold">{currentEboueur?.nom || 'N/A'}</span></p>
+                  <p>📞 Tél: <span className="text-white font-bold">{currentEboueur?.telephone || 'N/A'}</span></p>
+                  <p>📍 GPS: <span className="text-white font-bold">{currentEboueur?.latitude?.toFixed(5)}, {currentEboueur?.longitude?.toFixed(5)} ({currentEboueur?.gps_active ? 'Actif' : 'Inactif'})</span></p>
+                </div>
+              </div>
+
+              {/* Signals Diagnosis Feed */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">
+                    Signaux Présents en Base de Données ({allRawSignals.length})
+                  </span>
+                  <span className="text-[10px] text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-900/30">
+                    Missions filtrées visibles pour vous : {assignedMissions.length} active(s)
+                  </span>
+                </div>
+
+                {allRawSignals.length === 0 ? (
+                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-center text-slate-500">
+                    Aucun signal de poubelle trouvé dans `signaux_poubelles` pour le moment.
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3 max-h-80 overflow-y-auto pr-1">
+                    {diagnostics.map((diag, idx) => (
+                      <div 
+                        key={diag.signal.id || idx} 
+                        className={`p-3.5 rounded-2xl border transition-all ${
+                          diag.isMatched 
+                            ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-100' 
+                            : 'bg-slate-950/60 border-slate-800/80 text-slate-400'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 font-sans">
+                          <div className="flex flex-col">
+                            <span className="font-extrabold text-xs text-white">
+                              🚨 Signal {diag.signal.id ? diag.signal.id.substring(0, 8) : `#${idx}`}
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              Parcelle N° {diag.signal.numero_parcelle} • Avenue {diag.signal.avenue_nom} • {diag.signal.commune_nom}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] bg-slate-800 px-2.5 py-0.5 rounded-full font-bold">
+                              Statut: {diag.signal.status}
+                            </span>
+                            <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase ${
+                              diag.isMatched 
+                                ? 'bg-emerald-500 text-slate-950' 
+                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                            }`}>
+                              {diag.isMatched ? '🟢 MATCH' : '❌ EXCLU'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-950/80 p-2.5 rounded-xl text-[11px] leading-relaxed font-mono text-slate-300 flex flex-col gap-1">
+                          {diag.logs.map((log, lIdx) => (
+                            <div key={lIdx} className={log.includes('🟢') ? 'text-emerald-400 font-bold' : log.includes('❌') ? 'text-rose-400 font-bold' : ''}>
+                              {log}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </section>
 
       {/* Main dashboard panel: Active Mission vs History */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

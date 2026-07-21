@@ -349,7 +349,6 @@ export default function App() {
   const [activeNotification, setActiveNotification] = useState<PoubelleSignal | null>(null);
   const [hasNewSignals, setHasNewSignals] = useState(false);
   const [mapSelectedSignalId, setMapSelectedSignalId] = useState<string | null>(null);
-  const [isGpsSimulated, setIsGpsSimulated] = useState(false);
 
   // Toast notifications state
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -906,10 +905,10 @@ export default function App() {
         if (!sigsError && sigs) {
           const formatted = sigs.map((s: any) => {
             // Safe lookups in case of normalized columns
-            const parc = parcelles.find(p => p.id === s.parcelle_id);
-            const ave = avenues.find(a => a.id === (s.avenue_id || parc?.avenue_id));
-            const comm = communes.find(c => c.id === (s.commune_id || ave?.commune_id));
-            const ab = abonnes.find(a => a.id === s.bailleur_id || a.parcelle_id === s.parcelle_id);
+            const parc = (parcs || []).find(p => p.id === s.parcelle_id);
+            const ave = (aves || []).find(a => a.id === (s.avenue_id || parc?.avenue_id));
+            const comm = (activeCommunes || []).find(c => c.id === (s.commune_id || ave?.commune_id));
+            const ab = (abs || []).find(a => a.id === s.bailleur_id || a.parcelle_id === s.parcelle_id);
 
             const rawStatus = s.status || s.statut || 'pending';
             let mappedStatus: 'pending' | 'assigned' | 'completed' = 'pending';
@@ -1949,25 +1948,23 @@ export default function App() {
     }
   };
 
-  // Real Geolocation watching with fallback smart simulation for the logged-in Éboueur when GPS is active
+  // Real Geolocation watching for the logged-in Éboueur when GPS is active
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'eboueur') return;
     
     const currentEb = eboueurs.find(e => e.telephone === currentUser.telephone);
     if (!currentEb || !currentEb.gps_active) {
-      setIsGpsSimulated(false);
       return;
     }
 
     if (!navigator.geolocation) {
-      console.warn("La géolocalisation n'est pas supportée par votre navigateur. Activation de la simulation.");
-      setIsGpsSimulated(true);
+      console.warn("La géolocalisation n'est pas supportée par votre navigateur.");
+      addToast("La géolocalisation n'est pas supportée par votre appareil ou navigateur.", "error");
       return;
     }
 
     const handleSuccess = (position: GeolocationPosition) => {
       const { latitude, longitude } = position.coords;
-      setIsGpsSimulated(false); // Real GPS is working!
       setEboueurs(prev => prev.map(eb => {
         if (eb.telephone === currentUser.telephone) {
           return {
@@ -1984,17 +1981,25 @@ export default function App() {
     let watchId: number;
 
     const handleError = (error: GeolocationPositionError) => {
-      console.warn("Erreur de suivi GPS réel (activation du repli de simulation de l'iframe) :", error.message);
-      setIsGpsSimulated(true);
+      console.warn("Erreur de suivi GPS réel :", error.message);
+      let errorMsg = "Erreur de signal GPS réel.";
+      if (error.code === error.PERMISSION_DENIED) {
+        errorMsg = "Autorisation GPS refusée. Veuillez autoriser l'accès à la localisation.";
+      } else if (error.code === error.POSITION_UNAVAILABLE) {
+        errorMsg = "Signal GPS indisponible ou faible.";
+      } else if (error.code === error.TIMEOUT) {
+        errorMsg = "Le délai d'attente pour obtenir votre position GPS réelle a expiré.";
+      }
+      addToast(errorMsg, "warning");
+      
       if ((error.code === error.PERMISSION_DENIED || error.code === error.POSITION_UNAVAILABLE) && watchId !== undefined) {
-        console.log("Permission GPS refusée ou service indisponible. Arrêt du watchPosition réel.");
         navigator.geolocation.clearWatch(watchId);
       }
     };
 
     watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
       enableHighAccuracy: true,
-      timeout: 8000,
+      timeout: 10000,
       maximumAge: 0
     });
 
@@ -2005,87 +2010,12 @@ export default function App() {
     };
   }, [currentUser, eboueurs.find(e => e.telephone === currentUser?.telephone)?.gps_active]);
 
-  // Simulated GPS movement loop for the logged-in Éboueur when real GPS is unavailable
-  useEffect(() => {
-    if (!currentUser || currentUser.role !== 'eboueur') return;
-    
-    const currentEb = eboueurs.find(e => e.telephone === currentUser.telephone);
-    if (!currentEb || !currentEb.gps_active || !isGpsSimulated) return;
-
-    // Movement tick every 4 seconds
-    const intervalId = setInterval(() => {
-      setEboueurs(prev => {
-        const eb = prev.find(e => e.telephone === currentUser.telephone);
-        if (!eb) return prev;
-
-        // Find nearest assigned mission for this collector
-        const activeMission = poubelleSignals.find(s => 
-          s.status === 'assigned' && 
-          (s.assigned_eboueur_id === eb.id || s.assigned_eboueur_id === currentUser.id)
-        );
-
-        let nextLat = eb.latitude;
-        let nextLng = eb.longitude;
-
-        if (activeMission) {
-          // Find parcel coordinates of the assigned mission
-          const parc = parcelles.find(p => p.id === activeMission.parcelle_id);
-          if (parc && parc.latitude != null && parc.longitude != null) {
-            const destLat = parc.latitude;
-            const destLng = parc.longitude;
-
-            const dLat = destLat - eb.latitude;
-            const dLng = destLng - eb.longitude;
-            const dist = Math.sqrt(dLat * dLat + dLng * dLng);
-
-            if (dist > 0.0001) {
-              // Interpolate towards target (approx 100 meters per step)
-              const step = 0.0008;
-              const fraction = Math.min(1, step / dist);
-              nextLat = eb.latitude + dLat * fraction;
-              nextLng = eb.longitude + dLng * fraction;
-            } else {
-              // Arrived or very close, add microscopic wiggle
-              nextLat = destLat + (Math.random() - 0.5) * 0.0001;
-              nextLng = destLng + (Math.random() - 0.5) * 0.0001;
-            }
-          } else {
-            // No parcel coords found, move randomly slightly
-            nextLat += (Math.random() - 0.5) * 0.0002;
-            nextLng += (Math.random() - 0.5) * 0.0002;
-          }
-        } else {
-          // No active mission: patrol/circle around in a smooth pattern or slightly walk
-          nextLat += (Math.random() - 0.5) * 0.00025;
-          nextLng += (Math.random() - 0.5) * 0.00025;
-        }
-
-        // Sync coordinates to Supabase/local
-        syncEboueurGpsToSupabase(currentUser.id, true, nextLat, nextLng);
-
-        return prev.map(e => {
-          if (e.telephone === currentUser.telephone) {
-            return {
-              ...e,
-              latitude: nextLat,
-              longitude: nextLng
-            };
-          }
-          return e;
-        });
-      });
-    }, 4000);
-
-    return () => clearInterval(intervalId);
-  }, [currentUser, isGpsSimulated, poubelleSignals, parcelles]);
-
   const handleToggleEboueurGps = () => {
     if (!currentUser || currentUser.role !== 'eboueur') return;
     const currentEb = eboueurs.find(e => e.telephone === currentUser.telephone);
     if (!currentEb) return;
 
     const nextGpsState = !currentEb.gps_active;
-    setIsGpsSimulated(false); // Reset simulation state on toggle
 
     setEboueurs(prev => prev.map(eb => {
       if (eb.id === currentEb.id) {
@@ -2106,7 +2036,6 @@ export default function App() {
         navigator.geolocation.getCurrentPosition(
           (position) => {
             const { latitude, longitude } = position.coords;
-            setIsGpsSimulated(false);
             setEboueurs(prev => prev.map(eb => {
               if (eb.id === currentEb.id) {
                 return {
@@ -2120,13 +2049,17 @@ export default function App() {
             syncEboueurGpsToSupabase(currentEb.id, true, latitude, longitude);
           },
           (err) => {
-            console.warn("Position initiale indisponible par GPS réel, activation du repli simulé :", err.message);
-            setIsGpsSimulated(true);
+            console.warn("Position initiale indisponible par GPS réel :", err.message);
+            let errorMsg = "Position GPS initiale indisponible.";
+            if (err.code === err.PERMISSION_DENIED) {
+              errorMsg = "Autorisation de localisation refusée.";
+            }
+            addToast(errorMsg, "warning");
           },
           { enableHighAccuracy: true, timeout: 5000 }
         );
       } else {
-        setIsGpsSimulated(true);
+        addToast("La géolocalisation n'est pas supportée par votre navigateur.", "error");
       }
     }
   };
@@ -2901,7 +2834,9 @@ export default function App() {
                     onUpdateGpsCoords={handleUpdateEboueurGpsCoords}
                     onCompleteMission={handleCompleteMission}
                     onLogout={handleLogout}
-                    isGpsSimulated={isGpsSimulated}
+                    currentUser={currentUser}
+                    allRawSignals={poubelleSignals}
+                    allAgents={agents}
                   />
                 );
               })()}
