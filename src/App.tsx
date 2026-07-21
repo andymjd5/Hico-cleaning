@@ -2807,8 +2807,16 @@ export default function App() {
               })()}
 
               {currentScreen === 'eboueur_space' && (() => {
-                const cleanPhoneNum = (num: string) => num ? num.replace(/[\s\-\.\(\)]/g, '') : '';
-                const currentEb = eboueurs.find(e => cleanPhoneNum(e.telephone) === cleanPhoneNum(currentUser?.telephone)) || {
+                const cleanPhoneNum = (num: string) => {
+                  if (!num) return '';
+                  const cleaned = num.replace(/[\s\-\.\(\)\+]/g, '');
+                  return cleaned.length >= 9 ? cleaned.slice(-9) : cleaned;
+                };
+                const currentEb = eboueurs.find(e => 
+                  (currentUser?.id && e.id === currentUser.id) ||
+                  (e.telephone && currentUser?.telephone && cleanPhoneNum(e.telephone) === cleanPhoneNum(currentUser.telephone)) ||
+                  (e.nom && currentUser?.nom && e.nom.trim().toLowerCase() === currentUser.nom.trim().toLowerCase())
+                ) || {
                   id: currentUser?.id || 'temp-eboueur',
                   nom: currentUser?.nom || 'Éboueur de service',
                   telephone: currentUser?.telephone || '',
@@ -2817,28 +2825,44 @@ export default function App() {
                   status: 'idle' as const,
                   gps_active: false
                 };
-                const myAssignedMissions = poubelleSignals.filter(s => 
-                  s.status === 'assigned' && 
-                  s.assigned_eboueur_id && (
-                    s.assigned_eboueur_id === currentEb.id || 
-                    s.assigned_eboueur_id === currentUser?.id ||
-                    (currentUser?.telephone && (() => {
-                      const matchedEb = eboueurs.find(e => e.id === s.assigned_eboueur_id);
-                      return matchedEb && cleanPhoneNum(matchedEb.telephone) === cleanPhoneNum(currentUser.telephone);
-                    })())
-                  )
-                );
-                const myCompletedMissions = poubelleSignals.filter(s => 
-                  s.status === 'completed' && 
-                  s.assigned_eboueur_id && (
-                    s.assigned_eboueur_id === currentEb.id || 
-                    s.assigned_eboueur_id === currentUser?.id ||
-                    (currentUser?.telephone && (() => {
-                      const matchedEb = eboueurs.find(e => e.id === s.assigned_eboueur_id);
-                      return matchedEb && cleanPhoneNum(matchedEb.telephone) === cleanPhoneNum(currentUser.telephone);
-                    })())
-                  )
-                );
+
+                const isMissionAssignedToMe = (sig: PoubelleSignal, statusCheck: 'assigned' | 'completed') => {
+                  if (!currentUser || sig.status !== statusCheck || !sig.assigned_eboueur_id) {
+                    return false;
+                  }
+
+                  // 1. Direct ID comparison
+                  if (sig.assigned_eboueur_id === currentUser.id) return true;
+                  if (sig.assigned_eboueur_id === currentEb.id) return true;
+
+                  // 2. Find the assigned eboueur from either the "eboueurs" or "agents" lists to compare telephone / name
+                  const matchedAgent = agents.find(a => a.id === sig.assigned_eboueur_id) || 
+                                       eboueurs.find(e => e.id === sig.assigned_eboueur_id);
+
+                  if (matchedAgent) {
+                    const userPhoneClean = cleanPhoneNum(currentUser.telephone);
+                    const currentEbPhoneClean = cleanPhoneNum(currentEb.telephone);
+                    const agentPhoneClean = cleanPhoneNum(matchedAgent.telephone);
+
+                    if (userPhoneClean && agentPhoneClean === userPhoneClean) return true;
+                    if (currentEbPhoneClean && agentPhoneClean === currentEbPhoneClean) return true;
+
+                    const agentNameClean = matchedAgent.nom.trim().toLowerCase();
+                    const userNameClean = currentUser.nom.trim().toLowerCase();
+                    if (agentNameClean === userNameClean) return true;
+                  }
+
+                  // 3. Fallback: if the assigned_eboueur_id itself matches the user's telephone, id or name directly
+                  const assignedIdClean = sig.assigned_eboueur_id.trim().toLowerCase();
+                  if (assignedIdClean === currentUser.id.trim().toLowerCase()) return true;
+                  if (currentUser.telephone && cleanPhoneNum(sig.assigned_eboueur_id) === cleanPhoneNum(currentUser.telephone)) return true;
+                  if (assignedIdClean === currentUser.nom.trim().toLowerCase()) return true;
+
+                  return false;
+                };
+
+                const myAssignedMissions = poubelleSignals.filter(s => isMissionAssignedToMe(s, 'assigned'));
+                const myCompletedMissions = poubelleSignals.filter(s => isMissionAssignedToMe(s, 'completed'));
 
                 return (
                   <EboueurSpaceView 
