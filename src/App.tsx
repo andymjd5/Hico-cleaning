@@ -55,6 +55,14 @@ if (typeof window !== 'undefined') {
   };
 }
 
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 const sanitizeAgentForDb = (agent: Agent) => {
   return {
     id: agent.id,
@@ -1658,6 +1666,7 @@ export default function App() {
       const ab = abonnes.find(a => a.telephone_principal === newSignal.bailleur_telephone || a.nom_complet === newSignal.bailleur_nom);
       
       const frenchPayload: any = {
+        id: newSignal.id,
         parcelle_id: newSignal.parcelle_id,
         bailleur_id: ab?.id || null,
         statut: 'en_attente',
@@ -1724,7 +1733,7 @@ export default function App() {
 
     // Create a new signal
     const newSignal: PoubelleSignal = {
-      id: 'sig-' + Math.random().toString(36).substring(2, 11),
+      id: generateUUID(),
       parcelle_id: parc.id,
       commune_id: com?.id || 'c-gombe',
       avenue_id: ave?.id || 'ave-gombe-1',
@@ -2159,7 +2168,7 @@ export default function App() {
     const com = communes.find(c => c.id === ave?.commune_id);
 
     const newSignal: PoubelleSignal = {
-      id: 'sig-' + Math.random().toString(36).substring(2, 11),
+      id: generateUUID(),
       parcelle_id: parc.id,
       commune_id: com?.id || 'c-gombe',
       avenue_id: ave?.id || 'ave-gombe-1',
@@ -2798,7 +2807,8 @@ export default function App() {
               })()}
 
               {currentScreen === 'eboueur_space' && (() => {
-                const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone) || {
+                const cleanPhoneNum = (num: string) => num ? num.replace(/[\s\-\.\(\)]/g, '') : '';
+                const currentEb = eboueurs.find(e => cleanPhoneNum(e.telephone) === cleanPhoneNum(currentUser?.telephone)) || {
                   id: currentUser?.id || 'temp-eboueur',
                   nom: currentUser?.nom || 'Éboueur de service',
                   telephone: currentUser?.telephone || '',
@@ -2812,7 +2822,10 @@ export default function App() {
                   s.assigned_eboueur_id && (
                     s.assigned_eboueur_id === currentEb.id || 
                     s.assigned_eboueur_id === currentUser?.id ||
-                    (currentUser?.telephone && eboueurs.find(e => e.id === s.assigned_eboueur_id)?.telephone === currentUser.telephone)
+                    (currentUser?.telephone && (() => {
+                      const matchedEb = eboueurs.find(e => e.id === s.assigned_eboueur_id);
+                      return matchedEb && cleanPhoneNum(matchedEb.telephone) === cleanPhoneNum(currentUser.telephone);
+                    })())
                   )
                 );
                 const myCompletedMissions = poubelleSignals.filter(s => 
@@ -2820,7 +2833,10 @@ export default function App() {
                   s.assigned_eboueur_id && (
                     s.assigned_eboueur_id === currentEb.id || 
                     s.assigned_eboueur_id === currentUser?.id ||
-                    (currentUser?.telephone && eboueurs.find(e => e.id === s.assigned_eboueur_id)?.telephone === currentUser.telephone)
+                    (currentUser?.telephone && (() => {
+                      const matchedEb = eboueurs.find(e => e.id === s.assigned_eboueur_id);
+                      return matchedEb && cleanPhoneNum(matchedEb.telephone) === cleanPhoneNum(currentUser.telephone);
+                    })())
                   )
                 );
 
