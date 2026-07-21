@@ -162,7 +162,7 @@ export default function DechetsMapView({
     const signalCoords = getSignalCoords(selectedSignal);
     
     return eboueurs
-      .filter(eb => eb.gps_active)
+      .filter(eb => eb.gps_active && eb.latitude != null && eb.longitude != null && !isNaN(eb.latitude) && !isNaN(eb.longitude))
       .map(eb => {
         const dist = calculateDistance(signalCoords.lat, signalCoords.lng, eb.latitude, eb.longitude);
         return {
@@ -306,7 +306,7 @@ export default function DechetsMapView({
     });
 
     // Plot Eboueurs (collectors)
-    eboueurs.filter(eb => eb.gps_active).forEach((eb) => {
+    eboueurs.filter(eb => eb.gps_active && eb.latitude != null && eb.longitude != null && !isNaN(eb.latitude) && !isNaN(eb.longitude)).forEach((eb) => {
       const isSelected = selectedEboueurId === eb.id;
       const isBusy = eb.status === 'en_mission';
 
@@ -405,7 +405,7 @@ export default function DechetsMapView({
       }
     } else if (selectedEboueurId) {
       const eb = eboueurs.find(e => e.id === selectedEboueurId);
-      if (eb && eb.gps_active) {
+      if (eb && eb.gps_active && eb.latitude != null && eb.longitude != null && !isNaN(eb.latitude) && !isNaN(eb.longitude)) {
         mapRef.current.flyTo([eb.latitude, eb.longitude], 15, {
           animate: true,
           duration: 1.2

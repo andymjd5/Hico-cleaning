@@ -28,7 +28,32 @@ import SachetsManagementView from './components/SachetsManagementView';
 import FinanceManagementView from './components/FinanceManagementView';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info } from 'lucide-react';
+
+interface ToastItem {
+  id: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  duration?: number;
+}
+
+let globalToastCallback: ((message: string, type?: 'info' | 'success' | 'warning' | 'error') => void) | null = null;
+
+if (typeof window !== 'undefined') {
+  const originalAlert = window.alert;
+  window.alert = (message: string) => {
+    console.log("Alert intercepted:", message);
+    if (globalToastCallback) {
+      globalToastCallback(message);
+    } else {
+      try {
+        originalAlert(message);
+      } catch (e) {
+        console.warn("Native alert failed inside sandbox:", e);
+      }
+    }
+  };
+}
 
 const sanitizeAgentForDb = (agent: Agent) => {
   return {
@@ -317,6 +342,35 @@ export default function App() {
   const [hasNewSignals, setHasNewSignals] = useState(false);
   const [mapSelectedSignalId, setMapSelectedSignalId] = useState<string | null>(null);
   const [isGpsSimulated, setIsGpsSimulated] = useState(false);
+
+  // Toast notifications state
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const addToast = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', duration = 5000) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { id, message, type, duration }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, duration);
+  };
+
+  useEffect(() => {
+    globalToastCallback = (message: string, type?: 'info' | 'success' | 'warning' | 'error') => {
+      let inferredType = type || 'info';
+      const msgLower = message.toLowerCase();
+      if (msgLower.includes('erreur') || msgLower.includes('impossible') || msgLower.includes('échec') || msgLower.includes('fail') || msgLower.includes('rejeter')) {
+        inferredType = 'error';
+      } else if (msgLower.includes('succès') || msgLower.includes('félicitations') || msgLower.includes('réussi') || msgLower.includes('enregistré avec succès') || msgLower.includes('envoyé !') || msgLower.includes('validée avec succès')) {
+        inferredType = 'success';
+      } else if (msgLower.includes('attention') || msgLower.includes('warning') || msgLower.includes('déconseillé') || msgLower.includes('en suspens')) {
+        inferredType = 'warning';
+      }
+      addToast(message, inferredType);
+    };
+    return () => {
+      globalToastCallback = null;
+    };
+  }, []);
 
   // Clear new signals notification when entering the waste signal map view
   useEffect(() => {
@@ -1857,19 +1911,27 @@ export default function App() {
       syncEboueurGpsToSupabase(currentUser.id, true, latitude, longitude);
     };
 
+    let watchId: number;
+
     const handleError = (error: GeolocationPositionError) => {
       console.warn("Erreur de suivi GPS réel (activation du repli de simulation de l'iframe) :", error.message);
       setIsGpsSimulated(true);
+      if ((error.code === error.PERMISSION_DENIED || error.code === error.POSITION_UNAVAILABLE) && watchId !== undefined) {
+        console.log("Permission GPS refusée ou service indisponible. Arrêt du watchPosition réel.");
+        navigator.geolocation.clearWatch(watchId);
+      }
     };
 
-    const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
+    watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
       enableHighAccuracy: true,
       timeout: 8000,
       maximumAge: 0
     });
 
     return () => {
-      navigator.geolocation.clearWatch(watchId);
+      if (watchId !== undefined) {
+        navigator.geolocation.clearWatch(watchId);
+      }
     };
   }, [currentUser, eboueurs.find(e => e.telephone === currentUser?.telephone)?.gps_active]);
 
@@ -3627,6 +3689,43 @@ ALTER TABLE system_settings DISABLE ROW LEVEL SECURITY;
               </div>
             </div>
           )}
+
+          {/* Custom Beautiful Toast System */}
+          <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2.5 max-w-sm w-[calc(100vw-2rem)] pointer-events-none">
+            {toasts.map((toast) => {
+              const bgClass = 
+                toast.type === 'success' ? 'bg-emerald-950/95 border-emerald-500/30 text-emerald-100' :
+                toast.type === 'error' ? 'bg-red-950/95 border-red-500/30 text-red-100' :
+                toast.type === 'warning' ? 'bg-amber-950/95 border-amber-500/30 text-amber-100' :
+                'bg-slate-950/95 border-slate-700/30 text-slate-100';
+
+              const icon = 
+                toast.type === 'success' ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0 mt-0.5" /> :
+                toast.type === 'error' ? <XCircle size={16} className="text-red-400 shrink-0 mt-0.5" /> :
+                toast.type === 'warning' ? <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" /> :
+                <Info size={16} className="text-blue-400 shrink-0 mt-0.5" />;
+
+              return (
+                <div 
+                  key={toast.id}
+                  className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-2xl border backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.4)] ${bgClass} animate-slide-in-right hover:scale-[1.01] transition-transform duration-200`}
+                >
+                  {icon}
+                  <div className="flex-1 text-xs font-semibold leading-normal break-words">
+                    {toast.message.split('\n').map((line, idx) => (
+                      <p key={idx} className={idx > 0 ? 'mt-1 text-[11px] opacity-90' : ''}>{line}</p>
+                    ))}
+                  </div>
+                  <button 
+                    onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                    className="text-white/40 hover:text-white/90 p-0.5 rounded transition-colors cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
 
         </div>
       )}
