@@ -453,7 +453,12 @@ export default function App() {
                 mappedStatus = 'completed';
               }
 
-              const assignedEboueurId = updatedSig.assigned_eboueur_id !== undefined ? updatedSig.assigned_eboueur_id : (updatedSig.eboueur_assigne_id !== undefined ? updatedSig.eboueur_assigne_id : s.assigned_eboueur_id);
+              const assignedEboueurId = 
+                (updatedSig.assigned_eboueur_id !== undefined && updatedSig.assigned_eboueur_id !== null)
+                  ? updatedSig.assigned_eboueur_id 
+                  : (updatedSig.eboueur_assigne_id !== undefined && updatedSig.eboueur_assigne_id !== null)
+                    ? updatedSig.eboueur_assigne_id 
+                    : s.assigned_eboueur_id;
               const completedAt = updatedSig.completed_at || updatedSig.resolved_at || s.completed_at || null;
               const reportedAt = updatedSig.reported_at || updatedSig.created_at || s.reported_at || new Date().toISOString();
 
@@ -938,6 +943,12 @@ export default function App() {
         }
       } catch (e) {
         console.warn("Table 'signaux_poubelles' not accessible, using localStorage fallback.", e);
+        const saved = localStorage.getItem('hico_poubelle_signals');
+        if (saved) {
+          try {
+            setPoubelleSignals(JSON.parse(saved));
+          } catch (_) {}
+        }
       }
 
       // 7. Fetch Sachet Stocks
@@ -2810,7 +2821,8 @@ export default function App() {
                 const cleanPhoneNum = (num: string) => {
                   if (!num) return '';
                   const cleaned = num.replace(/[\s\-\.\(\)\+]/g, '');
-                  return cleaned.length >= 9 ? cleaned.slice(-9) : cleaned;
+                  // DRC and global telephone suffix match (last 8 digits is extremely robust)
+                  return cleaned.length >= 8 ? cleaned.slice(-8) : cleaned;
                 };
                 const currentEb = eboueurs.find(e => 
                   (currentUser?.id && e.id === currentUser.id) ||
@@ -2831,32 +2843,48 @@ export default function App() {
                     return false;
                   }
 
-                  // 1. Direct ID comparison
-                  if (sig.assigned_eboueur_id === currentUser.id) return true;
-                  if (sig.assigned_eboueur_id === currentEb.id) return true;
+                  // 1. Direct ID matches
+                  const assignedId = sig.assigned_eboueur_id.trim().toLowerCase();
+                  const currentUserId = currentUser.id.trim().toLowerCase();
+                  const currentEbId = currentEb.id.trim().toLowerCase();
 
-                  // 2. Find the assigned eboueur from either the "eboueurs" or "agents" lists to compare telephone / name
-                  const matchedAgent = agents.find(a => a.id === sig.assigned_eboueur_id) || 
-                                       eboueurs.find(e => e.id === sig.assigned_eboueur_id);
+                  if (assignedId === currentUserId) return true;
+                  if (assignedId === currentEbId) return true;
+
+                  // 2. Direct name matches (with robust substring/fuzzy checks)
+                  const userNom = currentUser.nom.trim().toLowerCase();
+                  const currentEbNom = currentEb.nom.trim().toLowerCase();
+                  const cleanAssignedId = assignedId.replace(/\s+/g, '');
+                  const cleanUserNom = userNom.replace(/\s+/g, '');
+                  const cleanEbNom = currentEbNom.replace(/\s+/g, '');
+
+                  if (cleanAssignedId === cleanUserNom || cleanAssignedId === cleanEbNom) return true;
+                  if (userNom.includes(assignedId) || assignedId.includes(userNom)) return true;
+                  if (currentEbNom.includes(assignedId) || assignedId.includes(currentEbNom)) return true;
+
+                  // 3. Direct phone matches
+                  const userPhoneClean = cleanPhoneNum(currentUser.telephone);
+                  const currentEbPhoneClean = cleanPhoneNum(currentEb.telephone);
+                  const assignedPhoneClean = cleanPhoneNum(sig.assigned_eboueur_id);
+
+                  if (userPhoneClean && assignedPhoneClean === userPhoneClean) return true;
+                  if (currentEbPhoneClean && assignedPhoneClean === currentEbPhoneClean) return true;
+
+                  // 4. Look up database records to cross-reference
+                  const matchedAgent = agents.find(a => a.id.trim().toLowerCase() === assignedId) || 
+                                       eboueurs.find(e => e.id.trim().toLowerCase() === assignedId);
 
                   if (matchedAgent) {
-                    const userPhoneClean = cleanPhoneNum(currentUser.telephone);
-                    const currentEbPhoneClean = cleanPhoneNum(currentEb.telephone);
                     const agentPhoneClean = cleanPhoneNum(matchedAgent.telephone);
+                    const agentNomClean = matchedAgent.nom.trim().toLowerCase();
+                    const cleanAgentNom = agentNomClean.replace(/\s+/g, '');
 
                     if (userPhoneClean && agentPhoneClean === userPhoneClean) return true;
                     if (currentEbPhoneClean && agentPhoneClean === currentEbPhoneClean) return true;
-
-                    const agentNameClean = matchedAgent.nom.trim().toLowerCase();
-                    const userNameClean = currentUser.nom.trim().toLowerCase();
-                    if (agentNameClean === userNameClean) return true;
+                    if (cleanAgentNom === cleanUserNom || cleanAgentNom === cleanEbNom) return true;
+                    if (userNom.includes(agentNomClean) || agentNomClean.includes(userNom)) return true;
+                    if (currentEbNom.includes(agentNomClean) || agentNomClean.includes(currentEbNom)) return true;
                   }
-
-                  // 3. Fallback: if the assigned_eboueur_id itself matches the user's telephone, id or name directly
-                  const assignedIdClean = sig.assigned_eboueur_id.trim().toLowerCase();
-                  if (assignedIdClean === currentUser.id.trim().toLowerCase()) return true;
-                  if (currentUser.telephone && cleanPhoneNum(sig.assigned_eboueur_id) === cleanPhoneNum(currentUser.telephone)) return true;
-                  if (assignedIdClean === currentUser.nom.trim().toLowerCase()) return true;
 
                   return false;
                 };
