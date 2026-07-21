@@ -26,6 +26,7 @@ interface EboueurSpaceViewProps {
   onUpdateGpsCoords?: (latitude: number, longitude: number) => void;
   onCompleteMission: (signalId: string) => void;
   onLogout?: () => void;
+  isGpsSimulated?: boolean;
 }
 
 export default function EboueurSpaceView({
@@ -35,7 +36,8 @@ export default function EboueurSpaceView({
   onToggleGps,
   onUpdateGpsCoords,
   onCompleteMission,
-  onLogout
+  onLogout,
+  isGpsSimulated = false
 }: EboueurSpaceViewProps) {
   
   const [showExplanation, setShowExplanation] = useState(true);
@@ -98,40 +100,67 @@ export default function EboueurSpaceView({
           </div>
 
           {/* Real-time GPS Tracker Switch */}
-          <div className="bg-background/80 border border-outline-variant p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 shadow-inner">
-            <div className="flex items-center gap-3">
-              <div className={`w-3.5 h-3.5 rounded-full ${currentEboueur.gps_active ? 'bg-[#10b981] animate-ping' : 'bg-error'}`} />
-              <div className="flex flex-col text-xs pr-2">
-                <span className="font-extrabold text-on-surface">GPS Tracker</span>
-                <span className="text-[10px] text-on-surface-variant font-mono">
-                  {currentEboueur.gps_active 
-                    ? `Coordonnées : ${currentEboueur.latitude.toFixed(5)}, ${currentEboueur.longitude.toFixed(5)}` 
-                    : 'GPS désactivé'
-                  }
-                </span>
+          <div className="flex flex-col gap-2.5 shrink-0">
+            <div className="bg-background/80 border border-outline-variant p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 shadow-inner">
+              <div className="flex items-center gap-3">
+                <div className={`w-3.5 h-3.5 rounded-full ${currentEboueur.gps_active ? 'bg-[#10b981] animate-ping' : 'bg-error'}`} />
+                <div className="flex flex-col text-xs pr-2">
+                  <span className="font-extrabold text-on-surface">GPS Tracker</span>
+                  <span className="text-[10px] text-on-surface-variant font-mono">
+                    {currentEboueur.gps_active 
+                      ? `Coordonnées : ${currentEboueur.latitude.toFixed(5)}, ${currentEboueur.longitude.toFixed(5)}` 
+                      : 'GPS désactivé'
+                    }
+                  </span>
+                  {currentEboueur.gps_active && isGpsSimulated && (
+                    <span className="text-[9px] text-[#10b981] font-extrabold font-sans mt-0.5 animate-pulse">
+                      🤖 Simulation GPS active
+                    </span>
+                  )}
+                </div>
               </div>
+
+              <button
+                onClick={() => {
+                  const targetState = !currentEboueur.gps_active;
+                  onToggleGps();
+                  setTimeout(() => {
+                    alert(targetState 
+                      ? "Traceur GPS de service allumé ! Votre position en temps réel est transmise au centre de répartition."
+                      : "Traceur GPS de service éteint."
+                    );
+                  }, 50);
+                }}
+                className={`h-9 px-4 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 ${
+                  currentEboueur.gps_active 
+                    ? 'bg-error text-white' 
+                    : 'bg-[#10b981] text-white'
+                }`}
+              >
+                <Radio size={14} className={currentEboueur.gps_active ? 'animate-pulse' : ''} />
+                <span>{currentEboueur.gps_active ? 'Couper mon GPS' : 'Activer mon GPS'}</span>
+              </button>
             </div>
 
-            <button
-              onClick={() => {
-                const targetState = !currentEboueur.gps_active;
-                onToggleGps();
-                setTimeout(() => {
-                  alert(targetState 
-                    ? "Traceur GPS de service allumé ! Votre position en temps réel est transmise au centre de répartition."
-                    : "Traceur GPS de service éteint."
-                  );
-                }, 50);
-              }}
-              className={`h-9 px-4 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 ${
-                currentEboueur.gps_active 
-                  ? 'bg-error text-white' 
-                  : 'bg-[#10b981] text-white'
-              }`}
-            >
-              <Radio size={14} className={currentEboueur.gps_active ? 'animate-pulse' : ''} />
-              <span>{currentEboueur.gps_active ? 'Couper mon GPS' : 'Activer mon GPS'}</span>
-            </button>
+            {currentEboueur.gps_active && isGpsSimulated && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 text-[10px] text-emerald-300 leading-normal flex flex-col gap-1.5 max-w-sm">
+                <p className="font-bold flex items-center gap-1">
+                  <span>ℹ️</span> Mode simulation de l'iframe actif
+                </p>
+                <p>
+                  Les permissions de géolocalisation sont restreintes dans l'iframe de prévisualisation. Le véhicule se déplace automatiquement vers vos missions de collecte !
+                </p>
+                <div className="flex items-center justify-between gap-2 bg-emerald-950/20 p-1.5 rounded-lg border border-emerald-900/45 mt-1">
+                  <span className="font-semibold text-[9px] uppercase tracking-wide">Déplacement manuel :</span>
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={() => handleMove('left')} className="w-6 h-6 bg-emerald-800/40 hover:bg-emerald-800/70 border border-emerald-700/50 rounded flex items-center justify-center font-bold text-xs select-none active:scale-90 cursor-pointer">⬅</button>
+                    <button onClick={() => handleMove('down')} className="w-6 h-6 bg-emerald-800/40 hover:bg-emerald-800/70 border border-emerald-700/50 rounded flex items-center justify-center font-bold text-xs select-none active:scale-90 cursor-pointer">⬇</button>
+                    <button onClick={() => handleMove('up')} className="w-6 h-6 bg-emerald-800/40 hover:bg-emerald-800/70 border border-emerald-700/50 rounded flex items-center justify-center font-bold text-xs select-none active:scale-90 cursor-pointer">⬆</button>
+                    <button onClick={() => handleMove('right')} className="w-6 h-6 bg-emerald-800/40 hover:bg-emerald-800/70 border border-emerald-700/50 rounded flex items-center justify-center font-bold text-xs select-none active:scale-90 cursor-pointer">➡</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>

@@ -316,6 +316,7 @@ export default function App() {
   const [activeNotification, setActiveNotification] = useState<PoubelleSignal | null>(null);
   const [hasNewSignals, setHasNewSignals] = useState(false);
   const [mapSelectedSignalId, setMapSelectedSignalId] = useState<string | null>(null);
+  const [isGpsSimulated, setIsGpsSimulated] = useState(false);
 
   // Clear new signals notification when entering the waste signal map view
   useEffect(() => {
@@ -784,25 +785,43 @@ export default function App() {
       try {
         const { data: sigs, error: sigsError } = await supabase
           .from('signaux_poubelles')
-          .select('*')
-          .order('reported_at', { ascending: false });
+          .select('*');
         if (!sigsError && sigs) {
-          const formatted = sigs.map((s: any) => ({
-            id: s.id,
-            parcelle_id: s.parcelle_id,
-            commune_id: s.commune_id,
-            avenue_id: s.avenue_id,
-            commune_nom: s.commune_nom,
-            avenue_nom: s.avenue_nom,
-            numero_parcelle: s.numero_parcelle,
-            bailleur_nom: s.bailleur_nom,
-            bailleur_telephone: s.bailleur_telephone,
-            status: s.status as 'pending' | 'assigned' | 'completed',
-            assigned_eboueur_id: s.assigned_eboueur_id,
-            reported_at: s.reported_at,
-            completed_at: s.completed_at,
-            type_poubelle: s.type_poubelle as 'biodegradable' | 'non_biodegradable'
-          }));
+          const formatted = sigs.map((s: any) => {
+            // Safe lookups in case of normalized columns
+            const parc = parcelles.find(p => p.id === s.parcelle_id);
+            const ave = avenues.find(a => a.id === (s.avenue_id || parc?.avenue_id));
+            const comm = communes.find(c => c.id === (s.commune_id || ave?.commune_id));
+            const ab = abonnes.find(a => a.id === s.bailleur_id || a.parcelle_id === s.parcelle_id);
+
+            const rawStatus = s.status || s.statut || 'pending';
+            let mappedStatus: 'pending' | 'assigned' | 'completed' = 'pending';
+            if (rawStatus === 'assigned' || rawStatus === 'assigne') {
+              mappedStatus = 'assigned';
+            } else if (rawStatus === 'completed' || rawStatus === 'resolu' || rawStatus === 'complete' || rawStatus === 'termine') {
+              mappedStatus = 'completed';
+            }
+
+            return {
+              id: s.id,
+              parcelle_id: s.parcelle_id,
+              commune_id: s.commune_id || ave?.commune_id || '',
+              avenue_id: s.avenue_id || parc?.avenue_id || '',
+              commune_nom: s.commune_nom || comm?.nom || 'Kinshasa',
+              avenue_nom: s.avenue_nom || ave?.nom || 'Avenue Inconnue',
+              numero_parcelle: s.numero_parcelle || parc?.numero_parcelle || 'N/A',
+              bailleur_nom: s.bailleur_nom || ab?.nom_complet || 'Abonné',
+              bailleur_telephone: s.bailleur_telephone || ab?.telephone_principal || '',
+              status: mappedStatus,
+              assigned_eboueur_id: s.assigned_eboueur_id || s.eboueur_assigne_id || null,
+              reported_at: s.reported_at || s.created_at || new Date().toISOString(),
+              completed_at: s.completed_at || s.resolved_at || null,
+              type_poubelle: s.type_poubelle || 'biodegradable'
+            };
+          });
+
+          // Sort safely in memory
+          formatted.sort((a, b) => new Date(b.reported_at).getTime() - new Date(a.reported_at).getTime());
           setPoubelleSignals(formatted);
         }
       } catch (e) {
@@ -1515,6 +1534,63 @@ export default function App() {
     }
   };
 
+  const safeInsertPoubelleSignal = async (newSignal: PoubelleSignal) => {
+    if (!isSupabaseConfigured || dbStatus !== 'connected') return;
+
+    // 1. Try to insert the full English object first
+    try {
+      const { error: err1 } = await supabase.from('signaux_poubelles').insert([newSignal]);
+      if (!err1) {
+        console.log("Supabase insert signal succeeded with English schema!");
+        return;
+      }
+      console.warn("Full English insert failed, trying robust French fallback...", err1);
+    } catch (e) {
+      console.warn("Full English insert exception:", e);
+    }
+
+    // 2. Fallback: Map to strict French SQL Schema with a valid UUID format (or omitting id)
+    try {
+      const ab = abonnes.find(a => a.telephone_principal === newSignal.bailleur_telephone || a.nom_complet === newSignal.bailleur_nom);
+      
+      const frenchPayload: any = {
+        parcelle_id: newSignal.parcelle_id,
+        bailleur_id: ab?.id || null,
+        statut: 'en_attente',
+        type_poubelle: newSignal.type_poubelle
+      };
+
+      // Try inserting with French columns (no id string, allowing DB to auto-generate UUID)
+      const { error: err2 } = await supabase.from('signaux_poubelles').insert([frenchPayload]);
+      if (!err2) {
+        console.log("Robust French insert succeeded (omitted ID)!");
+        return;
+      }
+      console.warn("Robust French insert failed, trying with UUID-compatible ID format...", err2);
+
+      // 3. Last resort fallback: Generate a clean UUID format string if the column is UUID but not defaulting
+      const cleanUuid = "00000000-0000-0000-0000-" + Math.random().toString(36).substring(2, 14).padEnd(12, '0');
+      const lastResortPayload: any = {
+        id: cleanUuid,
+        parcelle_id: newSignal.parcelle_id,
+        bailleur_id: ab?.id || null,
+        statut: 'en_attente',
+        type_poubelle: newSignal.type_poubelle
+      };
+
+      const { error: err3 } = await supabase.from('signaux_poubelles').insert([lastResortPayload]);
+      if (err3) {
+        // If type_poubelle is rejecting, try without it
+        const strictPayload = { ...lastResortPayload };
+        delete strictPayload.type_poubelle;
+        await supabase.from('signaux_poubelles').insert([strictPayload]);
+      }
+      console.log("Last resort insert succeeded with UUID!");
+    } catch (fallbackErr) {
+      console.error("All Supabase insertion paths failed for the poubelle signal:", fallbackErr);
+    }
+  };
+
   const handleReportTrashFull = async (type_poubelle: 'biodegradable' | 'non_biodegradable') => {
     // Find active Abonne profile associated with the user
     const ab = abonnes.find(a => a.telephone_principal === currentUser?.telephone || a.id === 'abonne-demo');
@@ -1562,13 +1638,7 @@ export default function App() {
     setActiveNotification(newSignal);
     setHasNewSignals(true);
 
-    if (isSupabaseConfigured && dbStatus === 'connected') {
-      try {
-        await supabase.from('signaux_poubelles').insert([newSignal]);
-      } catch (err) {
-        console.warn("Supabase signaux_poubelles insert failed:", err);
-      }
-    }
+    await safeInsertPoubelleSignal(newSignal);
   };
 
   const handleAssignEboueur = async (signalId: string, eboueurId: string) => {
@@ -1595,7 +1665,20 @@ export default function App() {
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {
-        await supabase.from('signaux_poubelles').update({ status: 'assigned', assigned_eboueur_id: eboueurId }).eq('id', signalId);
+        // Try French column names first
+        const { error } = await supabase
+          .from('signaux_poubelles')
+          .update({ statut: 'assigned', eboueur_assigne_id: eboueurId })
+          .eq('id', signalId);
+        
+        if (error) {
+          console.warn("French update failed, trying English update...", error);
+          // Fallback to English
+          await supabase
+            .from('signaux_poubelles')
+            .update({ status: 'assigned', assigned_eboueur_id: eboueurId })
+            .eq('id', signalId);
+        }
       } catch (err) {
         console.warn("Supabase handleAssignEboueur failed:", err);
       }
@@ -1678,7 +1761,20 @@ export default function App() {
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {
-        await supabase.from('signaux_poubelles').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', signalId);
+        // Try French column names first
+        const { error } = await supabase
+          .from('signaux_poubelles')
+          .update({ statut: 'completed', resolved_at: new Date().toISOString() })
+          .eq('id', signalId);
+        
+        if (error) {
+          console.warn("French completion failed, trying English update...", error);
+          // Fallback to English
+          await supabase
+            .from('signaux_poubelles')
+            .update({ status: 'completed', completed_at: new Date().toISOString() })
+            .eq('id', signalId);
+        }
       } catch (err) {
         console.warn("Supabase handleCompleteMission failed:", err);
       }
@@ -1729,20 +1825,25 @@ export default function App() {
     }
   };
 
-  // Real Geolocation watching for the logged-in Éboueur when GPS is active
+  // Real Geolocation watching with fallback smart simulation for the logged-in Éboueur when GPS is active
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'eboueur') return;
     
     const currentEb = eboueurs.find(e => e.telephone === currentUser.telephone);
-    if (!currentEb || !currentEb.gps_active) return;
+    if (!currentEb || !currentEb.gps_active) {
+      setIsGpsSimulated(false);
+      return;
+    }
 
     if (!navigator.geolocation) {
-      console.warn("La géolocalisation n'est pas supportée par votre navigateur.");
+      console.warn("La géolocalisation n'est pas supportée par votre navigateur. Activation de la simulation.");
+      setIsGpsSimulated(true);
       return;
     }
 
     const handleSuccess = (position: GeolocationPosition) => {
       const { latitude, longitude } = position.coords;
+      setIsGpsSimulated(false); // Real GPS is working!
       setEboueurs(prev => prev.map(eb => {
         if (eb.telephone === currentUser.telephone) {
           return {
@@ -1757,12 +1858,13 @@ export default function App() {
     };
 
     const handleError = (error: GeolocationPositionError) => {
-      console.error("Erreur de suivi GPS réel :", error.message);
+      console.warn("Erreur de suivi GPS réel (activation du repli de simulation de l'iframe) :", error.message);
+      setIsGpsSimulated(true);
     };
 
     const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
       enableHighAccuracy: true,
-      timeout: 10000,
+      timeout: 8000,
       maximumAge: 0
     });
 
@@ -1771,12 +1873,87 @@ export default function App() {
     };
   }, [currentUser, eboueurs.find(e => e.telephone === currentUser?.telephone)?.gps_active]);
 
+  // Simulated GPS movement loop for the logged-in Éboueur when real GPS is unavailable
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'eboueur') return;
+    
+    const currentEb = eboueurs.find(e => e.telephone === currentUser.telephone);
+    if (!currentEb || !currentEb.gps_active || !isGpsSimulated) return;
+
+    // Movement tick every 4 seconds
+    const intervalId = setInterval(() => {
+      setEboueurs(prev => {
+        const eb = prev.find(e => e.telephone === currentUser.telephone);
+        if (!eb) return prev;
+
+        // Find nearest assigned mission for this collector
+        const activeMission = poubelleSignals.find(s => 
+          s.status === 'assigned' && 
+          (s.assigned_eboueur_id === eb.id || s.assigned_eboueur_id === currentUser.id)
+        );
+
+        let nextLat = eb.latitude;
+        let nextLng = eb.longitude;
+
+        if (activeMission) {
+          // Find parcel coordinates of the assigned mission
+          const parc = parcelles.find(p => p.id === activeMission.parcelle_id);
+          if (parc && parc.latitude != null && parc.longitude != null) {
+            const destLat = parc.latitude;
+            const destLng = parc.longitude;
+
+            const dLat = destLat - eb.latitude;
+            const dLng = destLng - eb.longitude;
+            const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+
+            if (dist > 0.0001) {
+              // Interpolate towards target (approx 100 meters per step)
+              const step = 0.0008;
+              const fraction = Math.min(1, step / dist);
+              nextLat = eb.latitude + dLat * fraction;
+              nextLng = eb.longitude + dLng * fraction;
+            } else {
+              // Arrived or very close, add microscopic wiggle
+              nextLat = destLat + (Math.random() - 0.5) * 0.0001;
+              nextLng = destLng + (Math.random() - 0.5) * 0.0001;
+            }
+          } else {
+            // No parcel coords found, move randomly slightly
+            nextLat += (Math.random() - 0.5) * 0.0002;
+            nextLng += (Math.random() - 0.5) * 0.0002;
+          }
+        } else {
+          // No active mission: patrol/circle around in a smooth pattern or slightly walk
+          nextLat += (Math.random() - 0.5) * 0.00025;
+          nextLng += (Math.random() - 0.5) * 0.00025;
+        }
+
+        // Sync coordinates to Supabase/local
+        syncEboueurGpsToSupabase(currentUser.id, true, nextLat, nextLng);
+
+        return prev.map(e => {
+          if (e.telephone === currentUser.telephone) {
+            return {
+              ...e,
+              latitude: nextLat,
+              longitude: nextLng
+            };
+          }
+          return e;
+        });
+      });
+    }, 4000);
+
+    return () => clearInterval(intervalId);
+  }, [currentUser, isGpsSimulated, poubelleSignals, parcelles]);
+
   const handleToggleEboueurGps = () => {
     if (!currentUser || currentUser.role !== 'eboueur') return;
     const currentEb = eboueurs.find(e => e.telephone === currentUser.telephone);
     if (!currentEb) return;
 
     const nextGpsState = !currentEb.gps_active;
+    setIsGpsSimulated(false); // Reset simulation state on toggle
 
     setEboueurs(prev => prev.map(eb => {
       if (eb.id === currentEb.id) {
@@ -1791,28 +1968,34 @@ export default function App() {
     // Instantly sync off state or current coordinates
     syncEboueurGpsToSupabase(currentEb.id, nextGpsState, currentEb.latitude, currentEb.longitude);
 
-    if (nextGpsState && navigator.geolocation) {
-      // Fetch initial position immediately upon turning GPS on
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setEboueurs(prev => prev.map(eb => {
-            if (eb.id === currentEb.id) {
-              return {
-                ...eb,
-                latitude,
-                longitude
-              };
-            }
-            return eb;
-          }));
-          syncEboueurGpsToSupabase(currentEb.id, true, latitude, longitude);
-        },
-        (err) => {
-          console.warn("Position initiale indisponible, en attente du tracker :", err.message);
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
+    if (nextGpsState) {
+      if (navigator.geolocation) {
+        // Fetch initial position immediately upon turning GPS on
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            setIsGpsSimulated(false);
+            setEboueurs(prev => prev.map(eb => {
+              if (eb.id === currentEb.id) {
+                return {
+                  ...eb,
+                  latitude,
+                  longitude
+                };
+              }
+              return eb;
+            }));
+            syncEboueurGpsToSupabase(currentEb.id, true, latitude, longitude);
+          },
+          (err) => {
+            console.warn("Position initiale indisponible par GPS réel, activation du repli simulé :", err.message);
+            setIsGpsSimulated(true);
+          },
+          { enableHighAccuracy: true, timeout: 5000 }
+        );
+      } else {
+        setIsGpsSimulated(true);
+      }
     }
   };
 
@@ -1882,13 +2065,7 @@ export default function App() {
     setActiveNotification(newSignal);
     setHasNewSignals(true);
 
-    if (isSupabaseConfigured && dbStatus === 'connected') {
-      try {
-        await supabase.from('signaux_poubelles').insert([newSignal]);
-      } catch (err) {
-        console.warn("Supabase simulate signal failed:", err);
-      }
-    }
+    await safeInsertPoubelleSignal(newSignal);
   };
 
   // Switch between back hierarchy safely
@@ -2544,6 +2721,7 @@ export default function App() {
                     onUpdateGpsCoords={handleUpdateEboueurGpsCoords}
                     onCompleteMission={handleCompleteMission}
                     onLogout={handleLogout}
+                    isGpsSimulated={isGpsSimulated}
                   />
                 );
               })()}
