@@ -392,22 +392,72 @@ export default function App() {
         (payload) => {
           console.log("Realtime signaux_poubelles change received:", payload);
           if (payload.eventType === 'INSERT') {
-            const newSig = payload.new as PoubelleSignal;
+            const newSig = payload.new as any;
             if (!newSig) return;
             setPoubelleSignals(prev => {
               if (prev.some(s => s.id === newSig.id)) return prev;
-              setActiveNotification(newSig);
+
+              const rawStatus = newSig.status || newSig.statut || 'pending';
+              let mappedStatus: 'pending' | 'assigned' | 'completed' = 'pending';
+              if (rawStatus === 'assigned' || rawStatus === 'assigne') {
+                mappedStatus = 'assigned';
+              } else if (rawStatus === 'completed' || rawStatus === 'resolu' || rawStatus === 'complete' || rawStatus === 'termine') {
+                mappedStatus = 'completed';
+              }
+
+              const parc = parcelles.find(p => p.id === newSig.parcelle_id);
+              const ave = avenues.find(a => a.id === (newSig.avenue_id || parc?.avenue_id));
+              const comm = communes.find(c => c.id === (newSig.commune_id || ave?.commune_id));
+              const ab = abonnes.find(a => a.id === newSig.bailleur_id || a.parcelle_id === newSig.parcelle_id);
+
+              const formattedSig: PoubelleSignal = {
+                id: newSig.id,
+                parcelle_id: newSig.parcelle_id,
+                commune_id: newSig.commune_id || ave?.commune_id || '',
+                avenue_id: newSig.avenue_id || parc?.avenue_id || '',
+                commune_nom: newSig.commune_nom || comm?.nom || 'Kinshasa',
+                avenue_nom: newSig.avenue_nom || ave?.nom || 'Avenue Inconnue',
+                numero_parcelle: newSig.numero_parcelle || parc?.numero_parcelle || 'N/A',
+                bailleur_nom: newSig.bailleur_nom || ab?.nom_complet || 'Abonné',
+                bailleur_telephone: newSig.bailleur_telephone || ab?.telephone_principal || '',
+                status: mappedStatus,
+                assigned_eboueur_id: newSig.assigned_eboueur_id || newSig.eboueur_assigne_id || null,
+                reported_at: newSig.reported_at || newSig.created_at || new Date().toISOString(),
+                completed_at: newSig.completed_at || newSig.resolved_at || null,
+                type_poubelle: newSig.type_poubelle || 'biodegradable'
+              };
+
+              setActiveNotification(formattedSig);
               setHasNewSignals(true);
-              return [newSig, ...prev];
+              return [formattedSig, ...prev];
             });
           } else if (payload.eventType === 'UPDATE') {
-            const updatedSig = payload.new as PoubelleSignal;
+            const updatedSig = payload.new as any;
             if (!updatedSig) return;
-            setPoubelleSignals(prev => prev.map(s => s.id === updatedSig.id ? {
-              ...s,
-              ...updatedSig,
-              status: updatedSig.status as 'pending' | 'assigned' | 'completed'
-            } : s));
+            setPoubelleSignals(prev => prev.map(s => {
+              if (s.id !== updatedSig.id) return s;
+
+              const rawStatus = updatedSig.status || updatedSig.statut || s.status || 'pending';
+              let mappedStatus: 'pending' | 'assigned' | 'completed' = 'pending';
+              if (rawStatus === 'assigned' || rawStatus === 'assigne') {
+                mappedStatus = 'assigned';
+              } else if (rawStatus === 'completed' || rawStatus === 'resolu' || rawStatus === 'complete' || rawStatus === 'termine') {
+                mappedStatus = 'completed';
+              }
+
+              const assignedEboueurId = updatedSig.assigned_eboueur_id !== undefined ? updatedSig.assigned_eboueur_id : (updatedSig.eboueur_assigne_id !== undefined ? updatedSig.eboueur_assigne_id : s.assigned_eboueur_id);
+              const completedAt = updatedSig.completed_at || updatedSig.resolved_at || s.completed_at || null;
+              const reportedAt = updatedSig.reported_at || updatedSig.created_at || s.reported_at || new Date().toISOString();
+
+              return {
+                ...s,
+                status: mappedStatus,
+                assigned_eboueur_id: assignedEboueurId,
+                reported_at: reportedAt,
+                completed_at: completedAt,
+                type_poubelle: updatedSig.type_poubelle || s.type_poubelle || 'biodegradable'
+              };
+            }));
           } else if (payload.eventType === 'DELETE') {
             const oldSig = payload.old as { id: string };
             if (oldSig) {
@@ -449,7 +499,7 @@ export default function App() {
       console.log("Cleaning up Supabase Realtime channel...");
       supabase.removeChannel(channel);
     };
-  }, [isSupabaseConfigured]);
+  }, [isSupabaseConfigured, parcelles, avenues, communes, abonnes]);
 
   // Local Storage Synchronization for waste management
   useEffect(() => {
