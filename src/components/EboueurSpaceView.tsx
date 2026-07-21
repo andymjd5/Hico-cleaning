@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Eboueur, 
   PoubelleSignal 
@@ -13,7 +13,12 @@ import {
   Inbox, 
   History, 
   Radio, 
-  Phone
+  Phone,
+  Bug,
+  Terminal,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw
 } from 'lucide-react';
 
 interface EboueurSpaceViewProps {
@@ -35,8 +40,11 @@ export default function EboueurSpaceView({
   completedMissions,
   onToggleGps,
   onCompleteMission,
+  currentUser,
+  allRawSignals = [],
+  allAgents = []
 }: EboueurSpaceViewProps) {
-  
+  const [showDebugConsole, setShowDebugConsole] = useState(true);
   const hasActiveMission = assignedMissions.length > 0;
 
   return (
@@ -290,6 +298,159 @@ export default function EboueurSpaceView({
           </div>
         </div>
 
+      </div>
+
+      {/* Console de Diagnostic de Mission (Inspection & Debugging) */}
+      <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden text-slate-200 shadow-2xl font-sans mt-2">
+        {/* Header bar */}
+        <div 
+          onClick={() => setShowDebugConsole(!showDebugConsole)}
+          className="p-3.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between cursor-pointer hover:bg-slate-850 transition-colors select-none"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-indigo-500/20 text-indigo-400 rounded-lg">
+              <Terminal size={18} />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-2">
+                <span>Console de Diagnostic des Missions</span>
+                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-mono px-2 py-0.5 rounded-full border border-indigo-500/30">
+                  Mode Inspecteur 🛠️
+                </span>
+              </h4>
+              <p className="text-[10px] sm:text-xs text-slate-400 font-mono">
+                Inspecteur de correspondances d'identifiants, signaux bruts en base et statut du compte.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.location.reload();
+              }}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-mono flex items-center gap-1 transition-colors border border-slate-700 cursor-pointer"
+              title="Rafraîchir l'application"
+            >
+              <RefreshCw size={13} />
+              <span className="hidden sm:inline">Actualiser</span>
+            </button>
+            <div className="p-1 bg-slate-800 rounded-lg text-slate-400">
+              {showDebugConsole ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </div>
+          </div>
+        </div>
+
+        {/* Console Content */}
+        {showDebugConsole && (
+          <div className="p-4 sm:p-5 flex flex-col gap-4 bg-slate-950/90 text-xs font-mono">
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase block font-bold">Session Utilisateur</span>
+                <span className="text-sm font-bold text-indigo-300 truncate block">
+                  {currentUser?.nom || currentEboueur.nom}
+                </span>
+                <span className="text-[10px] text-slate-500 block truncate">Rôle: {currentUser?.role || 'éboueur'}</span>
+              </div>
+
+              <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase block font-bold">Identifiant Agent</span>
+                <span className="text-xs font-bold text-slate-200 truncate block">{currentEboueur.id}</span>
+                <span className="text-[10px] text-slate-500 block">Tél: {currentEboueur.telephone}</span>
+              </div>
+
+              <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase block font-bold">Signaux Réseau</span>
+                <span className="text-sm font-bold text-amber-400">
+                  {allRawSignals.length} au total
+                </span>
+                <span className="text-[10px] text-slate-500 block">
+                  {allRawSignals.filter(s => s.status === 'assigned').length} assignés
+                </span>
+              </div>
+
+              <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase block font-bold">Mes Missions Filtrées</span>
+                <span className="text-sm font-bold text-emerald-400">
+                  {assignedMissions.length} active(s)
+                </span>
+                <span className="text-[10px] text-slate-500 block">
+                  {completedMissions.length} terminée(s)
+                </span>
+              </div>
+            </div>
+
+            {/* Table of all active/assigned signals in system */}
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between items-center text-slate-300 font-bold text-xs">
+                <span className="flex items-center gap-1.5">
+                  <Bug size={14} className="text-amber-400" />
+                  <span>Signaux Assignés sur le Réseau ({allRawSignals.filter(s => s.status === 'assigned').length}) :</span>
+                </span>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-800 rounded-xl bg-slate-900/60 max-h-60 overflow-y-auto">
+                <table className="w-full text-left border-collapse text-[11px]">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] bg-slate-900">
+                      <th className="p-2">ID Signal</th>
+                      <th className="p-2">Adresse</th>
+                      <th className="p-2">ID Éboueur Assigné</th>
+                      <th className="p-2">Statut</th>
+                      <th className="p-2">Affiché pour Vous ?</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                    {allRawSignals.filter(s => s.status === 'assigned').length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-4 text-center text-slate-500 italic">
+                          Aucun signalement avec le statut "assigned" actuellement dans la base de données.
+                        </td>
+                      </tr>
+                    ) : (
+                      allRawSignals.filter(s => s.status === 'assigned').map((sig) => {
+                        const isAssignedToThisEboueur = assignedMissions.some(m => m.id === sig.id);
+                        const rawAssignedId = sig.assigned_eboueur_id || (sig as any).eboueur_assigne_id || (sig as any).eboueur_id || 'Aucun';
+
+                        return (
+                          <tr key={sig.id} className="hover:bg-slate-800/40">
+                            <td className="p-2 text-indigo-300 font-mono">{sig.id.substring(0, 8)}...</td>
+                            <td className="p-2 font-sans font-medium">N° {sig.numero_parcelle}, Av. {sig.avenue_nom}</td>
+                            <td className="p-2 text-amber-300 font-mono">{rawAssignedId}</td>
+                            <td className="p-2">
+                              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] uppercase font-bold">
+                                {sig.status}
+                              </span>
+                            </td>
+                            <td className="p-2">
+                              {isAssignedToThisEboueur ? (
+                                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                                  <Check size={13} /> OUI (Affiché)
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic">
+                                  Non (Pas assigné à vous)
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-slate-500 leading-relaxed border-t border-slate-800/80 pt-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1">
+              <span>
+                💡 ASTUCE : Si un signalement est assigné à n'importe quel chauffeur ou agent, il sera immédiatement visible dans la liste des missions actives.
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
     </div>
