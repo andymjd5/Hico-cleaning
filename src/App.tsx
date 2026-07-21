@@ -2772,90 +2772,15 @@ export default function App() {
                 };
 
                 const isMissionAssignedToMe = (sig: PoubelleSignal, statusCheck: 'assigned' | 'completed') => {
-                  if (!currentUser || sig.status !== statusCheck) {
+                  if (!sig || sig.status !== statusCheck) {
                     return false;
                   }
-
-                  const assignedId = (
-                    sig.assigned_eboueur_id || 
-                    (sig as any).eboueur_assigne_id || 
-                    (sig as any).eboueur_id || 
-                    ''
-                  ).toString().trim().toLowerCase();
-
-                  if (!assignedId) {
-                    // If status is assigned/completed but no driver ID was set, display it in driver space
-                    return true;
-                  }
-
-                  // 1. Direct ID matches
-                  const currentUserId = (currentUser.id || '').toString().trim().toLowerCase();
-                  const currentEbId = (currentEb.id || '').toString().trim().toLowerCase();
-
-                  if (currentUserId && assignedId === currentUserId) return true;
-                  if (currentEbId && assignedId === currentEbId) return true;
-
-                  // 2. Direct name matches (with robust substring/fuzzy checks)
-                  const userNom = (currentUser.nom || '').trim().toLowerCase();
-                  const currentEbNom = (currentEb.nom || '').trim().toLowerCase();
-                  const cleanAssignedId = assignedId.replace(/\s+/g, '');
-                  const cleanUserNom = userNom.replace(/\s+/g, '');
-                  const cleanEbNom = currentEbNom.replace(/\s+/g, '');
-
-                  if (cleanAssignedId && (cleanAssignedId === cleanUserNom || cleanAssignedId === cleanEbNom)) return true;
-                  if (userNom && (userNom.includes(assignedId) || assignedId.includes(userNom))) return true;
-                  if (currentEbNom && (currentEbNom.includes(assignedId) || assignedId.includes(currentEbNom))) return true;
-
-                  // 3. Direct phone matches
-                  const userPhoneClean = cleanPhoneNum(currentUser.telephone);
-                  const currentEbPhoneClean = cleanPhoneNum(currentEb.telephone);
-                  const assignedPhoneClean = cleanPhoneNum(assignedId);
-
-                  if (userPhoneClean && assignedPhoneClean && assignedPhoneClean === userPhoneClean) return true;
-                  if (currentEbPhoneClean && assignedPhoneClean && assignedPhoneClean === currentEbPhoneClean) return true;
-
-                  // 4. Look up database records to cross-reference
-                  const matchedAgent = agents.find(a => a.id.trim().toLowerCase() === assignedId) || 
-                                       eboueurs.find(e => e.id.trim().toLowerCase() === assignedId);
-
-                  if (matchedAgent) {
-                    const agentPhoneClean = cleanPhoneNum(matchedAgent.telephone);
-                    const agentNomClean = (matchedAgent.nom || '').trim().toLowerCase();
-                    const cleanAgentNom = agentNomClean.replace(/\s+/g, '');
-
-                    if (userPhoneClean && agentPhoneClean && agentPhoneClean === userPhoneClean) return true;
-                    if (currentEbPhoneClean && agentPhoneClean && agentPhoneClean === currentEbPhoneClean) return true;
-                    if (cleanAgentNom && (cleanAgentNom === cleanUserNom || cleanAgentNom === cleanEbNom)) return true;
-                    if (userNom && (userNom.includes(agentNomClean) || agentNomClean.includes(userNom))) return true;
-                    if (currentEbNom && (currentEbNom.includes(agentNomClean) || agentNomClean.includes(currentEbNom))) return true;
-
-                    // Special test bypass for user testing with multiple accounts
-                    const uNom = userNom.toLowerCase();
-                    const aNom = agentNomClean.toLowerCase();
-                    if ((uNom.includes('maj') || uNom.includes('andymj') || uNom.includes('eboueur') || uNom.includes('chauffeur') || uNom.includes('agent')) && 
-                        (aNom.includes('maj') || aNom.includes('andymj') || aNom.includes('eboueur') || aNom.includes('chauffeur') || aNom.includes('agent'))) {
-                      return true;
-                    }
-                  }
-
-                  // 5. If user is in driver space / has driver role, permit viewing assigned missions
-                  if (currentUser.role === 'eboueur' || currentUser.role === 'chauffeur' || currentUser.role === 'agent' || currentUser.role === 'super_admin' || currentUser.role === 'admin') {
-                    return true;
-                  }
-
-                  return false;
+                  // In Eboueur Space, all missions marked as 'assigned' or 'completed' are displayed to the active driver/agent
+                  return true;
                 };
 
-                let myAssignedMissions = poubelleSignals.filter(s => isMissionAssignedToMe(s, 'assigned'));
-                let myCompletedMissions = poubelleSignals.filter(s => isMissionAssignedToMe(s, 'completed'));
-
-                // Safety fallback: if specific matching produced 0 assigned missions, but there ARE assigned signals in system
-                if (myAssignedMissions.length === 0) {
-                  myAssignedMissions = poubelleSignals.filter(s => s.status === 'assigned');
-                }
-                if (myCompletedMissions.length === 0) {
-                  myCompletedMissions = poubelleSignals.filter(s => s.status === 'completed');
-                }
+                const myAssignedMissions = poubelleSignals.filter(s => s.status === 'assigned');
+                const myCompletedMissions = poubelleSignals.filter(s => s.status === 'completed');
 
                 return (
                   <EboueurSpaceView 
