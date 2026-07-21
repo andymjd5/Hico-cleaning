@@ -69,10 +69,6 @@ export default function App() {
     if (saved) {
       try {
         const user = JSON.parse(saved);
-        if (user && (user.telephone === '0890890000' || (user.nom && user.nom.toLowerCase().includes('andy mj')))) {
-          localStorage.removeItem('hico_current_user');
-          return null;
-        }
         return user;
       } catch (e) {
         return null;
@@ -87,9 +83,6 @@ export default function App() {
     if (saved) {
       try {
         const user = JSON.parse(saved);
-        if (user && (user.telephone === '0890890000' || (user.nom && user.nom.toLowerCase().includes('andy mj')))) {
-          return 'login';
-        }
         if (user.role === 'abonne') return 'abonne_space';
         if (user.role === 'eboueur') return 'eboueur_space';
         return 'dashboard';
@@ -107,11 +100,9 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Keep only admin-1 and filter out any hardcoded demo users or local testing leftovers like andy mj
+          // Keep only admin-1 and filter out any hardcoded demo users
           return parsed.filter(a => 
-            (a.id === 'admin-1' || !['agent-1', 'abonne-demo', 'eboueur-demo'].includes(a.id)) &&
-            a.telephone !== '0890890000' &&
-            !(a.nom && a.nom.toLowerCase().includes('andy mj'))
+            (a.id === 'admin-1' || !['agent-1', 'abonne-demo', 'eboueur-demo'].includes(a.id))
           );
         }
       } catch (e) {
@@ -222,11 +213,9 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Filter out demo eboueurs and local testing leftovers like andy mj
+          // Filter out demo eboueurs
           return parsed.filter(e => 
-            !['eb-1', 'eb-2', 'eb-3', 'eboueur-demo'].includes(e.id) &&
-            e.telephone !== '0890890000' &&
-            !(e.nom && e.nom.toLowerCase().includes('andy mj'))
+            !['eb-1', 'eb-2', 'eb-3', 'eboueur-demo'].includes(e.id)
           );
         }
       } catch (e) {
@@ -419,16 +408,11 @@ export default function App() {
   // Synchroniser les agents de rôle 'eboueur' avec la liste 'eboueurs' pour l'affichage de la carte
   useEffect(() => {
     const eboueursFromAgents = agents.filter(a => 
-      a.role === 'eboueur' && 
-      a.telephone !== '0890890000' && 
-      !(a.nom && a.nom.toLowerCase().includes('andy mj'))
+      a.role === 'eboueur'
     );
     let hasChanges = false;
     // Keep only clean eboueurs
-    const updatedEboueurs = eboueurs.filter(e => 
-      e.telephone !== '0890890000' && 
-      !(e.nom && e.nom.toLowerCase().includes('andy mj'))
-    );
+    const updatedEboueurs = eboueurs.filter(e => true);
 
     if (updatedEboueurs.length !== eboueurs.length) {
       hasChanges = true;
