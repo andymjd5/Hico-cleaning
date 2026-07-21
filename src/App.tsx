@@ -2817,6 +2817,14 @@ export default function App() {
                     if (cleanAgentNom === cleanUserNom || cleanAgentNom === cleanEbNom) return true;
                     if (userNom.includes(agentNomClean) || agentNomClean.includes(userNom)) return true;
                     if (currentEbNom.includes(agentNomClean) || agentNomClean.includes(currentEbNom)) return true;
+
+                    // Special test bypass for user testing with multiple accounts (e.g. 'maj' and 'andymj')
+                    const uNom = userNom.toLowerCase();
+                    const aNom = agentNomClean.toLowerCase();
+                    if ((uNom.includes('maj') || uNom.includes('andymj')) && 
+                        (aNom.includes('maj') || aNom.includes('andymj'))) {
+                      return true;
+                    }
                   }
 
                   return false;
