@@ -28,7 +28,13 @@ import {
   AlertTriangle,
   Play,
   Layers,
-  X
+  X,
+  History,
+  Search,
+  Filter,
+  FileText,
+  Check,
+  ExternalLink
 } from 'lucide-react';
 
 interface DechetsMapViewProps {
@@ -58,7 +64,48 @@ export default function DechetsMapView({
 }: DechetsMapViewProps) {
   const [selectedSignalId, setSelectedSignalIdState] = useState<string | null>(initialSelectedSignalId || null);
   const [selectedEboueurId, setSelectedEboueurId] = useState<string | null>(null);
-  const [showAllParcelles, setShowAllParcelles] = useState<boolean>(true);
+  const [showAllParcelles, setShowAllParcelles] = useState<boolean>(false);
+  
+  // Realtime clock tick to auto-hide validated houses after 5 minutes
+  const [nowTick, setNowTick] = useState<number>(Date.now());
+
+  // History Modal States
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'pending' | 'assigned' | 'completed'>('all');
+
+  // Periodically update nowTick every 10 seconds to auto-remove completed markers > 5min
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowTick(Date.now());
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Compute signals that should be rendered on the interactive Leaflet map
+  // Rules:
+  // 1. Always show active alerts ('pending' or 'assigned')
+  // 2. If completed, ONLY show if completed within the last 5 minutes (300,000 ms)
+  // 3. Always show if explicitly selected (e.g. localized by admin or clicked in history)
+  const visibleSignalsOnMap = useMemo(() => {
+    const FIVE_MINUTES_MS = 5 * 60 * 1000;
+
+    return signals.filter((sig) => {
+      if (selectedSignalId === sig.id) return true;
+
+      if (sig.status === 'pending' || sig.status === 'assigned') return true;
+
+      if (sig.status === 'completed') {
+        if (!sig.completed_at) return false;
+        const completedTime = new Date(sig.completed_at).getTime();
+        if (!isNaN(completedTime) && (nowTick - completedTime) <= FIVE_MINUTES_MS) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+  }, [signals, selectedSignalId, nowTick]);
 
   // Compute active/idle statuses dynamically from current active signals
   const computedEboueurs = useMemo(() => {
@@ -275,12 +322,13 @@ export default function DechetsMapView({
 
     const markerGroup = markerGroupRef.current;
 
-    // Plot Signals
-    signals.forEach((sig) => {
+    // Plot Visible Signals (Pending, Assigned, Completed < 5min, or Selected)
+    visibleSignalsOnMap.forEach((sig) => {
       const coords = getSignalCoords(sig);
       const isSelected = selectedSignalId === sig.id;
       const isPending = sig.status === 'pending';
       const isAssigned = sig.status === 'assigned';
+      const isCompleted = sig.status === 'completed';
 
       let markerColor = 'bg-error';
       let iconHtml = '🚨';
@@ -319,6 +367,10 @@ export default function DechetsMapView({
 
       const marker = window.L.marker([coords.lat, coords.lng], { icon: customIcon });
       
+      const completedAgoSec = sig.completed_at ? Math.max(0, Math.floor((nowTick - new Date(sig.completed_at).getTime()) / 1000)) : 0;
+      const remainingSec = Math.max(0, 300 - completedAgoSec);
+      const remainingMin = Math.ceil(remainingSec / 60);
+
       marker.bindPopup(`
         <div class="text-xs p-1 leading-normal" style="color: #0b1c30; font-family: sans-serif;">
           <strong class="text-primary block font-bold text-sm mb-1">Parcelle N° ${sig.numero_parcelle}</strong>
@@ -326,6 +378,7 @@ export default function DechetsMapView({
           <strong>Commune:</strong> ${sig.commune_nom}<br/>
           <strong>Bailleur:</strong> ${sig.bailleur_nom}<br/>
           <strong>Signalé à:</strong> ${sig.reported_at.substring(11, 16)}<br/>
+          ${isCompleted ? `<div class="mt-1 font-bold text-[10px] text-emerald-700 bg-emerald-50 p-1 rounded border border-emerald-200">✅ Action validée — Masquage automatique dans ${remainingMin} min</div>` : ''}
           <div class="mt-1.5 font-bold text-[10px] uppercase inline-block px-1.5 py-0.5 rounded ${isPending ? 'bg-red-100 text-red-700' : isAssigned ? 'bg-yellow-100 text-yellow-700' : 'bg-emerald-100 text-emerald-700'}">
             ${sig.status === 'pending' ? 'Poubelle Pleine 🚨' : sig.status === 'assigned' ? 'Assigné 🚚' : 'Vidé ✔'}
           </div>
@@ -423,7 +476,7 @@ export default function DechetsMapView({
       });
     }
 
-  }, [isMapReady, signals, computedEboueurs, selectedSignalId, selectedEboueurId, showAllParcelles, parcelGpsPoints, abonnes, avenues, communes]);
+  }, [isMapReady, visibleSignalsOnMap, computedEboueurs, selectedSignalId, selectedEboueurId, showAllParcelles, parcelGpsPoints, abonnes, avenues, communes, nowTick]);
 
   // Center & fly map to selected items
   useEffect(() => {
@@ -1027,13 +1080,18 @@ export default function DechetsMapView({
             )}
           </div>
 
-          {/* Section B: Signal Logs / Mission Feed */}
-          <div className="bg-surface border border-outline-variant rounded-2xl flex flex-col h-[280px]">
+          {/* Section B: Signal Logs / Mission Feed (Shows 10 most recent) */}
+          <div className="bg-surface border border-outline-variant rounded-2xl flex flex-col h-[320px]">
             {/* Header / Tabs */}
             <div className="p-3 border-b border-outline-variant/50 flex flex-col gap-2 shrink-0">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1">
-                <Bell size={12} className="text-error" /> Journal des alertes
-              </span>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1">
+                  <Bell size={12} className="text-error" /> Journal des alertes
+                </span>
+                <span className="text-[9px] bg-primary/10 text-primary border border-primary/20 font-bold px-1.5 py-0.5 rounded-full">
+                  10 plus récentes
+                </span>
+              </div>
               <div className="flex bg-background border border-outline-variant p-0.5 rounded-lg text-[10px] font-bold">
                 <button
                   onClick={() => setActiveTab('all')}
@@ -1056,14 +1114,22 @@ export default function DechetsMapView({
               </div>
             </div>
 
-            {/* List area */}
+            {/* List area (Top 10 signals) */}
             <div className="flex-grow overflow-y-auto p-2 flex flex-col gap-1.5">
-              {filteredSignals.length === 0 ? (
-                <div className="text-center py-12 text-xs text-on-surface-variant italic">
-                  Aucun signalement trouvé.
-                </div>
-              ) : (
-                filteredSignals.map((sig) => {
+              {(() => {
+                const recentTen = [...filteredSignals]
+                  .sort((a, b) => new Date(b.reported_at).getTime() - new Date(a.reported_at).getTime())
+                  .slice(0, 10);
+
+                if (recentTen.length === 0) {
+                  return (
+                    <div className="text-center py-10 text-xs text-on-surface-variant italic">
+                      Aucun signalement trouvé.
+                    </div>
+                  );
+                }
+
+                return recentTen.map((sig) => {
                   const isPending = sig.status === 'pending';
                   const isAssigned = sig.status === 'assigned';
                   return (
@@ -1115,14 +1181,281 @@ export default function DechetsMapView({
                       </div>
                     </button>
                   );
-                })
-              )}
+                });
+              })()}
+            </div>
+
+            {/* Bottom Trigger for Full History */}
+            <div className="p-2 border-t border-outline-variant/40 bg-background/30">
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(true)}
+                className="w-full py-2 px-3 bg-secondary/15 hover:bg-secondary/25 text-secondary border border-secondary/30 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-[0.98]"
+              >
+                <History size={14} />
+                <span>Voir l'Historique complet ({signals.length}) 📋</span>
+              </button>
             </div>
           </div>
 
         </div>
 
       </div>
+
+      {/* ========================================================================= */}
+      {/* HISTORIQUE COMPLET DES ALERTES MODAL                                      */}
+      {/* ========================================================================= */}
+      {isHistoryModalOpen && (
+        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-fade-in">
+          <div className="bg-surface border border-outline-variant rounded-3xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="p-4 sm:p-6 border-b border-outline-variant flex justify-between items-center bg-background/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-secondary/15 text-secondary rounded-2xl border border-secondary/20">
+                  <History size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-extrabold text-on-surface">
+                    Historique Complet des Alertes de Salubrité
+                  </h3>
+                  <p className="text-xs text-on-surface-variant font-medium">
+                    Registre officiel de toutes les alertes reçues, missions assignées et nettoyages effectués à Kinshasa.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="p-2 rounded-xl bg-surface hover:bg-outline-variant/30 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer border border-outline-variant/50"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Quick Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-background/30 border-b border-outline-variant/60">
+              <div className="bg-surface p-3 rounded-2xl border border-outline-variant/60 flex flex-col">
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Total Alertes</span>
+                <span className="text-xl font-black text-on-surface">{signals.length}</span>
+              </div>
+              <div className="bg-surface p-3 rounded-2xl border border-error/20 flex flex-col">
+                <span className="text-[10px] font-bold text-error uppercase tracking-wider">Poubelles Pleines</span>
+                <span className="text-xl font-black text-error">
+                  {signals.filter(s => s.status === 'pending').length}
+                </span>
+              </div>
+              <div className="bg-surface p-3 rounded-2xl border border-yellow-500/20 flex flex-col">
+                <span className="text-[10px] font-bold text-yellow-500 uppercase tracking-wider">Missions en cours</span>
+                <span className="text-xl font-black text-yellow-500">
+                  {signals.filter(s => s.status === 'assigned').length}
+                </span>
+              </div>
+              <div className="bg-surface p-3 rounded-2xl border border-emerald-500/20 flex flex-col">
+                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">Nettoyées / Vidées</span>
+                <span className="text-xl font-black text-emerald-500">
+                  {signals.filter(s => s.status === 'completed').length}
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Controls: Search & Filters */}
+            <div className="p-4 border-b border-outline-variant/60 flex flex-col sm:flex-row gap-3 items-center justify-between bg-surface">
+              {/* Search Bar */}
+              <div className="relative w-full sm:w-96">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                <input
+                  type="text"
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  placeholder="Rechercher par parcelle, bailleur, avenue, commune..."
+                  className="w-full h-10 pl-9 pr-8 bg-background border border-outline-variant rounded-xl text-xs font-medium text-on-surface focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary"
+                />
+                {historySearch && (
+                  <button
+                    onClick={() => setHistorySearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div className="flex bg-background border border-outline-variant p-1 rounded-xl text-xs font-bold w-full sm:w-auto overflow-x-auto">
+                <button
+                  onClick={() => setHistoryStatusFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    historyStatusFilter === 'all' ? 'bg-secondary text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  Toutes ({signals.length})
+                </button>
+                <button
+                  onClick={() => setHistoryStatusFilter('pending')}
+                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    historyStatusFilter === 'pending' ? 'bg-error text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  Pleines ({signals.filter(s => s.status === 'pending').length})
+                </button>
+                <button
+                  onClick={() => setHistoryStatusFilter('assigned')}
+                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    historyStatusFilter === 'assigned' ? 'bg-yellow-500 text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  En cours ({signals.filter(s => s.status === 'assigned').length})
+                </button>
+                <button
+                  onClick={() => setHistoryStatusFilter('completed')}
+                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    historyStatusFilter === 'completed' ? 'bg-emerald-600 text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  Vidées ({signals.filter(s => s.status === 'completed').length})
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Table Body */}
+            <div className="flex-grow overflow-y-auto p-4">
+              {(() => {
+                const filteredHistory = signals.filter(sig => {
+                  if (historyStatusFilter !== 'all' && sig.status !== historyStatusFilter) return false;
+
+                  if (historySearch.trim()) {
+                    const q = historySearch.toLowerCase().trim();
+                    const matchParcelle = sig.numero_parcelle.toLowerCase().includes(q);
+                    const matchBailleur = sig.bailleur_nom.toLowerCase().includes(q);
+                    const matchPhone = sig.bailleur_telephone ? sig.bailleur_telephone.toLowerCase().includes(q) : false;
+                    const matchAvenue = sig.avenue_nom.toLowerCase().includes(q);
+                    const matchCommune = sig.commune_nom.toLowerCase().includes(q);
+                    const ebObj = sig.assigned_eboueur_id ? eboueurs.find(e => e.id === sig.assigned_eboueur_id) : null;
+                    const matchEboueur = ebObj ? ebObj.nom.toLowerCase().includes(q) : false;
+
+                    return matchParcelle || matchBailleur || matchPhone || matchAvenue || matchCommune || matchEboueur;
+                  }
+                  return true;
+                }).sort((a, b) => new Date(b.reported_at).getTime() - new Date(a.reported_at).getTime());
+
+                if (filteredHistory.length === 0) {
+                  return (
+                    <div className="text-center py-16 text-on-surface-variant">
+                      <Trash2 size={36} className="mx-auto opacity-30 mb-2" />
+                      <p className="text-sm font-semibold">Aucune alerte ne correspond à votre recherche.</p>
+                      <button
+                        onClick={() => { setHistorySearch(''); setHistoryStatusFilter('all'); }}
+                        className="mt-3 px-4 py-1.5 bg-surface border border-outline-variant rounded-xl text-xs font-bold text-primary hover:bg-background cursor-pointer"
+                      >
+                        Réinitialiser les filtres
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-outline-variant/60 text-on-surface-variant uppercase text-[10px] font-black tracking-wider bg-background/50">
+                          <th className="p-3">Statut</th>
+                          <th className="p-3">Adresse & Parcelle</th>
+                          <th className="p-3">Bailleur / Contact</th>
+                          <th className="p-3">Agent Éboueur</th>
+                          <th className="p-3">Date Signalement</th>
+                          <th className="p-3">Date Validation</th>
+                          <th className="p-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant/30 font-medium text-on-surface">
+                        {filteredHistory.map((sig) => {
+                          const isPending = sig.status === 'pending';
+                          const isAssigned = sig.status === 'assigned';
+                          const assignedEb = sig.assigned_eboueur_id ? eboueurs.find(e => e.id === sig.assigned_eboueur_id) : null;
+
+                          return (
+                            <tr key={sig.id} className="hover:bg-background/60 transition-colors">
+                              <td className="p-3 whitespace-nowrap">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${
+                                  isPending 
+                                    ? 'bg-error/15 text-error border-error/30' 
+                                    : isAssigned 
+                                      ? 'bg-yellow-500/15 text-yellow-600 border-yellow-500/30' 
+                                      : 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30'
+                                }`}>
+                                  {isPending ? '🚨 Poubelle Pleine' : isAssigned ? '🚚 En Mission' : '✅ Vidée / Traitée'}
+                                </span>
+                              </td>
+                              <td className="p-3">
+                                <div className="font-bold text-on-surface">N° {sig.numero_parcelle}, Av. {sig.avenue_nom}</div>
+                                <div className="text-[10px] text-on-surface-variant">{sig.commune_nom}</div>
+                              </td>
+                              <td className="p-3">
+                                <div className="font-bold text-on-surface">{sig.bailleur_nom}</div>
+                                <div className="text-[10px] text-on-surface-variant font-mono">{sig.bailleur_telephone || 'Non renseigné'}</div>
+                              </td>
+                              <td className="p-3">
+                                {assignedEb ? (
+                                  <div>
+                                    <div className="font-bold text-secondary">{assignedEb.nom}</div>
+                                    <div className="text-[10px] text-on-surface-variant font-mono">{assignedEb.telephone}</div>
+                                  </div>
+                                ) : (
+                                  <span className="text-on-surface-variant italic text-[11px]">Non encore assigné</span>
+                                )}
+                              </td>
+                              <td className="p-3 whitespace-nowrap font-mono text-[11px] text-on-surface-variant">
+                                {sig.reported_at.replace('T', ' à ').substring(0, 18)}
+                              </td>
+                              <td className="p-3 whitespace-nowrap font-mono text-[11px]">
+                                {sig.completed_at ? (
+                                  <span className="text-emerald-600 font-bold">
+                                    {sig.completed_at.replace('T', ' à ').substring(0, 18)}
+                                  </span>
+                                ) : (
+                                  <span className="text-on-surface-variant italic">—</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-right whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsHistoryModalOpen(false);
+                                    setSelectedSignalId(sig.id);
+                                    setSelectedEboueurId(null);
+                                  }}
+                                  className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 ml-auto cursor-pointer"
+                                >
+                                  <MapPin size={13} />
+                                  <span>Localiser 📍</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-outline-variant bg-background/50 flex justify-between items-center text-xs text-on-surface-variant">
+              <span>Affiche {signals.length} alertes enregistrées sur le réseau.</span>
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="px-5 py-2 bg-surface hover:bg-outline-variant/30 text-on-surface border border-outline-variant rounded-xl font-bold transition-all cursor-pointer"
+              >
+                Fermer
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
