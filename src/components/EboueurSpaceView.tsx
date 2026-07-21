@@ -129,94 +129,108 @@ export default function EboueurSpaceView({
         {/* Active Mission Panel (Left 2 columns) */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           <div className="bg-surface border border-outline-variant rounded-2xl p-4 sm:p-6 shadow-md flex-grow flex flex-col gap-4">
-            <h3 className="text-sm sm:text-base font-extrabold text-on-surface flex items-center gap-2 border-b border-outline-variant/30 pb-3">
-              <Inbox size={20} className="text-secondary shrink-0" />
-              <span>Mission de Collecte Active</span>
-            </h3>
+            <div className="flex justify-between items-center border-b border-outline-variant/30 pb-3">
+              <h3 className="text-sm sm:text-base font-extrabold text-on-surface flex items-center gap-2">
+                <Inbox size={20} className="text-secondary shrink-0" />
+                <span>Mission(s) de Collecte Active(s)</span>
+              </h3>
+              {hasActiveMission && (
+                <span className="text-xs bg-secondary/15 text-secondary border border-secondary/30 font-black px-2.5 py-1 rounded-full">
+                  {assignedMissions.length} {assignedMissions.length > 1 ? 'missions à faire' : 'mission'}
+                </span>
+              )}
+            </div>
 
             {hasActiveMission ? (
-              <div className="flex flex-col gap-4 flex-grow justify-between">
-                <div className="bg-background/40 border border-outline-variant rounded-2xl p-4 sm:p-5 flex flex-col gap-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2.5 bg-error/15 text-error rounded-xl shrink-0 mt-0.5">
-                        <MapPin size={22} />
+              <div className="flex flex-col gap-4 flex-grow">
+                {assignedMissions.map((mission, idx) => (
+                  <div key={mission.id} className="bg-background/40 border border-outline-variant rounded-2xl p-4 sm:p-5 flex flex-col gap-4 shadow-sm relative overflow-hidden">
+                    {assignedMissions.length > 1 && (
+                      <div className="text-[10px] font-extrabold uppercase tracking-widest text-secondary bg-secondary/10 px-2.5 py-0.5 rounded-md w-max border border-secondary/20">
+                        Mission #{idx + 1}
                       </div>
-                      <div className="flex flex-col gap-0.5">
-                        <h4 className="text-xs sm:text-sm font-black text-on-surface uppercase tracking-wider">
-                          Adresse de ramassage :
-                        </h4>
-                        <p className="text-base sm:text-lg font-black text-primary">
-                          Parcelle N° {assignedMissions[0].numero_parcelle}
-                        </p>
-                        <p className="text-xs sm:text-sm text-on-surface-variant font-medium leading-relaxed">
-                          Avenue {assignedMissions[0].avenue_nom}, Commune de {assignedMissions[0].commune_nom}
-                        </p>
+                    )}
+                    <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2.5 bg-error/15 text-error rounded-xl shrink-0 mt-0.5">
+                          <MapPin size={22} />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <h4 className="text-xs sm:text-sm font-black text-on-surface uppercase tracking-wider">
+                            Adresse de ramassage :
+                          </h4>
+                          <p className="text-base sm:text-lg font-black text-primary">
+                            Parcelle N° {mission.numero_parcelle}
+                          </p>
+                          <p className="text-xs sm:text-sm text-on-surface-variant font-medium leading-relaxed">
+                            Avenue {mission.avenue_nom}, Commune de {mission.commune_nom}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="self-start sm:self-auto shrink-0">
+                        {mission.type_poubelle === 'biodegradable' ? (
+                          <span className="inline-flex items-center text-[10px] sm:text-xs font-mono bg-emerald-500/15 text-emerald-400 px-3 py-1.5 rounded-full font-bold uppercase border border-emerald-500/20 whitespace-nowrap">
+                            Biodégradable (Vert) 🟢
+                          </span>
+                        ) : mission.type_poubelle === 'non_biodegradable' ? (
+                          <span className="inline-flex items-center text-[10px] sm:text-xs font-mono bg-indigo-500/15 text-indigo-400 px-3 py-1.5 rounded-full font-bold uppercase border border-indigo-500/20 whitespace-nowrap">
+                            Non-Dégradable (Gris) ⚪
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center text-[10px] sm:text-xs font-mono bg-error/15 text-error px-3 py-1.5 rounded-full font-bold uppercase border border-error/20 whitespace-nowrap">
+                            Poubelle Pleine 🚨
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <div className="self-start sm:self-auto shrink-0">
-                      {assignedMissions[0].type_poubelle === 'biodegradable' ? (
-                        <span className="inline-flex items-center text-[10px] sm:text-xs font-mono bg-emerald-500/15 text-emerald-400 px-3 py-1.5 rounded-full font-bold uppercase border border-emerald-500/20 whitespace-nowrap">
-                          Biodégradable (Vert) 🟢
+                    {/* Landlord metadata */}
+                    <div className="border-t border-b border-outline-variant/30 py-3.5 flex flex-col gap-2 text-xs sm:text-sm">
+                      <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+                        Informations de l'Abonné (Bailleur)
+                      </span>
+                      <span className="font-extrabold text-on-surface text-sm sm:text-base">
+                        {mission.bailleur_nom}
+                      </span>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-1">
+                        <a 
+                          href={`tel:${mission.bailleur_telephone}`}
+                          className="inline-flex items-center gap-2 px-3 py-2 bg-secondary/10 hover:bg-secondary/20 text-secondary rounded-xl font-bold font-mono text-xs transition-colors cursor-pointer w-max border border-secondary/20"
+                        >
+                          <Phone size={14} />
+                          <span>{mission.bailleur_telephone || 'Inconnu'}</span>
+                        </a>
+                        <span className="text-[10px] sm:text-xs font-semibold text-emerald-400 bg-emerald-950/30 px-2.5 py-1 rounded-lg border border-emerald-900/40 w-max">
+                          ➜ Sac de rechange {mission.type_poubelle === 'biodegradable' ? 'biodégradable' : 'non-dégradable'} prêt pour échange
                         </span>
-                      ) : assignedMissions[0].type_poubelle === 'non_biodegradable' ? (
-                        <span className="inline-flex items-center text-[10px] sm:text-xs font-mono bg-indigo-500/15 text-indigo-400 px-3 py-1.5 rounded-full font-bold uppercase border border-indigo-500/20 whitespace-nowrap">
-                          Non-Dégradable (Gris) ⚪
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center text-[10px] sm:text-xs font-mono bg-error/15 text-error px-3 py-1.5 rounded-full font-bold uppercase border border-error/20 whitespace-nowrap">
-                          Poubelle Pleine 🚨
-                        </span>
-                      )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Landlord metadata */}
-                  <div className="border-t border-b border-outline-variant/30 py-3.5 flex flex-col gap-2 text-xs sm:text-sm">
-                    <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
-                      Informations de l'Abonné (Bailleur)
-                    </span>
-                    <span className="font-extrabold text-on-surface text-sm sm:text-base">
-                      {assignedMissions[0].bailleur_nom}
-                    </span>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-1">
-                      <a 
-                        href={`tel:${assignedMissions[0].bailleur_telephone}`}
-                        className="inline-flex items-center gap-2 px-3 py-2 bg-secondary/10 hover:bg-secondary/20 text-secondary rounded-xl font-bold font-mono text-xs transition-colors cursor-pointer w-max border border-secondary/20"
-                      >
-                        <Phone size={14} />
-                        <span>{assignedMissions[0].bailleur_telephone}</span>
-                      </a>
-                      <span className="text-[10px] sm:text-xs font-semibold text-emerald-400 bg-emerald-950/30 px-2.5 py-1 rounded-lg border border-emerald-900/40 w-max">
-                        ➜ Sac de rechange {assignedMissions[0].type_poubelle === 'biodegradable' ? 'biodégradable' : 'non-dégradable'} prêt pour échange
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs text-on-surface-variant pt-1">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <Clock size={13} /> Signalé à {mission.reported_at ? mission.reported_at.substring(11, 16) : 'N/A'}
+                      </span>
+                      <span className="font-bold uppercase tracking-wider text-secondary flex items-center gap-1.5 text-xs">
+                        <Navigation size={14} className="rotate-45" /> En attente de passage
                       </span>
                     </div>
-                  </div>
 
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs text-on-surface-variant pt-1">
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <Clock size={13} /> Signalé à {assignedMissions[0].reported_at.substring(11, 16)}
-                    </span>
-                    <span className="font-bold uppercase tracking-wider text-secondary flex items-center gap-1.5 text-xs">
-                      <Navigation size={14} className="rotate-45" /> En attente de passage
-                    </span>
+                    {/* Validation Action */}
+                    <div className="mt-2">
+                      <button
+                        onClick={() => {
+                          onCompleteMission(mission.id);
+                          alert(`Félicitations ! Mission pour la parcelle N° ${mission.numero_parcelle} validée avec succès. La poubelle est enregistrée comme vidée.`);
+                        }}
+                        className="w-full min-h-[46px] py-3 px-4 bg-[#10b981] hover:bg-[#10b981]/95 active:scale-[0.98] text-white font-black rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                      >
+                        <CheckCircle2 size={18} />
+                        <span>Marquer cette mission comme Terminée (Poubelle Vidée) ✅</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-
-                {/* Validation Action */}
-                <div className="mt-2 sm:mt-4">
-                  <button
-                    onClick={() => {
-                      onCompleteMission(assignedMissions[0].id);
-                      alert("Félicitations ! Mission validée avec succès. La poubelle de cette adresse est enregistrée comme vidée.");
-                    }}
-                    className="w-full min-h-[50px] py-3.5 px-4 bg-[#10b981] hover:bg-[#10b981]/95 active:scale-[0.98] text-white font-black rounded-xl text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-lg transition-all cursor-pointer"
-                  >
-                    <CheckCircle2 size={20} />
-                    <span>Marquer la mission comme Terminée (Poubelle Vidée) ✅</span>
-                  </button>
-                </div>
+                ))}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center text-center p-8 sm:p-12 gap-3 flex-grow bg-background/20 rounded-2xl border border-dashed border-outline-variant/40 min-h-[220px]">
