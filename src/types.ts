@@ -83,6 +83,8 @@ export interface PoubelleSignal {
   reported_at: string;
   completed_at?: string;
   type_poubelle?: 'biodegradable' | 'non_biodegradable';
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface Eboueur {

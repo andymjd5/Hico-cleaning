@@ -164,9 +164,7 @@ export default function App() {
   const handleUpdatePassword = (newPassword: string) => {
     if (!currentUser) return;
     const updated = { ...currentUser, password: newPassword, isTempPassword: false };
-    setCurrentUser(updated);
-    localStorage.setItem('hico_current_user', JSON.stringify(updated));
-    setAgents(prev => prev.map(a => a.id === currentUser.id ? updated : a));
+    handleUpdateAgentSync(updated);
   };
 
   // 3. Drill-down Context states
@@ -1589,17 +1587,31 @@ export default function App() {
 
   const handleAddAgentSync = async (newAgent: Agent) => {
     setAgents(prev => {
-      if (prev.some(a => a.id === newAgent.id)) return prev;
-      return [...prev, newAgent];
+      const cleanPhoneNew = (newAgent.telephone || '').replace(/\s+/g, '');
+      const existingIdx = prev.findIndex(a => 
+        a.id === newAgent.id || 
+        (a.telephone && cleanPhoneNew && a.telephone.replace(/\s+/g, '') === cleanPhoneNew)
+      );
+      if (existingIdx >= 0) {
+        const copy = [...prev];
+        copy[existingIdx] = { ...copy[existingIdx], ...newAgent };
+        return copy;
+      }
+      return [newAgent, ...prev];
     });
+
+    if (currentUser && (currentUser.id === newAgent.id || (currentUser.telephone && newAgent.telephone && currentUser.telephone.replace(/\s+/g, '') === newAgent.telephone.replace(/\s+/g, '')))) {
+      const updatedUser = { ...currentUser, ...newAgent };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('hico_current_user', JSON.stringify(updatedUser));
+    }
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {
-        const { error } = await supabase.from('agents').insert([sanitizeAgentForDb(newAgent)]);
+        const { error } = await supabase.from('agents').upsert([sanitizeAgentForDb(newAgent)]);
         if (error) throw error;
       } catch (err: any) {
-        console.error("Supabase agent insert failed:", err);
-        alert("Erreur lors de l'enregistrement du compte dans Supabase :\n" + (err.message || err));
+        console.error("Supabase agent upsert failed:", err);
       }
     }
   };
@@ -2017,6 +2029,10 @@ export default function App() {
     const ave = avenues.find(a => a.id === parc.avenue_id);
     const com = communes.find(c => c.id === ave?.commune_id);
 
+    // Compute latitude/longitude for GPS map pins
+    const lat = parc.latitude || (-4.3316 + (Math.random() * 0.01 - 0.005));
+    const lng = parc.longitude || (15.3139 + (Math.random() * 0.01 - 0.005));
+
     // Create a new signal
     const newSignal: PoubelleSignal = {
       id: generateUUID(),
@@ -2030,7 +2046,9 @@ export default function App() {
       bailleur_telephone: ab.telephone_principal,
       status: 'pending',
       reported_at: new Date().toISOString(),
-      type_poubelle: type_poubelle
+      type_poubelle: type_poubelle,
+      latitude: lat,
+      longitude: lng
     };
 
     setPoubelleSignals(prev => [newSignal, ...prev]);
@@ -2829,6 +2847,9 @@ export default function App() {
                   avenues={avenues}
                   parcelles={parcelles}
                   abonnes={abonnes}
+                  signals={poubelleSignals}
+                  eboueurs={eboueurs}
+                  onAssignMission={handleAssignEboueur}
                   onNavigate={setCurrentScreen}
                   onAddCommuneToggle={() => setShowAddCommuneModal(true)}
                   onAddAvenueToggle={() => {
