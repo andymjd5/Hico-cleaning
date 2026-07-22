@@ -1244,6 +1244,44 @@ export default function App() {
     setParcelles([newParcelle, ...parcelles]);
     setAbonnes([newAbonne, ...abonnes]);
 
+    // Automatically register/update an Abonné agent account with default temporary password '12345'
+    const cleanPhoneInput = (newAbonne.telephone_principal || '').replace(/\s+/g, '');
+    if (cleanPhoneInput) {
+      const abonneAgent: Agent = {
+        id: 'abonne-' + newAbonne.id,
+        nom: newAbonne.nom_complet,
+        telephone: newAbonne.telephone_principal,
+        role: 'abonne',
+        parcelle_id: newParcelle.id,
+        created_at: new Date().toISOString(),
+        password: '12345',
+        isTempPassword: true
+      };
+
+      setAgents(prev => {
+        const existingIdx = prev.findIndex(a => (a.telephone || '').replace(/\s+/g, '') === cleanPhoneInput);
+        if (existingIdx >= 0) {
+          const copy = [...prev];
+          copy[existingIdx] = {
+            ...copy[existingIdx],
+            nom: newAbonne.nom_complet,
+            role: 'abonne',
+            parcelle_id: newParcelle.id
+          };
+          return copy;
+        }
+        return [abonneAgent, ...prev];
+      });
+
+      if (isSupabaseConfigured && dbStatus === 'connected') {
+        try {
+          await supabase.from('agents').upsert([sanitizeAgentForDb(abonneAgent)]);
+        } catch (err) {
+          console.warn("Supabase auto-agent creation for abonne failed:", err);
+        }
+      }
+    }
+
     if (isSupabaseConfigured && dbStatus === 'connected') {
       setSyncing(true);
       try {
@@ -1260,6 +1298,59 @@ export default function App() {
         setSyncing(false);
       }
     }
+  };
+
+  const handleResetPasswordRequest = (phoneInput: string) => {
+    const cleanPhoneInput = phoneInput.replace(/\s+/g, '');
+    if (!cleanPhoneInput) {
+      return { success: false, error: "Veuillez entrer un numéro de téléphone valide." };
+    }
+
+    let foundAgent = agents.find(a => (a.telephone || '').replace(/\s+/g, '') === cleanPhoneInput);
+
+    if (!foundAgent && abonnes && abonnes.length > 0) {
+      const foundAbonne = abonnes.find(ab => (ab.telephone_principal || '').replace(/\s+/g, '') === cleanPhoneInput);
+      if (foundAbonne) {
+        foundAgent = {
+          id: 'abonne-' + foundAbonne.id,
+          nom: foundAbonne.nom_complet,
+          telephone: foundAbonne.telephone_principal,
+          role: 'abonne',
+          parcelle_id: foundAbonne.parcelle_id,
+          created_at: new Date().toISOString(),
+          password: '12345',
+          isTempPassword: true
+        };
+      }
+    }
+
+    if (!foundAgent) {
+      return { success: false, error: "Aucun compte Abonné ou Agent trouvé pour ce numéro de téléphone." };
+    }
+
+    const updated: Agent = {
+      ...foundAgent,
+      password: '12345',
+      isTempPassword: true
+    };
+
+    setAgents(prev => {
+      const idx = prev.findIndex(a => a.id === updated.id || (a.telephone || '').replace(/\s+/g, '') === cleanPhoneInput);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = updated;
+        return copy;
+      }
+      return [updated, ...prev];
+    });
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      supabase.from('agents').upsert([sanitizeAgentForDb(updated)]).then(({ error }) => {
+        if (error) console.warn("Failed to reset agent password in Supabase:", error);
+      });
+    }
+
+    return { success: true, userNom: updated.nom };
   };
 
   const handleUpdateParcelleGps = async (parcelleId: string, latitude: number, longitude: number) => {
@@ -2152,7 +2243,9 @@ export default function App() {
         <LoginForm 
           onLoginSuccess={handleLogin} 
           agents={agents}
+          abonnes={abonnes}
           onRegisterAgent={handleAddAgentSync}
+          onResetPasswordRequest={handleResetPasswordRequest}
         />
       ) : (
         /* 2. Logged User Layout Shell */
