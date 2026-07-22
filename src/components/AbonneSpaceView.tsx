@@ -24,7 +24,8 @@ import {
   ShieldCheck, 
   PhoneCall, 
   ArrowRight,
-  LogOut
+  LogOut,
+  RotateCcw
 } from 'lucide-react';
 import { initiateMobileMoneyPayment, checkFlexPayStatus } from '../lib/flexpay';
 
@@ -35,6 +36,8 @@ interface AbonneSpaceViewProps {
   avenue: Avenue;
   activeSignals: PoubelleSignal[];
   onReportTrashFull: (type_poubelle: 'biodegradable' | 'non_biodegradable') => void;
+  onResetSignals?: () => void;
+  onCancelSignal?: (signalId: string) => void;
   messages: InboxMessage[];
   onSendMessage: (sender: string, content: string) => void;
   onRecordOnlinePayment?: (amount: number, provider: 'mpesa' | 'orange' | 'airtel', phone: string) => void;
@@ -48,6 +51,8 @@ export default function AbonneSpaceView({
   avenue,
   activeSignals,
   onReportTrashFull,
+  onResetSignals,
+  onCancelSignal,
   messages,
   onSendMessage,
   onRecordOnlinePayment,
@@ -252,10 +257,27 @@ export default function AbonneSpaceView({
         {/* LEFT COLUMN: Signal trash full */}
         <section className="bg-surface border border-outline-variant rounded-2xl p-5 md:p-6 shadow-md flex flex-col justify-between gap-6">
           <div className="flex flex-col gap-2">
-            <h3 className="text-base font-extrabold text-on-surface flex items-center gap-2">
-              <Trash2 className="text-primary" size={20} />
-              Signalement Poubelles Remplies
-            </h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-base font-extrabold text-on-surface flex items-center gap-2">
+                <Trash2 className="text-primary" size={20} />
+                Signalement Poubelles Remplies
+              </h3>
+
+              {(bioSignal || nonBioSignal) && onResetSignals && (
+                <button
+                  onClick={() => {
+                    if (confirm("Voulez-vous réinitialiser et effacer ces alertes enregistrées pour en envoyer de nouvelles ?")) {
+                      onResetSignals();
+                    }
+                  }}
+                  className="text-[11px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                  title="Réinitialiser les alertes locales"
+                >
+                  <RotateCcw size={12} />
+                  <span>Réinitialiser alertes</span>
+                </button>
+              )}
+            </div>
             <p className="text-xs text-on-surface-variant leading-relaxed font-medium">
               Vos poubelles sont pleines ? Signalez séparément vos sachets poubelles biodégradables (déchets organiques) et non-biodégradables (plastiques, verres, métaux) pour optimiser le ramassage logistique et la distribution de nouveaux sachets.
             </p>
@@ -264,9 +286,19 @@ export default function AbonneSpaceView({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* POUBELLE BIODEGRADABLE */}
             <div className="bg-background/40 border border-outline-variant/60 rounded-2xl p-4 flex flex-col justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-extrabold uppercase text-emerald-400 tracking-wider">Biodégradable (Vert)</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-extrabold uppercase text-emerald-400 tracking-wider">Biodégradable (Vert)</span>
+                </div>
+                {bioSignal && onCancelSignal && (
+                  <button
+                    onClick={() => onCancelSignal(bioSignal.id)}
+                    className="text-[10px] text-rose-400 hover:text-rose-300 font-bold underline cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+                )}
               </div>
 
               {bioSignal ? (
@@ -314,9 +346,19 @@ export default function AbonneSpaceView({
 
             {/* POUBELLE NON-BIODEGRADABLE */}
             <div className="bg-background/40 border border-outline-variant/60 rounded-2xl p-4 flex flex-col justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
-                <span className="text-xs font-extrabold uppercase text-indigo-400 tracking-wider">Non-Dégradable (Gris)</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
+                  <span className="text-xs font-extrabold uppercase text-indigo-400 tracking-wider">Non-Dégradable (Gris)</span>
+                </div>
+                {nonBioSignal && onCancelSignal && (
+                  <button
+                    onClick={() => onCancelSignal(nonBioSignal.id)}
+                    className="text-[10px] text-rose-400 hover:text-rose-300 font-bold underline cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+                )}
               </div>
 
               {nonBioSignal ? (

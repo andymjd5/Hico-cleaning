@@ -228,18 +228,8 @@ export default function App() {
 
   // 4.2. Waste management and collector tracking states
   const [poubelleSignals, setPoubelleSignals] = useState<PoubelleSignal[]>(() => {
-    const saved = localStorage.getItem('hico_poubelle_signals');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          // Keep all active/user signals, excluding mock demo sigs
-          return parsed.filter(s => !['sig-1', 'sig-2'].includes(s.id));
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    // Clear old local signals to allow user to re-test fresh alert submissions
+    localStorage.removeItem('hico_poubelle_signals');
     return [];
   });
 
@@ -2176,6 +2166,19 @@ export default function App() {
     }
   };
 
+  const handleResetSignals = () => {
+    setPoubelleSignals([]);
+    localStorage.removeItem('hico_poubelle_signals');
+  };
+
+  const handleCancelSignal = (signalId: string) => {
+    setPoubelleSignals(prev => {
+      const updated = prev.filter(s => s.id !== signalId);
+      localStorage.setItem('hico_poubelle_signals', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const handleCompleteMission = async (signalId: string) => {
     let assignedEbId: string | undefined;
     let signalType: 'biodegradable' | 'non_biodegradable' = 'biodegradable';
@@ -3102,6 +3105,8 @@ export default function App() {
                     avenue={userAvenue}
                     activeSignals={poubelleSignals}
                     onReportTrashFull={handleReportTrashFull}
+                    onResetSignals={handleResetSignals}
+                    onCancelSignal={handleCancelSignal}
                     messages={inboxMessages}
                     onSendMessage={handleSendInboxMessage}
                     onRecordOnlinePayment={async (amount, provider, phone) => {
