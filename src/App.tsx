@@ -1252,7 +1252,7 @@ export default function App() {
       setDbStatus('connected');
       setDbErrorMsg(null);
     } catch (err: any) {
-      console.error('Supabase fetch failed:', err);
+      console.warn('Supabase fetch notice (falling back to LocalStorage):', err?.message || err);
       setDbStatus('error_missing_tables');
       setDbErrorMsg(err?.message || "Impossible d'accéder aux tables de la base de données.");
       
