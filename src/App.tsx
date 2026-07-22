@@ -386,6 +386,181 @@ export default function App() {
     }
   }, [currentScreen]);
 
+  // 🔊 Web Audio API Sound Chime Generator for Realtime Alerts
+  const playSignalAlertSound = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const now = ctx.currentTime;
+
+      // Siren chime 1: A5 (880Hz)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(880, now);
+      gain1.gain.setValueAtTime(0.4, now);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.18);
+
+      // Siren chime 2: C6 (1046.5Hz)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(1046.5, now + 0.18);
+      gain2.gain.setValueAtTime(0.45, now + 0.18);
+      gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.38);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.18);
+      osc2.stop(now + 0.38);
+
+      // Siren chime 3: E6 (1318.5Hz crescendo)
+      const osc3 = ctx.createOscillator();
+      const gain3 = ctx.createGain();
+      osc3.type = 'triangle';
+      osc3.frequency.setValueAtTime(1318.51, now + 0.38);
+      gain3.gain.setValueAtTime(0.5, now + 0.38);
+      gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+      osc3.connect(gain3);
+      gain3.connect(ctx.destination);
+      osc3.start(now + 0.38);
+      osc3.stop(now + 0.75);
+    } catch (err) {
+      console.warn("Sonore alert failed to play:", err);
+    }
+  };
+
+  // 📻 BroadcastChannel Realtime Cross-Tab Listener
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
+    const bc = new BroadcastChannel('hico_realtime_signals');
+    bc.onmessage = (event) => {
+      if (event.data && event.data.type === 'NEW_SIGNAL') {
+        const incomingSig: PoubelleSignal = event.data.signal;
+        setPoubelleSignals(prev => {
+          if (prev.some(s => s.id === incomingSig.id)) return prev;
+          setActiveNotification(incomingSig);
+          setHasNewSignals(true);
+          playSignalAlertSound();
+          return [incomingSig, ...prev];
+        });
+      }
+    };
+    return () => {
+      bc.close();
+    };
+  }, []);
+
+  // 💾 Window LocalStorage Event Realtime Listener
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'hico_poubelle_signals' && e.newValue) {
+        try {
+          const parsed: PoubelleSignal[] = JSON.parse(e.newValue);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setPoubelleSignals(currentList => {
+              const currentIds = new Set(currentList.map(s => s.id));
+              const brandNew = parsed.filter(s => !currentIds.has(s.id) && s.status === 'pending');
+              if (brandNew.length > 0) {
+                const newest = brandNew[0];
+                setActiveNotification(newest);
+                setHasNewSignals(true);
+                playSignalAlertSound();
+                return [...brandNew, ...currentList];
+              }
+              return currentList;
+            });
+          }
+        } catch (err) {
+          console.error("Storage sync error:", err);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // ⏱️ 3-Second Realtime Polling Engine Fallback
+  useEffect(() => {
+    if (!isSupabaseConfigured || dbStatus !== 'connected') return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('signaux_poubelles')
+          .select('*')
+          .order('reported_at', { ascending: false })
+          .limit(15);
+
+        if (!error && data && Array.isArray(data)) {
+          setPoubelleSignals(prev => {
+            let updated = [...prev];
+            let foundNew = false;
+            let newestSig: PoubelleSignal | null = null;
+
+            data.forEach(item => {
+              const exists = updated.some(s => s.id === item.id);
+              if (!exists) {
+                const rawStatus = item.status || item.statut || 'pending';
+                let mappedStatus: 'pending' | 'assigned' | 'completed' = 'pending';
+                if (rawStatus === 'assigned' || rawStatus === 'assigne') mappedStatus = 'assigned';
+                else if (rawStatus === 'completed' || rawStatus === 'resolu' || rawStatus === 'complete' || rawStatus === 'termine') mappedStatus = 'completed';
+
+                const parc = parcelles.find(p => p.id === item.parcelle_id);
+                const ave = avenues.find(a => a.id === (item.avenue_id || parc?.avenue_id));
+                const comm = communes.find(c => c.id === (item.commune_id || ave?.commune_id));
+                const ab = abonnes.find(a => a.id === item.bailleur_id || a.parcelle_id === item.parcelle_id);
+
+                const formatted: PoubelleSignal = {
+                  id: item.id,
+                  parcelle_id: item.parcelle_id,
+                  commune_id: item.commune_id || ave?.commune_id || '',
+                  avenue_id: item.avenue_id || parc?.avenue_id || '',
+                  commune_nom: item.commune_nom || comm?.nom || 'Kinshasa',
+                  avenue_nom: item.avenue_nom || ave?.nom || 'Avenue Inconnue',
+                  numero_parcelle: item.numero_parcelle || parc?.numero_parcelle || 'N/A',
+                  bailleur_nom: item.bailleur_nom || ab?.nom_complet || 'Abonné',
+                  bailleur_telephone: item.bailleur_telephone || ab?.telephone_principal || '',
+                  status: mappedStatus,
+                  assigned_eboueur_id: item.assigned_eboueur_id || item.eboueur_assigne_id || null,
+                  reported_at: item.reported_at || item.created_at || new Date().toISOString(),
+                  completed_at: item.completed_at || item.resolved_at || null,
+                  type_poubelle: item.type_poubelle || 'biodegradable'
+                };
+
+                updated = [formatted, ...updated];
+                if (mappedStatus === 'pending') {
+                  foundNew = true;
+                  newestSig = formatted;
+                }
+              }
+            });
+
+            if (foundNew && newestSig) {
+              setActiveNotification(newestSig);
+              setHasNewSignals(true);
+              playSignalAlertSound();
+            }
+
+            return updated;
+          });
+        }
+      } catch (e) {
+        console.warn("Polling error:", e);
+      }
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [isSupabaseConfigured, dbStatus, parcelles, avenues, communes, abonnes]);
+
   // Real-time subscription to signaux_poubelles and eboueurs_gps tables in Supabase
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -436,6 +611,7 @@ export default function App() {
 
               setActiveNotification(formattedSig);
               setHasNewSignals(true);
+              playSignalAlertSound();
               return [formattedSig, ...prev];
             });
           } else if (payload.eventType === 'UPDATE') {
@@ -1851,6 +2027,17 @@ export default function App() {
     setPoubelleSignals(prev => [newSignal, ...prev]);
     setActiveNotification(newSignal);
     setHasNewSignals(true);
+    playSignalAlertSound();
+
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('hico_realtime_signals');
+        bc.postMessage({ type: 'NEW_SIGNAL', signal: newSignal });
+        bc.close();
+      } catch (bcErr) {
+        console.warn("BroadcastChannel postMessage error:", bcErr);
+      }
+    }
 
     await safeInsertPoubelleSignal(newSignal);
   };
@@ -2222,6 +2409,17 @@ export default function App() {
     setPoubelleSignals(prev => [newSignal, ...prev]);
     setActiveNotification(newSignal);
     setHasNewSignals(true);
+    playSignalAlertSound();
+
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('hico_realtime_signals');
+        bc.postMessage({ type: 'NEW_SIGNAL', signal: newSignal });
+        bc.close();
+      } catch (bcErr) {
+        console.warn("BroadcastChannel postMessage error:", bcErr);
+      }
+    }
 
     await safeInsertPoubelleSignal(newSignal);
   };
@@ -3051,7 +3249,15 @@ export default function App() {
                     <div className="truncate">🏢 <strong className="text-white">Commune:</strong> {activeNotification.commune_nom}</div>
                   </div>
 
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex gap-2 justify-end items-center">
+                    <button
+                      type="button"
+                      onClick={() => playSignalAlertSound()}
+                      className="px-2.5 py-1 bg-red-800/80 hover:bg-red-700 text-red-100 border border-red-400/30 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                      title="Tester l'alerte sonore"
+                    >
+                      <span>🔊 Son</span>
+                    </button>
                     <button
                       onClick={() => setActiveNotification(null)}
                       className="px-3 py-1 bg-white/10 hover:bg-white/15 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all cursor-pointer"
