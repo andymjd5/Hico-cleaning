@@ -327,7 +327,7 @@ export default function SachetsManagementView({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex flex-wrap gap-2 bg-surface p-1.5 rounded-2xl border border-outline-variant" id="sachets_tabs">
+      <div className="flex overflow-x-auto gap-2 bg-surface p-1.5 rounded-2xl border border-outline-variant whitespace-nowrap scrollbar-none" id="sachets_tabs">
         <button
           onClick={() => setActiveTab('stocks')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${

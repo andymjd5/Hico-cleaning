@@ -28,7 +28,7 @@ import SachetsManagementView from './components/SachetsManagementView';
 import FinanceManagementView from './components/FinanceManagementView';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info, Menu } from 'lucide-react';
 
 interface ToastItem {
   id: string;
@@ -80,6 +80,7 @@ export default function App() {
   const [dbErrorMsg, setDbErrorMsg] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [showSqlGuide, setShowSqlGuide] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Theme state
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -2452,8 +2453,17 @@ export default function App() {
         <div className="flex flex-col min-h-screen">
           
           {/* Top Status Header styled exactly like Bento design */}
-          <header className="fixed top-0 left-0 w-full bg-surface h-16 border-b border-outline-variant flex items-center justify-between px-4 z-40 shadow-lg md:px-8">
-            <div className="flex items-center gap-3">
+          <header className="fixed top-0 left-0 w-full bg-surface h-16 border-b border-outline-variant flex items-center justify-between px-3 md:px-8 z-40 shadow-lg">
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Mobile hamburger menu toggle */}
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="md:hidden p-2 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-background border border-outline-variant/60 cursor-pointer active:scale-95 transition-all"
+                title="Ouvrir le menu"
+              >
+                <Menu size={18} />
+              </button>
+
               {currentScreen !== 'dashboard' && (
                 <button 
                   onClick={handlePageBack}
@@ -2463,11 +2473,11 @@ export default function App() {
                 </button>
               )}
               {/* Circular green emblem icon perfectly matching Image 3 header */}
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary font-bold text-lg shadow-md shadow-primary/20">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary font-bold text-lg shadow-md shadow-primary/20 shrink-0">
                   H
                 </div>
-                <h1 className="text-xl font-medium tracking-tight text-on-surface font-sans leading-none">
+                <h1 className="text-base sm:text-xl font-medium tracking-tight text-on-surface font-sans leading-none truncate max-w-[130px] xs:max-w-none">
                   Hico-Cleaning
                 </h1>
               </div>
@@ -3205,6 +3215,7 @@ export default function App() {
             currentScreen={currentScreen} 
             userRole={currentUser?.role}
             hasNewSignals={hasNewSignals}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
             onScreenChange={(screenId) => {
               // Clear temporary selection indices when moving randomly through footer
               if (screenId !== 'avenues' && screenId !== 'recensement_form') {
@@ -3214,6 +3225,241 @@ export default function App() {
               setCurrentScreen(screenId);
             }} 
           />
+
+          {/* Mobile Slide-Over Drawer Navigation (visible on mobile when toggled) */}
+          {isMobileMenuOpen && (
+            <div className="fixed inset-0 z-[100] md:hidden">
+              {/* Backdrop overlay */}
+              <div 
+                className="absolute inset-0 bg-black/70 backdrop-blur-xs animate-fade-in"
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+
+              {/* Slide-over Drawer Panel */}
+              <div className="absolute top-0 left-0 h-full w-[85%] max-w-xs bg-surface border-r border-outline-variant flex flex-col p-5 gap-3 shadow-2xl animate-slide-in-left overflow-y-auto">
+                <div className="flex items-center justify-between pb-4 border-b border-outline-variant/60">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary font-bold text-lg shadow-md shadow-primary/20">
+                      H
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-on-surface leading-tight">Hico-Cleaning</h2>
+                      <p className="text-[10px] text-on-surface-variant font-medium uppercase tracking-wider">{currentUser?.nom} ({currentUser?.role})</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="p-2 rounded-full hover:bg-background text-on-surface-variant hover:text-on-surface cursor-pointer"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-1.5 py-2">
+                  <div className="text-[10px] font-black text-on-surface-variant/70 uppercase tracking-widest px-3 my-1">
+                    Menu Général
+                  </div>
+
+                  {/* === ABONNE EXCLUSIVE MENU === */}
+                  {currentUser?.role === 'abonne' && (
+                    <button 
+                      onClick={() => { setCurrentScreen('abonne_space'); setIsMobileMenuOpen(false); }}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                        currentScreen === 'abonne_space' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                      }`}
+                    >
+                      <Trash2 size={18} />
+                      <span>Mon Espace Abonné</span>
+                    </button>
+                  )}
+
+                  {/* === EBOUEUR EXCLUSIVE MENU === */}
+                  {currentUser?.role === 'eboueur' && (
+                    <button 
+                      onClick={() => { setCurrentScreen('eboueur_space'); setIsMobileMenuOpen(false); }}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                        currentScreen === 'eboueur_space' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                      }`}
+                    >
+                      <Truck size={18} />
+                      <span>Missions Éboueur</span>
+                    </button>
+                  )}
+
+                  {/* === ADMIN & AGENT MENU === */}
+                  {currentUser?.role !== 'abonne' && currentUser?.role !== 'eboueur' && (
+                    <>
+                      <button 
+                        onClick={() => { setCurrentScreen('dashboard'); setIsMobileMenuOpen(false); }}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                          currentScreen === 'dashboard' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                        }`}
+                      >
+                        <LayoutDashboard size={18} />
+                        <span>Dashboard</span>
+                      </button>
+
+                      <button 
+                        onClick={() => { setCurrentScreen('communes'); setIsMobileMenuOpen(false); }}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                          currentScreen === 'communes' || currentScreen === 'avenues' || currentScreen === 'recensement_form' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                        }`}
+                      >
+                        <FileText size={18} />
+                        <span>Recensement</span>
+                      </button>
+
+                      <button 
+                        onClick={() => { setCurrentScreen('abonne_list'); setIsMobileMenuOpen(false); }}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                          currentScreen === 'abonne_list' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                        }`}
+                      >
+                        <Users size={18} />
+                        <span>Abonnés</span>
+                      </button>
+
+                      <button 
+                        onClick={() => { setCurrentScreen('commune_explorer'); setIsMobileMenuOpen(false); }}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                          currentScreen === 'commune_explorer' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                        }`}
+                      >
+                        <Compass size={18} />
+                        <span>Explorateur GPS</span>
+                      </button>
+
+                      <button 
+                        onClick={() => { setCurrentScreen('dechets_map'); setHasNewSignals(false); setIsMobileMenuOpen(false); }}
+                        className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                          currentScreen === 'dechets_map' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Trash2 size={18} />
+                          <span>Poubelles & Éboueurs</span>
+                        </div>
+                        {hasNewSignals && (
+                          <span className="inline-flex rounded-full h-2 w-2 bg-red-500 animate-pulse"></span>
+                        )}
+                      </button>
+
+                      <button 
+                        onClick={() => { setCurrentScreen('rapports'); setIsMobileMenuOpen(false); }}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                          currentScreen === 'rapports' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                        }`}
+                      >
+                        <BarChart3 size={18} />
+                        <span>Rapports</span>
+                      </button>
+
+                      {isScreenAllowed('sachets_management') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('sachets_management'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'sachets_management' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <Package size={18} />
+                          <span>Gestion de Sachets</span>
+                        </button>
+                      )}
+
+                      {isScreenAllowed('finance_management') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('finance_management'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'finance_management' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <DollarSign size={18} />
+                          <span>Gestion Financière</span>
+                        </button>
+                      )}
+
+                      {(isScreenAllowed('admin_settings_screens') || 
+                        isScreenAllowed('admin_settings_pricing') || 
+                        isScreenAllowed('admin_settings_accounts') || 
+                        isScreenAllowed('admin_settings_passwords')) && (
+                        <div className="text-[10px] font-black text-on-surface-variant/70 uppercase tracking-widest px-3 mt-4 mb-1">
+                          Paramètres Système
+                        </div>
+                      )}
+
+                      {isScreenAllowed('admin_settings_screens') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('admin_settings_screens'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'admin_settings_screens' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <Shield size={18} />
+                          <span>Configuration Rôles</span>
+                        </button>
+                      )}
+
+                      {isScreenAllowed('admin_settings_pricing') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('admin_settings_pricing'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'admin_settings_pricing' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <DollarSign size={18} />
+                          <span>Prix d'Abonnement</span>
+                        </button>
+                      )}
+
+                      {isScreenAllowed('admin_settings_accounts') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('admin_settings_accounts'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'admin_settings_accounts' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <UserPlus size={18} />
+                          <span>Création de Comptes</span>
+                        </button>
+                      )}
+
+                      {isScreenAllowed('admin_settings_passwords') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('admin_settings_passwords'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'admin_settings_passwords' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <Key size={18} />
+                          <span>Mot de Passe Temporaire</span>
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  <div className="border-t border-outline-variant/60 my-2 pt-2">
+                    <button 
+                      onClick={() => { setCurrentScreen('profil'); setIsMobileMenuOpen(false); }}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                        currentScreen === 'profil' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                      }`}
+                    >
+                      <User size={18} />
+                      <span>Mon Profil</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setIsMobileMenuOpen(false); handleLogout(); }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl text-error bg-error-container/10 hover:bg-error-container/20 transition-all font-sans text-sm font-bold w-full text-left mt-2 cursor-pointer"
+                    >
+                      <LogOut size={16} />
+                      <span>Se déconnecter</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Real-time Notification Popup for Waste Signals (Alerte Poubelle Pleine) */}
           {activeNotification && (
