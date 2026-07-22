@@ -134,9 +134,11 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Keep only admin-1 and filter out any hardcoded demo users
+          // Keep only admin-1 and filter out any hardcoded demo users or deleted account 0891111111 / maj
           return parsed.filter(a => 
-            (a.id === 'admin-1' || !['agent-1', 'abonne-demo', 'eboueur-demo'].includes(a.id))
+            (a.id === 'admin-1' || !['agent-1', 'abonne-demo', 'eboueur-demo'].includes(a.id)) &&
+            a.telephone !== '0891111111' &&
+            !a.nom.toLowerCase().includes('maj')
           );
         }
       } catch (e) {
@@ -247,9 +249,11 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Filter out demo eboueurs
+          // Filter out demo eboueurs and deleted account 0891111111 / maj
           return parsed.filter(e => 
-            !['eb-1', 'eb-2', 'eb-3', 'eboueur-demo'].includes(e.id)
+            !['eb-1', 'eb-2', 'eb-3', 'eboueur-demo'].includes(e.id) &&
+            e.telephone !== '0891111111' &&
+            !e.nom.toLowerCase().includes('maj')
           );
         }
       } catch (e) {
@@ -702,11 +706,15 @@ export default function App() {
   // Synchroniser les agents de rôle 'eboueur' avec la liste 'eboueurs' pour l'affichage de la carte
   useEffect(() => {
     const eboueursFromAgents = agents.filter(a => 
-      a.role === 'eboueur'
+      a.role === 'eboueur' && a.telephone !== '0891111111' && !a.nom.toLowerCase().includes('maj')
     );
     let hasChanges = false;
-    // Keep only clean eboueurs
-    const updatedEboueurs = eboueurs.filter(e => true);
+    // Keep only eboueurs that exist in eboueursFromAgents
+    const updatedEboueurs = eboueurs.filter(e => 
+      e.telephone !== '0891111111' && 
+      !e.nom.toLowerCase().includes('maj') &&
+      eboueursFromAgents.some(a => a.id === e.id || a.telephone === e.telephone)
+    );
 
     if (updatedEboueurs.length !== eboueurs.length) {
       hasChanges = true;
@@ -1031,7 +1039,7 @@ export default function App() {
           .from('agents')
           .select('*');
         if (!agsError && ags) {
-          const mergedAgents = [...ags];
+          const mergedAgents = ags.filter(a => a.telephone !== '0891111111' && !a.nom.toLowerCase().includes('maj'));
           const hasAdmin = mergedAgents.some(a => a.role === 'admin' || a.id === 'admin-1' || a.telephone === '0600000000');
           if (!hasAdmin) {
             const defaultAdmin: Agent = {

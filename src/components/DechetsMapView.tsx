@@ -124,14 +124,6 @@ export default function DechetsMapView({
         if (ebNom && (assignedId === ebNom || ebNom.includes(assignedId) || assignedId.includes(ebNom))) return true;
         if (ebPhone && (assignedId === ebPhone || ebPhone.includes(assignedId) || assignedId.includes(ebPhone))) return true;
 
-        // Special test bypass for user testing with multiple accounts (e.g. 'maj' and 'andymj')
-        if (
-          (ebNom.includes('maj') || ebNom.includes('andymj')) &&
-          (assignedId.includes('maj') || assignedId.includes('andymj'))
-        ) {
-          return true;
-        }
-
         return false;
       });
 
@@ -1014,14 +1006,6 @@ export default function DechetsMapView({
                 if (assignedId === ebId) return true;
                 if (ebNom && (assignedId === ebNom || ebNom.includes(assignedId) || assignedId.includes(ebNom))) return true;
                 if (ebPhone && (assignedId === ebPhone || ebPhone.includes(assignedId) || assignedId.includes(ebPhone))) return true;
-
-                // Special test bypass
-                if (
-                  (ebNom.includes('maj') || ebNom.includes('andymj')) &&
-                  (assignedId.includes('maj') || assignedId.includes('andymj'))
-                ) {
-                  return true;
-                }
 
                 return false;
               });
