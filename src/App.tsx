@@ -70,7 +70,9 @@ const sanitizeAgentForDb = (agent: Agent) => {
     telephone: agent.telephone,
     role: agent.role,
     created_at: agent.created_at,
-    password: agent.password || 'password'
+    password: agent.password || 'password',
+    is_temp_password: agent.isTempPassword ?? false,
+    parcelle_id: agent.parcelle_id || null
   };
 };
 
@@ -1037,7 +1039,17 @@ export default function App() {
           .from('agents')
           .select('*');
         if (!agsError && ags) {
-          const mergedAgents = ags.filter(a => a.telephone !== '0891111111' && !a.nom.toLowerCase().includes('maj'));
+          const rawMapped: Agent[] = ags.map((a: any) => ({
+            id: a.id,
+            nom: a.nom,
+            telephone: a.telephone,
+            role: a.role,
+            created_at: a.created_at,
+            password: a.password || '12345',
+            isTempPassword: a.isTempPassword ?? a.is_temp_password ?? (a.password === '12345'),
+            parcelle_id: a.parcelle_id || null
+          }));
+          const mergedAgents: Agent[] = rawMapped.filter(a => a.telephone !== '0891111111' && !a.nom.toLowerCase().includes('maj'));
           const hasAdmin = mergedAgents.some(a => a.role === 'admin' || a.id === 'admin-1' || a.telephone === '0600000000');
           if (!hasAdmin) {
             const defaultAdmin: Agent = {
@@ -1955,58 +1967,79 @@ export default function App() {
   const safeInsertPoubelleSignal = async (newSignal: PoubelleSignal) => {
     if (!isSupabaseConfigured || dbStatus !== 'connected') return;
 
-    // 1. Try to insert the full English object first
+    // Check if newSignal.id is a valid UUID, otherwise generate a valid UUID v4
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(newSignal.id);
+    const validUuid = isUuid ? newSignal.id : generateUUID();
+
+    const ab = abonnes.find(a => 
+      (a.telephone_principal && newSignal.bailleur_telephone && a.telephone_principal.replace(/\s+/g, '') === newSignal.bailleur_telephone.replace(/\s+/g, '')) || 
+      a.nom_complet === newSignal.bailleur_nom
+    );
+
+    // 1. Try payload with both French and English column names
+    const extendedPayload: any = {
+      id: validUuid,
+      parcelle_id: newSignal.parcelle_id,
+      bailleur_id: ab?.id || null,
+      statut: 'en_attente',
+      status: 'pending',
+      type_poubelle: newSignal.type_poubelle || 'biodegradable',
+      created_at: newSignal.reported_at || new Date().toISOString(),
+      reported_at: newSignal.reported_at || new Date().toISOString(),
+      latitude: newSignal.latitude,
+      longitude: newSignal.longitude,
+      commune_nom: newSignal.commune_nom,
+      avenue_nom: newSignal.avenue_nom,
+      numero_parcelle: newSignal.numero_parcelle,
+      bailleur_nom: newSignal.bailleur_nom,
+      bailleur_telephone: newSignal.bailleur_telephone
+    };
+
     try {
-      const { error: err1 } = await supabase.from('signaux_poubelles').insert([newSignal]);
+      const { error: err1 } = await supabase.from('signaux_poubelles').insert([extendedPayload]);
       if (!err1) {
-        console.log("Supabase insert signal succeeded with English schema!");
+        console.log("Supabase insert signal succeeded with extended payload!");
         return;
       }
-      console.warn("Full English insert failed, trying robust French fallback...", err1);
+      console.warn("Extended payload insert warning, trying strict French schema...", err1);
     } catch (e) {
-      console.warn("Full English insert exception:", e);
+      console.warn("Extended payload insert exception:", e);
     }
 
-    // 2. Fallback: Map to strict French SQL Schema with a valid UUID format (or omitting id)
+    // 2. Strict French SQL Schema
     try {
-      const ab = abonnes.find(a => a.telephone_principal === newSignal.bailleur_telephone || a.nom_complet === newSignal.bailleur_nom);
-      
-      const frenchPayload: any = {
-        id: newSignal.id,
+      const strictFrenchPayload: any = {
+        id: validUuid,
         parcelle_id: newSignal.parcelle_id,
         bailleur_id: ab?.id || null,
         statut: 'en_attente',
-        type_poubelle: newSignal.type_poubelle
+        type_poubelle: newSignal.type_poubelle || 'biodegradable',
+        created_at: newSignal.reported_at || new Date().toISOString()
       };
 
-      // Try inserting with French columns (no id string, allowing DB to auto-generate UUID)
-      const { error: err2 } = await supabase.from('signaux_poubelles').insert([frenchPayload]);
+      const { error: err2 } = await supabase.from('signaux_poubelles').insert([strictFrenchPayload]);
       if (!err2) {
-        console.log("Robust French insert succeeded (omitted ID)!");
+        console.log("Strict French insert succeeded!");
         return;
       }
-      console.warn("Robust French insert failed, trying with UUID-compatible ID format...", err2);
+      console.warn("Strict French insert warning:", err2);
 
-      // 3. Last resort fallback: Generate a clean UUID format string if the column is UUID but not defaulting
-      const cleanUuid = "00000000-0000-0000-0000-" + Math.random().toString(36).substring(2, 14).padEnd(12, '0');
-      const lastResortPayload: any = {
-        id: cleanUuid,
-        parcelle_id: newSignal.parcelle_id,
-        bailleur_id: ab?.id || null,
+      // 3. FK safe insert (if parcelle_id or bailleur_id is rejected by foreign key check)
+      const fkSafePayload: any = {
+        id: validUuid,
         statut: 'en_attente',
-        type_poubelle: newSignal.type_poubelle
+        type_poubelle: newSignal.type_poubelle || 'biodegradable',
+        created_at: newSignal.reported_at || new Date().toISOString()
       };
 
-      const { error: err3 } = await supabase.from('signaux_poubelles').insert([lastResortPayload]);
-      if (err3) {
-        // If type_poubelle is rejecting, try without it
-        const strictPayload = { ...lastResortPayload };
-        delete strictPayload.type_poubelle;
-        await supabase.from('signaux_poubelles').insert([strictPayload]);
+      const { error: err3 } = await supabase.from('signaux_poubelles').insert([fkSafePayload]);
+      if (!err3) {
+        console.log("FK safe insert succeeded!");
+      } else {
+        console.error("All insertion attempts failed for signaux_poubelles:", err3);
       }
-      console.log("Last resort insert succeeded with UUID!");
     } catch (fallbackErr) {
-      console.error("All Supabase insertion paths failed for the poubelle signal:", fallbackErr);
+      console.error("Exception during signaux_poubelles insertion:", fallbackErr);
     }
   };
 
