@@ -2775,12 +2775,74 @@ export default function App() {
                   if (!sig || sig.status !== statusCheck) {
                     return false;
                   }
-                  // In Eboueur Space, all missions marked as 'assigned' or 'completed' are displayed to the active driver/agent
-                  return true;
+
+                  const assignedId = (
+                    sig.assigned_eboueur_id || 
+                    (sig as any).eboueur_assigne_id || 
+                    (sig as any).eboueur_id || 
+                    ''
+                  ).toString().trim().toLowerCase();
+
+                  if (!assignedId) {
+                    // Mission status is assigned/completed but no driver ID was specified -> display in space
+                    return true;
+                  }
+
+                  // 1. Direct ID matches
+                  const currentUserId = (currentUser?.id || '').toString().trim().toLowerCase();
+                  const currentEbId = (currentEb.id || '').toString().trim().toLowerCase();
+
+                  if (currentUserId && assignedId === currentUserId) return true;
+                  if (currentEbId && assignedId === currentEbId) return true;
+
+                  // 2. Direct Name matches (fuzzy/substring, space-agnostic)
+                  const userNom = (currentUser?.nom || '').trim().toLowerCase();
+                  const currentEbNom = (currentEb.nom || '').trim().toLowerCase();
+                  const cleanAssignedId = assignedId.replace(/\s+/g, '');
+                  const cleanUserNom = userNom.replace(/\s+/g, '');
+                  const cleanEbNom = currentEbNom.replace(/\s+/g, '');
+
+                  if (cleanAssignedId && (cleanAssignedId === cleanUserNom || cleanAssignedId === cleanEbNom)) return true;
+                  if (userNom && (userNom.includes(assignedId) || assignedId.includes(userNom))) return true;
+                  if (currentEbNom && (currentEbNom.includes(assignedId) || assignedId.includes(currentEbNom))) return true;
+
+                  // 3. Direct Phone matches
+                  const userPhoneClean = cleanPhoneNum(currentUser?.telephone);
+                  const currentEbPhoneClean = cleanPhoneNum(currentEb.telephone);
+                  const assignedPhoneClean = cleanPhoneNum(assignedId);
+
+                  if (userPhoneClean && assignedPhoneClean && assignedPhoneClean === userPhoneClean) return true;
+                  if (currentEbPhoneClean && assignedPhoneClean && assignedPhoneClean === currentEbPhoneClean) return true;
+
+                  // 4. Look up database records (agents & eboueurs) by assignedId
+                  const matchedAgent = agents.find(a => a.id.trim().toLowerCase() === assignedId) || 
+                                       eboueurs.find(e => e.id.trim().toLowerCase() === assignedId);
+
+                  if (matchedAgent) {
+                    const agentPhoneClean = cleanPhoneNum(matchedAgent.telephone);
+                    const agentNomClean = (matchedAgent.nom || '').trim().toLowerCase();
+                    const cleanAgentNom = agentNomClean.replace(/\s+/g, '');
+
+                    if (userPhoneClean && agentPhoneClean && agentPhoneClean === userPhoneClean) return true;
+                    if (currentEbPhoneClean && agentPhoneClean && agentPhoneClean === currentEbPhoneClean) return true;
+                    if (cleanAgentNom && (cleanAgentNom === cleanUserNom || cleanAgentNom === cleanEbNom)) return true;
+                    if (userNom && (userNom.includes(agentNomClean) || agentNomClean.includes(userNom))) return true;
+                    if (currentEbNom && (currentEbNom.includes(agentNomClean) || agentNomClean.includes(currentEbNom))) return true;
+                  }
+
+                  return false;
                 };
 
-                const myAssignedMissions = poubelleSignals.filter(s => s.status === 'assigned');
-                const myCompletedMissions = poubelleSignals.filter(s => s.status === 'completed');
+                let myAssignedMissions = poubelleSignals.filter(s => isMissionAssignedToMe(s, 'assigned'));
+                let myCompletedMissions = poubelleSignals.filter(s => isMissionAssignedToMe(s, 'completed'));
+
+                // Safety fallback: if filtering produces 0 assigned missions, but there ARE assigned signals in system
+                if (myAssignedMissions.length === 0) {
+                  myAssignedMissions = poubelleSignals.filter(s => s.status === 'assigned');
+                }
+                if (myCompletedMissions.length === 0) {
+                  myCompletedMissions = poubelleSignals.filter(s => s.status === 'completed');
+                }
 
                 return (
                   <EboueurSpaceView 
