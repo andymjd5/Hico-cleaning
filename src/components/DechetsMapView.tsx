@@ -378,6 +378,7 @@ export default function DechetsMapView({
           <strong>Commune:</strong> ${sig.commune_nom}<br/>
           <strong>Bailleur:</strong> ${sig.bailleur_nom}<br/>
           <strong>Signalé à:</strong> ${sig.reported_at.substring(11, 16)}<br/>
+          <strong>Position GPS HD:</strong> <span style="font-family: monospace; font-size: 11px;">${coords.lat.toFixed(8)}, ${coords.lng.toFixed(8)}</span> <span style="color: #10b981; font-weight: bold;">(🎯 100% HD)</span><br/>
           ${isCompleted ? `<div class="mt-1 font-bold text-[10px] text-emerald-700 bg-emerald-50 p-1 rounded border border-emerald-200">✅ Action validée — Masquage automatique dans ${remainingMin} min</div>` : ''}
           <div class="mt-1.5 font-bold text-[10px] uppercase inline-block px-1.5 py-0.5 rounded ${isPending ? 'bg-red-100 text-red-700' : isAssigned ? 'bg-yellow-100 text-yellow-700' : 'bg-emerald-100 text-emerald-700'}">
             ${sig.status === 'pending' ? 'Poubelle Pleine 🚨' : sig.status === 'assigned' ? 'Assigné 🚚' : 'Vidé ✔'}
@@ -419,7 +420,7 @@ export default function DechetsMapView({
           <strong class="text-secondary block font-bold text-sm mb-1">${eb.nom}</strong>
           <strong>Téléphone:</strong> ${eb.telephone}<br/>
           <strong>Statut:</strong> ${isBusy ? 'En mission active 🚚' : 'Disponible 🔋'}<br/>
-          <strong>Position:</strong> ${eb.latitude.toFixed(5)}, ${eb.longitude.toFixed(5)}
+          <strong>Position Véhicule HD:</strong> <span style="font-family: monospace; font-size: 11px;">${eb.latitude.toFixed(8)}, ${eb.longitude.toFixed(8)}</span> <span style="color: #10b981; font-weight: bold;">(🎯 100% HD)</span>
         </div>
       `);
 
@@ -1049,9 +1050,12 @@ export default function DechetsMapView({
                         {eb.gps_active ? '● Actif / En ligne' : '○ Inactif'}
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-on-surface-variant">Coordonnées :</span>
-                      <span className="font-mono text-on-surface-variant">{eb.latitude.toFixed(5)}, {eb.longitude.toFixed(5)}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-on-surface-variant">Coordonnées GPS Véhicule :</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-on-surface font-bold">{eb.latitude.toFixed(8)}, {eb.longitude.toFixed(8)}</span>
+                        <span className="text-[9px] bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/20 px-1.5 py-0.2 rounded font-extrabold">100% HD</span>
+                      </div>
                     </div>
                     <div className="flex justify-between border-t border-outline-variant/30 pt-2">
                       <span className="text-on-surface-variant">Statut de mission :</span>

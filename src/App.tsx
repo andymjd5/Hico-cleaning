@@ -2055,7 +2055,8 @@ export default function App() {
     }
 
     const handleSuccess = (position: GeolocationPosition) => {
-      const { latitude, longitude } = position.coords;
+      const latitude = Number(position.coords.latitude.toFixed(8));
+      const longitude = Number(position.coords.longitude.toFixed(8));
       setEboueurs(prev => prev.map(eb => {
         if (eb.telephone === currentUser.telephone) {
           return {
@@ -2126,7 +2127,8 @@ export default function App() {
         // Fetch initial position immediately upon turning GPS on
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            const { latitude, longitude } = position.coords;
+            const latitude = Number(position.coords.latitude.toFixed(8));
+            const longitude = Number(position.coords.longitude.toFixed(8));
             setEboueurs(prev => prev.map(eb => {
               if (eb.id === currentEb.id) {
                 return {
