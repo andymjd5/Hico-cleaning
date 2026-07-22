@@ -1976,65 +1976,61 @@ export default function App() {
       a.nom_complet === newSignal.bailleur_nom
     );
 
-    // 1. Try payload with both French and English column names
-    const extendedPayload: any = {
+    const pId = newSignal.parcelle_id || null;
+    const bId = ab?.id || null;
+
+    // 1. Full payload with type_poubelle
+    const fullPayload: any = {
       id: validUuid,
-      parcelle_id: newSignal.parcelle_id,
-      bailleur_id: ab?.id || null,
-      statut: 'en_attente',
-      status: 'pending',
+      parcelle_id: pId,
+      bailleur_id: bId,
+      statut: newSignal.status === 'assigned' ? 'assigned' : newSignal.status === 'completed' ? 'completed' : 'en_attente',
       type_poubelle: newSignal.type_poubelle || 'biodegradable',
-      created_at: newSignal.reported_at || new Date().toISOString(),
-      reported_at: newSignal.reported_at || new Date().toISOString(),
-      latitude: newSignal.latitude,
-      longitude: newSignal.longitude,
-      commune_nom: newSignal.commune_nom,
-      avenue_nom: newSignal.avenue_nom,
-      numero_parcelle: newSignal.numero_parcelle,
-      bailleur_nom: newSignal.bailleur_nom,
-      bailleur_telephone: newSignal.bailleur_telephone
+      created_at: newSignal.reported_at || new Date().toISOString()
     };
 
     try {
-      const { error: err1 } = await supabase.from('signaux_poubelles').insert([extendedPayload]);
+      const { error: err1 } = await supabase.from('signaux_poubelles').insert([fullPayload]);
       if (!err1) {
-        console.log("Supabase insert signal succeeded with extended payload!");
+        console.log("Supabase insert into signaux_poubelles succeeded (with type_poubelle)!");
         return;
       }
-      console.warn("Extended payload insert warning, trying strict French schema...", err1);
+      console.warn("Attempt 1 failed (trying without type_poubelle or FK):", err1);
     } catch (e) {
-      console.warn("Extended payload insert exception:", e);
+      console.warn("Attempt 1 exception:", e);
     }
 
-    // 2. Strict French SQL Schema
+    // 2. Fallback: Strict SQL schema without type_poubelle (if column doesn't exist yet on DB)
     try {
-      const strictFrenchPayload: any = {
+      const strictPayload: any = {
         id: validUuid,
-        parcelle_id: newSignal.parcelle_id,
-        bailleur_id: ab?.id || null,
-        statut: 'en_attente',
-        type_poubelle: newSignal.type_poubelle || 'biodegradable',
+        parcelle_id: pId,
+        bailleur_id: bId,
+        statut: newSignal.status === 'assigned' ? 'assigned' : newSignal.status === 'completed' ? 'completed' : 'en_attente',
         created_at: newSignal.reported_at || new Date().toISOString()
       };
 
-      const { error: err2 } = await supabase.from('signaux_poubelles').insert([strictFrenchPayload]);
+      const { error: err2 } = await supabase.from('signaux_poubelles').insert([strictPayload]);
       if (!err2) {
-        console.log("Strict French insert succeeded!");
+        console.log("Supabase insert into signaux_poubelles succeeded (strict schema)!");
         return;
       }
-      console.warn("Strict French insert warning:", err2);
+      console.warn("Attempt 2 failed (trying FK-safe fallback):", err2);
+    } catch (e) {
+      console.warn("Attempt 2 exception:", e);
+    }
 
-      // 3. FK safe insert (if parcelle_id or bailleur_id is rejected by foreign key check)
+    // 3. Foreign-key safe fallback (if parcelle_id or bailleur_id don't exist in remote tables)
+    try {
       const fkSafePayload: any = {
         id: validUuid,
-        statut: 'en_attente',
-        type_poubelle: newSignal.type_poubelle || 'biodegradable',
+        statut: newSignal.status === 'assigned' ? 'assigned' : newSignal.status === 'completed' ? 'completed' : 'en_attente',
         created_at: newSignal.reported_at || new Date().toISOString()
       };
 
       const { error: err3 } = await supabase.from('signaux_poubelles').insert([fkSafePayload]);
       if (!err3) {
-        console.log("FK safe insert succeeded!");
+        console.log("Supabase insert into signaux_poubelles succeeded (FK safe)!");
       } else {
         console.error("All insertion attempts failed for signaux_poubelles:", err3);
       }
@@ -3876,6 +3872,7 @@ CREATE TABLE IF NOT EXISTS signaux_poubelles (
   parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
   bailleur_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
   statut VARCHAR(20) DEFAULT 'en_attente',
+  type_poubelle VARCHAR(30) DEFAULT 'biodegradable',
   eboueur_assigne_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   resolved_at TIMESTAMPTZ
@@ -4165,6 +4162,7 @@ CREATE TABLE IF NOT EXISTS signaux_poubelles (
   parcelle_id TEXT REFERENCES parcelles(id) ON DELETE CASCADE,
   bailleur_id TEXT REFERENCES abonnes(id) ON DELETE CASCADE,
   statut VARCHAR(20) DEFAULT 'en_attente',
+  type_poubelle VARCHAR(30) DEFAULT 'biodegradable',
   eboueur_assigne_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   resolved_at TIMESTAMPTZ
