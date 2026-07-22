@@ -88,8 +88,8 @@ export default function LoginForm({
         return;
       }
 
-      // Check if this is first login or has a temporary password ('12345' or isTempPassword)
-      if (found.isTempPassword || found.password === '12345') {
+      // Check if this is first login or has an unchanged temporary password
+      if (found.isTempPassword && found.password === '12345') {
         setPendingFirstLoginAgent(found);
         setNewPersonalPass('');
         setConfirmPersonalPass('');

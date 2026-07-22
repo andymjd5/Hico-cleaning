@@ -231,8 +231,8 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Filter out demo signals
-          return parsed.filter(s => !['sig-1', 'sig-2', 'p-demo-1', 'p-demo-2'].includes(s.id) && s.parcelle_id !== 'p-demo-1');
+          // Keep all active/user signals, excluding mock demo sigs
+          return parsed.filter(s => !['sig-1', 'sig-2'].includes(s.id));
         }
       } catch (e) {
         console.error(e);
@@ -1121,7 +1121,15 @@ export default function App() {
 
           // Sort safely in memory
           formatted.sort((a, b) => new Date(b.reported_at).getTime() - new Date(a.reported_at).getTime());
-          setPoubelleSignals(formatted);
+          
+          setPoubelleSignals(prev => {
+            // Keep local signals that might not have synced to Supabase yet
+            const remoteIds = new Set(formatted.map(f => f.id));
+            const unsyncedLocal = prev.filter(p => !remoteIds.has(p.id));
+            const merged = [...unsyncedLocal, ...formatted];
+            merged.sort((a, b) => new Date(b.reported_at).getTime() - new Date(a.reported_at).getTime());
+            return merged;
+          });
         }
       } catch (e) {
         console.warn("Table 'signaux_poubelles' not accessible, using localStorage fallback.", e);
@@ -2003,21 +2011,47 @@ export default function App() {
   };
 
   const handleReportTrashFull = async (type_poubelle: 'biodegradable' | 'non_biodegradable') => {
+    // Normalize phone number for clean matching
+    const cleanUserPhone = (currentUser?.telephone || '').replace(/\s+/g, '');
+
     // Find active Abonne profile associated with the user
-    const ab = abonnes.find(a => a.telephone_principal === currentUser?.telephone || a.id === 'abonne-demo');
+    let ab = abonnes.find(a => 
+      a.telephone_principal && cleanUserPhone && a.telephone_principal.replace(/\s+/g, '') === cleanUserPhone
+    );
+
     if (!ab) {
-      alert("Erreur: Profil abonné de démonstration introuvable !");
-      return;
+      ab = abonnes.find(a => a.id === 'abonne-demo') || {
+        id: 'abonne-demo',
+        parcelle_id: 'p-demo-1',
+        nom_complet: currentUser?.nom || 'Abonné Hico',
+        telephone_principal: currentUser?.telephone || '0821111111',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
     }
-    const parc = parcelles.find(p => p.id === ab.parcelle_id);
+
+    // Find parcel with robust fallback
+    let parc = parcelles.find(p => p.id === ab?.parcelle_id);
     if (!parc) {
-      alert("Erreur: Parcelle d'abonné introuvable !");
-      return;
+      parc = parcelles.find(p => p.id === 'p-demo-1') || parcelles[0] || {
+        id: 'p-demo-1',
+        avenue_id: 'ave-gombe-1',
+        numero_parcelle: '24',
+        type_logement: 'maison_basse',
+        presence_locataire: 'oui',
+        nombre_menages: 1,
+        nom_bailleur: ab.nom_complet,
+        telephone_bailleur: ab.telephone_principal,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        latitude: -4.31234,
+        longitude: 15.29876
+      };
     }
 
     // Check if there is already an active signal for this specific type to avoid duplicates
     const alreadySignaled = poubelleSignals.some(
-      s => s.parcelle_id === parc.id && 
+      s => (s.parcelle_id === parc.id || s.bailleur_telephone === ab.telephone_principal) && 
            s.type_poubelle === type_poubelle && 
            s.status !== 'completed'
     );
