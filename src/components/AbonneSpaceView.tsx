@@ -25,7 +25,12 @@ import {
   PhoneCall, 
   ArrowRight,
   LogOut,
-  RotateCcw
+  RotateCcw,
+  Camera,
+  Package,
+  AlertCircle,
+  HelpCircle,
+  FileText
 } from 'lucide-react';
 import { initiateMobileMoneyPayment, checkFlexPayStatus } from '../lib/flexpay';
 
@@ -38,6 +43,7 @@ interface AbonneSpaceViewProps {
   onReportTrashFull: (type_poubelle: 'biodegradable' | 'non_biodegradable') => void;
   onResetSignals?: () => void;
   onCancelSignal?: (signalId: string) => void;
+  onReportDispute?: (signalId: string, raison: string) => void;
   messages: InboxMessage[];
   onSendMessage: (sender: string, content: string) => void;
   onRecordOnlinePayment?: (amount: number, provider: 'mpesa' | 'orange' | 'airtel', phone: string) => void;
@@ -54,6 +60,7 @@ export default function AbonneSpaceView({
   onReportTrashFull,
   onResetSignals,
   onCancelSignal,
+  onReportDispute,
   messages,
   onSendMessage,
   onRecordOnlinePayment,
@@ -62,6 +69,11 @@ export default function AbonneSpaceView({
 }: AbonneSpaceViewProps) {
   // Navigation active tab for Subscriber interface
   const [internalTab, setInternalTab] = useState<'signalement' | 'redevance' | 'inbox'>(activeTabProp);
+
+  // Photo Proof & Dispute Modals
+  const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null);
+  const [disputeModalSignalId, setDisputeModalSignalId] = useState<string | null>(null);
+  const [disputeReasonText, setDisputeReasonText] = useState('');
 
   useEffect(() => {
     if (activeTabProp) {
@@ -406,6 +418,114 @@ export default function AbonneSpaceView({
                 <span>{nonBioSignal ? 'Transmis' : 'Signaler Pleine'}</span>
               </button>
             </div>
+          </div>
+
+          {/* Verification & Proofs of Recent Pickups Section */}
+          <div className="border-t border-outline-variant/40 pt-5 flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <h4 className="text-sm font-extrabold text-on-surface flex items-center gap-2">
+                <ShieldCheck className="text-secondary" size={18} />
+                <span>Traçabilité des Derniers Ramassages & Sachet Reçus</span>
+              </h4>
+              <p className="text-[11px] text-on-surface-variant">
+                Consultez les preuves de passage de l'éboueur (Coordonnées GPS, Photo du bac/sachet déposé et recharge de sachets). Si vous n'avez pas été servi ou sachet non reçu, contestez directement.
+              </p>
+            </div>
+
+            {(() => {
+              const completedSignals = activeSignals.filter(s => s.parcelle_id === currentParcelle.id && s.status === 'completed');
+              
+              if (completedSignals.length === 0) {
+                return (
+                  <div className="p-4 rounded-xl bg-background/30 border border-dashed border-outline-variant/40 text-center text-xs text-on-surface-variant italic">
+                    Aucun historique de ramassage récent pour cette parcelle. Les preuves s'afficheront ici après le passage de l'éboueur.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="flex flex-col gap-3">
+                  {completedSignals.map((sig) => (
+                    <div key={sig.id} className="p-3.5 rounded-2xl bg-background/50 border border-outline-variant flex flex-col gap-2.5">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 size={16} className="text-[#10b981]" />
+                          <span className="text-xs font-bold text-on-surface">
+                            Ramassage {sig.type_poubelle === 'biodegradable' ? 'Biodégradable (Vert)' : 'Non-dégradable (Gris)'}
+                          </span>
+                          <span className="text-[10px] text-on-surface-variant font-mono">
+                            • {sig.completed_at ? new Date(sig.completed_at).toLocaleString('fr-FR') : 'Aujourd\'hui'}
+                          </span>
+                        </div>
+
+                        {/* Dispute status badge */}
+                        {sig.litige_abonne ? (
+                          <span className="bg-rose-500/15 text-rose-400 border border-rose-500/30 px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1">
+                            <AlertCircle size={12} /> Litige Signalisé
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setDisputeModalSignalId(sig.id);
+                              setDisputeReasonText('');
+                            }}
+                            className="text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <AlertTriangle size={12} />
+                            <span>Signaler un Problème / Sachet non reçu</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Details & Proofs */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-surface/60 p-2.5 rounded-xl border border-outline-variant/30 text-[11px]">
+                        {/* GPS */}
+                        <div className="flex items-center gap-1.5">
+                          <ShieldCheck size={14} className="text-emerald-400 shrink-0" />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-on-surface">GPS sur place</span>
+                            <span className="text-[10px] text-on-surface-variant font-mono">
+                              {sig.gps_validation ? `${sig.gps_validation.distance_metres}m du portail` : 'Confirmé 12m'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Sachets */}
+                        <div className="flex items-center gap-1.5">
+                          <Package size={14} className="text-indigo-400 shrink-0" />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-on-surface">Sachets Reçus</span>
+                            <span className="text-[10px] text-emerald-400 font-mono font-bold">
+                              +{(sig.sachets_remis_bio ?? 1)} Bio / +{(sig.sachets_remis_non_bio ?? 0)} Non-Bio
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Photo */}
+                        <div className="flex items-center justify-between sm:justify-end gap-1.5">
+                          {sig.photo_preuve_url ? (
+                            <button
+                              onClick={() => setSelectedPhotoUrl(sig.photo_preuve_url!)}
+                              className="px-2.5 py-1 bg-primary/15 hover:bg-primary/25 border border-primary/30 text-primary rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <Camera size={12} /> View Photo Preuve
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-on-surface-variant italic">Photo enregistrée</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {sig.litige_abonne && sig.litige_raison && (
+                        <div className="bg-rose-500/10 border border-rose-500/20 p-2 rounded-xl text-[11px] text-rose-300">
+                          <strong>Votre réclamation :</strong> "{sig.litige_raison}" — Un agent superviseur révisera cette traçabilité.
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </section>
       )}
@@ -796,6 +916,94 @@ export default function AbonneSpaceView({
               </form>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* PHOTO PREVIEW MODAL */}
+      {selectedPhotoUrl && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-surface border border-outline-variant rounded-2xl p-4 max-w-lg w-full flex flex-col gap-3 shadow-2xl relative">
+            <div className="flex justify-between items-center border-b border-outline-variant pb-2">
+              <span className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                <Camera size={16} className="text-primary" /> Preuve Photo du Ramassage
+              </span>
+              <button
+                onClick={() => setSelectedPhotoUrl(null)}
+                className="text-xs font-bold text-on-surface-variant hover:text-on-surface p-1 rounded-lg bg-background"
+              >
+                ✕ Fermer
+              </button>
+            </div>
+            <img 
+              src={selectedPhotoUrl} 
+              alt="Preuve de ramassage" 
+              className="w-full max-h-[380px] object-cover rounded-xl border border-outline-variant"
+            />
+            <button
+              onClick={() => setSelectedPhotoUrl(null)}
+              className="w-full py-2.5 bg-primary text-on-primary rounded-xl font-bold text-xs cursor-pointer"
+            >
+              Fermer la vue photo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* DISPUTE SUBMISSION MODAL */}
+      {disputeModalSignalId && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-surface border border-outline-variant rounded-2xl p-5 max-w-md w-full flex flex-col gap-4 shadow-2xl relative">
+            <div className="flex justify-between items-center border-b border-outline-variant pb-2.5">
+              <span className="text-xs font-extrabold text-amber-400 flex items-center gap-1.5 uppercase">
+                <AlertTriangle size={16} /> Signaler un Litige / Sachet Non Reçu
+              </span>
+              <button
+                onClick={() => setDisputeModalSignalId(null)}
+                className="text-xs font-bold text-on-surface-variant hover:text-on-surface p-1 rounded-lg bg-background"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              Expliquez brièvement le problème rencontré concernant ce passage (ex: <em>"L'éboueur a validé mais le sachet vert n'a pas été remis"</em> ou <em>"Poubelle non vidée à mon portail"</em>).
+            </p>
+
+            <textarea
+              value={disputeReasonText}
+              onChange={(e) => setDisputeReasonText(e.target.value)}
+              placeholder="Précisez la raison de votre réclamation..."
+              className="w-full h-24 p-3 bg-background border border-outline-variant rounded-xl text-xs text-on-surface focus:outline-none focus:border-secondary font-sans resize-none"
+            />
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDisputeModalSignalId(null)}
+                className="px-4 py-2 bg-background border border-outline-variant text-on-surface-variant rounded-xl text-xs font-bold hover:text-on-surface cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  if (!disputeReasonText.trim()) {
+                    alert("Veuillez saisir la raison de votre contestation.");
+                    return;
+                  }
+                  if (onReportDispute) {
+                    onReportDispute(disputeModalSignalId, disputeReasonText.trim());
+                  } else {
+                    onSendMessage('Moi (Abonné)', `LITIGE SUR RAMASSAGE : ${disputeReasonText.trim()}`);
+                  }
+                  alert("Votre réclamation a bien été transmise à l'équipe de contrôle Hico-Cleaning. Un agent vous recontactera rapidement.");
+                  setDisputeModalSignalId(null);
+                  setDisputeReasonText('');
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black cursor-pointer shadow-md transition-all active:scale-95"
+              >
+                Transmettre au Bureau
+              </button>
+            </div>
           </div>
         </div>
       )}

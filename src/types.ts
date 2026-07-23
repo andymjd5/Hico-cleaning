@@ -87,6 +87,20 @@ export interface PoubelleSignal {
   type_poubelle?: 'biodegradable' | 'non_biodegradable';
   latitude?: number | null;
   longitude?: number | null;
+  // Verification & Traceability Extensions
+  gps_validation?: {
+    driver_latitude: number;
+    driver_longitude: number;
+    distance_metres: number;
+    verified_on_site: boolean;
+    verified_at: string;
+  };
+  photo_preuve_url?: string;
+  sachets_remis_bio?: number;
+  sachets_remis_non_bio?: number;
+  litige_abonne?: boolean;
+  litige_raison?: string;
+  litige_date?: string;
 }
 
 export interface Eboueur {
