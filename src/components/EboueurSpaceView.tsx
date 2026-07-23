@@ -28,6 +28,7 @@ interface EboueurSpaceViewProps {
   onToggleGps: () => void;
   onUpdateGpsCoords?: (latitude: number, longitude: number) => void;
   onCompleteMission: (signalId: string) => void;
+  onUnloadTruck?: () => void;
   onLogout?: () => void;
   currentUser?: any;
   allRawSignals?: PoubelleSignal[];
@@ -40,12 +41,18 @@ export default function EboueurSpaceView({
   completedMissions,
   onToggleGps,
   onCompleteMission,
+  onUnloadTruck,
   currentUser,
   allRawSignals = [],
   allAgents = []
 }: EboueurSpaceViewProps) {
   const [showDebugConsole, setShowDebugConsole] = useState(true);
   const hasActiveMission = assignedMissions.length > 0;
+
+  const maxCap = currentEboueur.capacite_camion || 6;
+  const currentLoad = currentEboueur.charge_actuelle || 0;
+  const freeSpace = Math.max(0, maxCap - currentLoad);
+  const loadPercentage = Math.min(100, Math.round((currentLoad / maxCap) * 100));
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6 animate-fade-in text-on-background">
@@ -130,6 +137,67 @@ export default function EboueurSpaceView({
           </div>
         </div>
       </header>
+
+      {/* Truck Capacity & Cargo Load Card */}
+      <div className="bg-surface border border-outline-variant rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 flex-grow">
+          <div className="p-3 bg-secondary/15 text-secondary rounded-2xl shrink-0">
+            <Truck size={28} />
+          </div>
+          <div className="flex flex-col gap-1.5 flex-grow">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-xs font-black text-on-surface uppercase tracking-wider">
+                Chargement du Camion : <span className="text-secondary font-mono font-bold text-sm">{currentLoad} / {maxCap} sachets</span>
+              </span>
+              <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                currentLoad >= maxCap 
+                  ? 'bg-rose-500/15 text-rose-400 border-rose-500/30 animate-pulse'
+                  : currentLoad >= maxCap * 0.7
+                    ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+              }`}>
+                {currentLoad >= maxCap 
+                  ? '🚨 CAMION PLEIN' 
+                  : `${freeSpace} place${freeSpace > 1 ? 's' : ''} libre${freeSpace > 1 ? 's' : ''}`
+                }
+              </span>
+            </div>
+
+            {/* Gauge progress bar */}
+            <div className="w-full h-3 bg-background border border-outline-variant/60 rounded-full overflow-hidden p-0.5">
+              <div 
+                className={`h-full rounded-full transition-all duration-500 ${
+                  currentLoad >= maxCap 
+                    ? 'bg-rose-500' 
+                    : currentLoad >= maxCap * 0.7 
+                      ? 'bg-amber-500' 
+                      : 'bg-emerald-500'
+                }`}
+                style={{ width: `${loadPercentage}%` }}
+              />
+            </div>
+
+            <p className="text-[11px] text-on-surface-variant font-medium leading-normal">
+              À chaque retrait effectué chez l'abonné, le camion enregistre 1 sachet collecté et lui remet 1 sachet de rechange neuf (décompté du stock communal).
+            </p>
+          </div>
+        </div>
+
+        {currentLoad > 0 && onUnloadTruck && (
+          <button
+            onClick={() => {
+              if (confirm(`Avez-vous déchargé les ${currentLoad} sachets de votre camion à la décharge principale ?`)) {
+                onUnloadTruck();
+              }
+            }}
+            className="shrink-0 min-h-[44px] px-4 py-2.5 bg-secondary/15 hover:bg-secondary/25 text-indigo-300 border border-secondary/30 rounded-2xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+            title="Réinitialiser la charge après déchargement"
+          >
+            <RefreshCw size={15} />
+            <span>Décharger le camion (Vider) 🚚</span>
+          </button>
+        )}
+      </div>
 
       {/* Main dashboard panel: Active Mission vs History */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">

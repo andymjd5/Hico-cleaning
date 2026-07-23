@@ -44,6 +44,8 @@ export interface Agent {
   parcelle_id?: string; // used for role === 'abonne' to link their specific parcel
   password?: string;
   isTempPassword?: boolean;
+  capacite_camion?: number; // Capacité max du camion en sachets (par défaut 6)
+  charge_actuelle?: number;  // Nombre de sachets actuellement dans le camion
 }
 
 export type Screen = 
@@ -95,6 +97,8 @@ export interface Eboueur {
   longitude: number;
   status: 'idle' | 'en_mission';
   gps_active: boolean;
+  capacite_camion?: number; // Capacité max du camion en sachets (par défaut 6)
+  charge_actuelle?: number;  // Nombre de sachets actuellement dans le camion
 }
 
 export interface InboxMessage {

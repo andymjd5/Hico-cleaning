@@ -2230,12 +2230,24 @@ export default function App() {
     if (assignedEbId) {
       setEboueurs(prev => prev.map(eb => {
         if (eb.id === assignedEbId) {
+          const cap = eb.capacite_camion || 6;
+          const newCharge = (eb.charge_actuelle || 0) + 1;
           return {
             ...eb,
+            charge_actuelle: newCharge,
             status: 'idle'
           };
         }
         return eb;
+      }));
+      setAgents(prev => prev.map(ag => {
+        if (ag.id === assignedEbId) {
+          return {
+            ...ag,
+            charge_actuelle: (ag.charge_actuelle || 0) + 1
+          };
+        }
+        return ag;
       }));
     } else {
       // Fallback matching current logged-in driver
@@ -2245,10 +2257,20 @@ export default function App() {
           if (eb.id === currentEb.id) {
             return {
               ...eb,
+              charge_actuelle: (eb.charge_actuelle || 0) + 1,
               status: 'idle'
             };
           }
           return eb;
+        }));
+        setAgents(prev => prev.map(ag => {
+          if (ag.id === currentEb.id || (ag.telephone && currentUser?.telephone && ag.telephone === currentUser.telephone)) {
+            return {
+              ...ag,
+              charge_actuelle: (ag.charge_actuelle || 0) + 1
+            };
+          }
+          return ag;
         }));
       }
     }
@@ -2272,6 +2294,31 @@ export default function App() {
       } catch (err) {
         console.warn("Supabase handleCompleteMission failed:", err);
       }
+    }
+  };
+
+  const handleUnloadTruck = async (eboueurId?: string) => {
+    const targetId = eboueurId || eboueurs.find(e => e.telephone === currentUser?.telephone)?.id;
+    if (!targetId) return;
+
+    setEboueurs(prev => prev.map(eb => {
+      if (eb.id === targetId) {
+        return { ...eb, charge_actuelle: 0 };
+      }
+      return eb;
+    }));
+
+    setAgents(prev => prev.map(ag => {
+      if (ag.id === targetId || (ag.telephone && currentUser?.telephone && ag.telephone.replace(/\s+/g, '') === currentUser.telephone.replace(/\s+/g, ''))) {
+        return { ...ag, charge_actuelle: 0 };
+      }
+      return ag;
+    }));
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('agents').update({ charge_actuelle: 0 }).eq('id', targetId);
+      } catch (_) {}
     }
   };
 
@@ -3252,6 +3299,7 @@ export default function App() {
                     onToggleGps={handleToggleEboueurGps}
                     onUpdateGpsCoords={handleUpdateEboueurGpsCoords}
                     onCompleteMission={handleCompleteMission}
+                    onUnloadTruck={handleUnloadTruck}
                     onLogout={handleLogout}
                     currentUser={currentUser}
                     allRawSignals={poubelleSignals}

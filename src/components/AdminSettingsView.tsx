@@ -132,6 +132,7 @@ export default function AdminSettingsView({
   const [newAgentPhone, setNewAgentPhone] = useState('');
   const [newAgentRole, setNewAgentRole] = useState<'admin' | 'agent' | 'abonne' | 'eboueur'>('agent');
   const [newAgentPassword, setNewAgentPassword] = useState('password');
+  const [newAgentCapacite, setNewAgentCapacite] = useState<number>(6);
   const [accountSuccess, setAccountSuccess] = useState<string | null>(null);
   const [accountError, setAccountError] = useState<string | null>(null);
 
@@ -268,7 +269,9 @@ export default function AdminSettingsView({
       role: newAgentRole,
       created_at: new Date().toISOString(),
       password: newAgentPassword || 'password',
-      isTempPassword: false
+      isTempPassword: false,
+      capacite_camion: newAgentRole === 'eboueur' ? newAgentCapacite : undefined,
+      charge_actuelle: 0
     };
 
     onAddAgent(newAgent);
@@ -677,6 +680,25 @@ export default function AdminSettingsView({
                   <option value="admin">Administrateur Système 👑</option>
                 </select>
               </div>
+
+              {newAgentRole === 'eboueur' && (
+                <div className="flex flex-col gap-1.5 animate-fade-in">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="acc_capacite">
+                    Capacité du Camion Éboueur (Nombre de Sachets max)
+                  </label>
+                  <input 
+                    type="number"
+                    id="acc_capacite"
+                    min="1"
+                    max="50"
+                    value={newAgentCapacite}
+                    onChange={(e) => setNewAgentCapacite(parseInt(e.target.value) || 6)}
+                    className="w-full h-11 px-3.5 bg-background border border-outline-variant rounded-xl text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono font-bold"
+                    placeholder="6"
+                    required
+                  />
+                </div>
+              )}
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="acc_pass">

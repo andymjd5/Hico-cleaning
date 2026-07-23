@@ -230,7 +230,7 @@ export default function DechetsMapView({
     return parseFloat((d * 111.12).toFixed(2));
   };
 
-  // Find nearest collector for selected signal
+  // Find nearest collector for selected signal with capacity & proximity priority
   const nearestCollectors = useMemo(() => {
     if (!selectedSignal) return [];
     const signalCoords = getSignalCoords(selectedSignal);
@@ -239,12 +239,25 @@ export default function DechetsMapView({
       .filter(eb => eb.gps_active && eb.latitude != null && eb.longitude != null && !isNaN(eb.latitude) && !isNaN(eb.longitude))
       .map(eb => {
         const dist = calculateDistance(signalCoords.lat, signalCoords.lng, eb.latitude, eb.longitude);
+        const cap = eb.capacite_camion || 6;
+        const load = eb.charge_actuelle || 0;
+        const hasSpace = load < cap;
+
         return {
           ...eb,
-          distance: dist
+          distance: dist,
+          hasSpace,
+          freeSpace: Math.max(0, cap - load)
         };
       })
-      .sort((a, b) => a.distance - b.distance);
+      .sort((a, b) => {
+        // First priority: truck has available capacity
+        if (a.hasSpace !== b.hasSpace) {
+          return a.hasSpace ? -1 : 1;
+        }
+        // Second priority: proximity distance
+        return a.distance - b.distance;
+      });
   }, [selectedSignal, computedEboueurs]);
 
   // Map Leaflet implementation refs & states
@@ -390,19 +403,25 @@ export default function DechetsMapView({
     computedEboueurs.filter(eb => eb.gps_active && eb.latitude != null && eb.longitude != null && !isNaN(eb.latitude) && !isNaN(eb.longitude)).forEach((eb) => {
       const isSelected = selectedEboueurId === eb.id;
       const isBusy = eb.status === 'en_mission';
+      const cap = eb.capacite_camion || 6;
+      const load = eb.charge_actuelle || 0;
+      const isFull = load >= cap;
 
       const customIcon = window.L.divIcon({
         className: 'custom-leaflet-marker',
         html: `
           <div class="relative flex items-center justify-center transition-all duration-300" style="transform: ${isSelected ? 'scale(1.25)' : 'scale(1.0)'}; z-index: ${isSelected ? '9999' : '100'};">
-            <span class="absolute inline-flex h-7 w-7 rounded-full bg-blue-500/20 animate-pulse"></span>
-            <div class="p-2 rounded-full bg-blue-600 text-white border-2 ${isSelected ? 'border-yellow-400 scale-110' : 'border-white'} shadow-md flex items-center justify-center" style="width: 32px; height: 32px; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+            <span class="absolute inline-flex h-7 w-7 rounded-full ${isFull ? 'bg-red-500/30' : 'bg-blue-500/20'} animate-pulse"></span>
+            <div class="p-2 rounded-full ${isFull ? 'bg-red-600' : 'bg-blue-600'} text-white border-2 ${isSelected ? 'border-yellow-400 scale-110' : 'border-white'} shadow-md flex items-center justify-center" style="width: 34px; height: 34px; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
               🚚
+            </div>
+            <div class="absolute -top-3 -right-2 text-[9px] font-extrabold font-mono ${isFull ? 'bg-red-600 text-white' : 'bg-slate-900 text-amber-300'} px-1.5 py-0.5 rounded-full border border-slate-700 shadow-sm whitespace-nowrap">
+              ${load}/${cap}
             </div>
           </div>
         `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
       });
 
       const marker = window.L.marker([eb.latitude, eb.longitude], { icon: customIcon });
@@ -412,6 +431,7 @@ export default function DechetsMapView({
           <strong class="text-secondary block font-bold text-sm mb-1">${eb.nom}</strong>
           <strong>Téléphone:</strong> ${eb.telephone}<br/>
           <strong>Statut:</strong> ${isBusy ? 'En mission active 🚚' : 'Disponible 🔋'}<br/>
+          <strong>Chargement Camion:</strong> <span style="font-family: monospace; font-weight: bold; color: ${isFull ? '#ef4444' : '#10b981'};">${load} / ${cap} sachets</span> ${isFull ? '🚨 [CAMION PLEIN]' : `(${cap - load} places libres)`}<br/>
           <strong>Position Véhicule HD:</strong> <span style="font-family: monospace; font-size: 11px;">${eb.latitude.toFixed(8)}, ${eb.longitude.toFixed(8)}</span> <span style="color: #10b981; font-weight: bold;">(🎯 100% HD)</span>
         </div>
       `);
@@ -933,40 +953,64 @@ export default function DechetsMapView({
                       </p>
                     ) : (
                       <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
-                        {nearestCollectors.map((eb) => (
-                          <div 
-                            key={eb.id}
-                            className={`p-2.5 border rounded-xl flex justify-between items-center bg-background/40 hover:bg-background/80 transition-colors cursor-pointer ${
-                              eb.status === 'en_mission' ? 'opacity-65 border-outline-variant/40' : 'border-outline-variant'
-                            }`}
-                          >
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-xs font-bold text-on-surface flex items-center gap-1">
-                                {eb.nom}
-                                {eb.status === 'en_mission' && (
-                                  <span className="text-[8px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1 rounded">
-                                    En mission
-                                  </span>
-                                )}
-                              </span>
-                              <span className="text-[10px] text-on-surface-variant">
-                                Distance : <strong className="text-secondary">{eb.distance} km</strong>
-                              </span>
-                            </div>
+                        {nearestCollectors.map((eb) => {
+                          const cap = eb.capacite_camion || 6;
+                          const load = eb.charge_actuelle || 0;
+                          const isFull = load >= cap;
 
-                            <button
-                              onClick={() => {
-                                onAssignMission(selectedSignal.id, eb.id);
-                                setSelectedSignalId(null);
-                                alert(`Mission envoyée à l'éboueur ${eb.nom} ! Un SMS/Notification lui a été transmis.`);
-                              }}
-                              className="px-2.5 py-1.5 bg-[#10b981] hover:bg-[#10b981]/90 text-white font-extrabold text-[10px] rounded-lg shadow-sm flex items-center gap-1 cursor-pointer"
+                          return (
+                            <div 
+                              key={eb.id}
+                              className={`p-2.5 border rounded-xl flex justify-between items-center bg-background/40 hover:bg-background/80 transition-colors cursor-pointer ${
+                                isFull ? 'border-red-500/30 bg-red-500/5' : eb.status === 'en_mission' ? 'opacity-85 border-outline-variant/60' : 'border-outline-variant'
+                              }`}
                             >
-                              <Send size={10} />
-                              <span>Assigner</span>
-                            </button>
-                          </div>
-                        ))}
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-xs font-bold text-on-surface flex items-center gap-1">
+                                  {eb.nom}
+                                  {eb.status === 'en_mission' && (
+                                    <span className="text-[8px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1 rounded">
+                                      En route
+                                    </span>
+                                  )}
+                                  {isFull && (
+                                    <span className="text-[8px] bg-red-500/15 text-red-400 border border-red-500/30 px-1 rounded font-black">
+                                      Plein
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="text-[10px] text-on-surface-variant flex items-center gap-1.5 flex-wrap">
+                                  <span>Distance : <strong className="text-secondary">{eb.distance} km</strong></span>
+                                  <span>•</span>
+                                  <span className={`font-mono font-bold ${isFull ? 'text-red-400' : 'text-emerald-400'}`}>
+                                    📦 {load}/{cap} {isFull ? '(Plein)' : `(${cap - load} libres)`}
+                                  </span>
+                                </span>
+                              </div>
+
+                              <button
+                                onClick={() => {
+                                  if (isFull) {
+                                    if (!confirm(`⚠️ Le camion de ${eb.nom} est actuellement PLEIN (${load}/${cap} sachets). Voulez-vous tout de même lui assigner cette mission ?`)) {
+                                      return;
+                                    }
+                                  }
+                                  onAssignMission(selectedSignal.id, eb.id);
+                                  setSelectedSignalId(null);
+                                  alert(`Mission envoyée à l'éboueur ${eb.nom} ! Un SMS/Notification lui a été transmis.`);
+                                }}
+                                className={`px-2.5 py-1.5 font-extrabold text-[10px] rounded-lg shadow-sm flex items-center gap-1 cursor-pointer transition-all ${
+                                  isFull 
+                                    ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/40' 
+                                    : 'bg-[#10b981] hover:bg-[#10b981]/90 text-white'
+                                }`}
+                              >
+                                <Send size={10} />
+                                <span>Assigner</span>
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
