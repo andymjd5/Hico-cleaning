@@ -2221,10 +2221,17 @@ export default function App() {
       longitude: lng
     };
 
+    const isAdminView = currentUser?.role === 'admin' || ['dashboard', 'dechets_map', 'communes', 'avenues', 'rapports', 'admin_settings'].includes(currentScreen);
+
     setPoubelleSignals(prev => [newSignal, ...prev]);
-    setActiveNotification(newSignal);
-    setHasNewSignals(true);
-    playSignalAlertSound();
+
+    if (isAdminView) {
+      setActiveNotification(newSignal);
+      setHasNewSignals(true);
+      playSignalAlertSound();
+    } else {
+      addToast(`Alerte enregistrée ! L'administration planifie l'intervention de l'éboueur.`, 'success');
+    }
 
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
@@ -2239,13 +2246,39 @@ export default function App() {
     await safeInsertPoubelleSignal(newSignal);
   };
 
-  const handleAssignEboueur = async (signalId: string, eboueurId: string) => {
+  const handleAssignEboueur = async (
+    signalId: string, 
+    eboueurId: string, 
+    options?: { is_partiel?: boolean; partiel_note?: string }
+  ) => {
+    const targetEb = eboueurs.find(e => e.id === eboueurId);
+    let estMins = 12;
+    let appointmentTime = new Date(Date.now() + 12 * 60000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
     setPoubelleSignals(prev => prev.map(sig => {
       if (sig.id === signalId) {
+        if (targetEb && targetEb.latitude && targetEb.longitude && sig.latitude && sig.longitude) {
+          const radlat1 = Math.PI * targetEb.latitude/180;
+          const radlat2 = Math.PI * sig.latitude/180;
+          const theta = targetEb.longitude - sig.longitude;
+          const radtheta = Math.PI * theta/180;
+          let dist = Math.sin(radlat1) * Math.sin(radlat2) + Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
+          if (dist > 1) dist = 1;
+          dist = Math.acos(dist);
+          dist = dist * 180/Math.PI;
+          dist = dist * 60 * 1.1515 * 1.609344;
+          estMins = Math.max(5, Math.round(dist * 4 + 8));
+          appointmentTime = new Date(Date.now() + estMins * 60000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        }
+
         return {
           ...sig,
           status: 'assigned',
-          assigned_eboueur_id: eboueurId
+          assigned_eboueur_id: eboueurId,
+          estimated_arrival_minutes: estMins,
+          eta_appointment_time: appointmentTime,
+          is_partiel: options?.is_partiel || false,
+          partiel_note: options?.partiel_note || undefined
         };
       }
       return sig;
@@ -2261,24 +2294,74 @@ export default function App() {
       return eb;
     }));
 
+    // Send inbox notification message to subscriber
+    const targetSignal = poubelleSignals.find(s => s.id === signalId);
+    if (targetSignal && targetEb) {
+      const isBio = targetSignal.type_poubelle === 'biodegradable';
+      handleSendInboxMessage(
+        'Supervision Hico-Cleaning',
+        `[CONFIRMATION RENDEZ-VOUS DE PASSAGE] Votre collecte (${isBio ? 'Biodégradable' : 'Non-biodégradable'}) est affectée à M. ${targetEb.nom}. Heure de passage estimée : ${appointmentTime} (dans env. ${estMins} min). ${options?.is_partiel ? 'Note: Passage partiel programmé.' : ''}`
+      );
+    }
+
+    addToast(`Mission assignée à ${targetEb?.nom || 'l\'éboueur'}. RDV estimé à ${appointmentTime}`, 'success');
+
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {
-        // Try French column names first
         const { error } = await supabase
           .from('signaux_poubelles')
-          .update({ statut: 'assigned', eboueur_assigne_id: eboueurId })
+          .update({ 
+            statut: 'assigned', 
+            status: 'assigned',
+            eboueur_assigne_id: eboueurId, 
+            assigned_eboueur_id: eboueurId,
+            estimated_arrival_minutes: estMins,
+            eta_appointment_time: appointmentTime,
+            is_partiel: options?.is_partiel || false
+          })
           .eq('id', signalId);
         
         if (error) {
           console.warn("French update failed, trying English update...", error);
-          // Fallback to English
           await supabase
             .from('signaux_poubelles')
-            .update({ status: 'assigned', assigned_eboueur_id: eboueurId })
+            .update({ 
+              status: 'assigned', 
+              assigned_eboueur_id: eboueurId,
+              estimated_arrival_minutes: estMins,
+              eta_appointment_time: appointmentTime,
+              is_partiel: options?.is_partiel || false
+            })
             .eq('id', signalId);
         }
       } catch (err) {
-        console.warn("Supabase handleAssignEboueur failed:", err);
+        console.warn("Supabase handleAssignEboueur update error:", err);
+      }
+    }
+  };
+
+  const handleModifySignalType = async (signalId: string, newType: 'biodegradable' | 'non_biodegradable') => {
+    setPoubelleSignals(prev => prev.map(sig => {
+      if (sig.id === signalId) {
+        return {
+          ...sig,
+          type_poubelle: newType,
+          type_modifie_par_abonne: true
+        };
+      }
+      return sig;
+    }));
+
+    addToast(`Type de poubelle modifié avec succès en ${newType === 'biodegradable' ? 'Biodégradable (Vert)' : 'Non-biodégradable (Gris)'}`, 'success');
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase
+          .from('signaux_poubelles')
+          .update({ type_poubelle: newType })
+          .eq('id', signalId);
+      } catch (err) {
+        console.warn("Supabase handleModifySignalType error:", err);
       }
     }
   };
@@ -3372,8 +3455,10 @@ export default function App() {
                     commune={userCommune}
                     avenue={userAvenue}
                     activeSignals={poubelleSignals}
+                    eboueurs={eboueurs}
                     activeTab={abonneSubTab}
                     onReportTrashFull={handleReportTrashFull}
+                    onModifySignalType={handleModifySignalType}
                     onResetSignals={handleResetSignals}
                     onCancelSignal={handleCancelSignal}
                     onReportDispute={handleReportDispute}
@@ -3862,8 +3947,8 @@ export default function App() {
             </div>
           )}
 
-          {/* Real-time Notification Popup for Waste Signals (Alerte Poubelle Pleine) */}
-          {activeNotification && (
+          {/* Real-time Notification Popup for Waste Signals (Alerte Poubelle Pleine) - ONLY ADMIN / DISPATCH */}
+          {activeNotification && (currentUser?.role === 'admin' || ['dashboard', 'dechets_map', 'communes', 'avenues', 'rapports', 'sachets_management', 'finance_management'].includes(currentScreen)) && (
             <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 max-w-sm w-[calc(100vw-2rem)] bg-gradient-to-br from-red-600/95 to-red-950/95 backdrop-blur-md border border-red-500/30 rounded-2xl shadow-[0_12px_40px_rgba(239,68,68,0.35)] p-4 text-white z-50 animate-slide-in-up hover:scale-[1.02] transition-transform duration-200">
               <div className="flex items-start gap-3">
                 {/* Flashing light icon */}

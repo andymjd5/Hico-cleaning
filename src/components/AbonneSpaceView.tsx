@@ -5,7 +5,8 @@ import {
   PoubelleSignal, 
   InboxMessage, 
   Commune, 
-  Avenue 
+  Avenue,
+  Eboueur 
 } from '../types';
 import { 
   Trash2, 
@@ -40,7 +41,9 @@ interface AbonneSpaceViewProps {
   commune: Commune;
   avenue: Avenue;
   activeSignals: PoubelleSignal[];
+  eboueurs?: Eboueur[];
   onReportTrashFull: (type_poubelle: 'biodegradable' | 'non_biodegradable') => void;
+  onModifySignalType?: (signalId: string, newType: 'biodegradable' | 'non_biodegradable') => void;
   onResetSignals?: () => void;
   onCancelSignal?: (signalId: string) => void;
   onReportDispute?: (signalId: string, raison: string) => void;
@@ -57,7 +60,9 @@ export default function AbonneSpaceView({
   commune,
   avenue,
   activeSignals,
+  eboueurs = [],
   onReportTrashFull,
+  onModifySignalType,
   onResetSignals,
   onCancelSignal,
   onReportDispute,
@@ -316,24 +321,66 @@ export default function AbonneSpaceView({
                 )}
               </div>
 
-              {bioSignal ? (
-                <div className="flex flex-col gap-2 py-2">
-                  <div className="flex items-center gap-2 text-amber-500">
-                    <AlertTriangle size={16} className="animate-bounce" />
-                    <span className="text-xs font-black">
-                      {bioSignal.status === 'pending' ? 'En attente' : 'Éboueur en route'}
-                    </span>
+              {bioSignal ? (() => {
+                const assignedEb = eboueurs.find(e => 
+                  e.id === bioSignal.assigned_eboueur_id || 
+                  e.id === (bioSignal as any).eboueur_assigne_id
+                );
+
+                return (
+                  <div className="flex flex-col gap-2.5 py-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-amber-400">
+                        <Clock size={15} className="animate-pulse shrink-0" />
+                        <span className="text-xs font-black">
+                          {bioSignal.status === 'pending' ? 'Alerte transmise au bureau' : 'RDV de Passage Confirmé 🕒'}
+                        </span>
+                      </div>
+                      <span className="text-[9px] font-bold text-on-surface-variant/70 uppercase">
+                        Signalé à {bioSignal.reported_at.substring(11, 16)}
+                      </span>
+                    </div>
+
+                    {bioSignal.status === 'pending' ? (
+                      <div className="bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl flex flex-col gap-1 text-[11px] text-on-surface-variant">
+                        <p className="leading-snug">
+                          Alerte reçue par le bureau de dispatching. Recherche d'un camion d'éboueur disponible à proximité...
+                        </p>
+                        {onModifySignalType && (
+                          <button
+                            onClick={() => {
+                              if (confirm("Voulez-vous corriger le type de poubelle et la passer en Non-biodégradable (Gris) ?")) {
+                                onModifySignalType(bioSignal.id, 'non_biodegradable');
+                              }
+                            }}
+                            className="mt-1 text-[10px] bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-2 py-1 rounded-lg font-bold flex items-center gap-1 w-max cursor-pointer hover:bg-indigo-500/25 transition-all"
+                          >
+                            <span>✏️ Erreur ? Passer en Non-Biodégradable</span>
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-xl flex flex-col gap-1.5 text-xs">
+                        <div className="flex justify-between items-center text-emerald-400 font-extrabold">
+                          <span>Heure de passage estimée :</span>
+                          <span className="text-sm bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/30 font-mono">
+                            {bioSignal.eta_appointment_time || '14h30'}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] text-emerald-200/90 leading-snug">
+                          Éboueur en charge : <strong className="text-white">{assignedEb?.nom || 'Éboueur Hico'}</strong> ({assignedEb?.telephone || 'Contacté'})
+                        </p>
+                        {bioSignal.is_partiel && (
+                          <div className="mt-1 p-2 bg-amber-500/15 border border-amber-500/30 rounded-lg text-[10px] text-amber-300 font-bold flex items-start gap-1.5">
+                            <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                            <span>Passage Partiel : {bioSignal.partiel_note || '1er sachet enlevé, le second suivra.'}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-[10.5px] text-on-surface-variant leading-snug">
-                    {bioSignal.status === 'pending' 
-                      ? 'Signal enregistré, en attente de collecte.' 
-                      : 'Un agent se dirige vers votre parcelle.'}
-                  </p>
-                  <span className="text-[9px] font-bold text-on-surface-variant/70 uppercase">
-                    Signalé à {bioSignal.reported_at.substring(11, 16)}
-                  </span>
-                </div>
-              ) : (
+                );
+              })() : (
                 <div className="py-3 flex flex-col gap-1">
                   <span className="text-xs font-bold text-on-surface">Poubelle vide ✔</span>
                   <p className="text-[10px] text-on-surface-variant leading-snug">
@@ -345,7 +392,6 @@ export default function AbonneSpaceView({
               <button
                 onClick={() => {
                   onReportTrashFull('biodegradable');
-                  alert("Signal envoyé ! Les éboueurs ont été alertés de la mission de collecte biodégradable.");
                 }}
                 disabled={!!bioSignal}
                 className={`w-full h-10 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer ${
@@ -376,24 +422,66 @@ export default function AbonneSpaceView({
                 )}
               </div>
 
-              {nonBioSignal ? (
-                <div className="flex flex-col gap-2 py-2">
-                  <div className="flex items-center gap-2 text-amber-500">
-                    <AlertTriangle size={16} className="animate-bounce" />
-                    <span className="text-xs font-black">
-                      {nonBioSignal.status === 'pending' ? 'En attente' : 'Éboueur en route'}
-                    </span>
+              {nonBioSignal ? (() => {
+                const assignedEb = eboueurs.find(e => 
+                  e.id === nonBioSignal.assigned_eboueur_id || 
+                  e.id === (nonBioSignal as any).eboueur_assigne_id
+                );
+
+                return (
+                  <div className="flex flex-col gap-2.5 py-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-amber-400">
+                        <Clock size={15} className="animate-pulse shrink-0" />
+                        <span className="text-xs font-black">
+                          {nonBioSignal.status === 'pending' ? 'Alerte transmise au bureau' : 'RDV de Passage Confirmé 🕒'}
+                        </span>
+                      </div>
+                      <span className="text-[9px] font-bold text-on-surface-variant/70 uppercase">
+                        Signalé à {nonBioSignal.reported_at.substring(11, 16)}
+                      </span>
+                    </div>
+
+                    {nonBioSignal.status === 'pending' ? (
+                      <div className="bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl flex flex-col gap-1 text-[11px] text-on-surface-variant">
+                        <p className="leading-snug">
+                          Alerte reçue par le bureau de dispatching. Recherche d'un camion d'éboueur disponible à proximité...
+                        </p>
+                        {onModifySignalType && (
+                          <button
+                            onClick={() => {
+                              if (confirm("Voulez-vous corriger le type de poubelle et la passer en Biodégradable (Vert) ?")) {
+                                onModifySignalType(nonBioSignal.id, 'biodegradable');
+                              }
+                            }}
+                            className="mt-1 text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded-lg font-bold flex items-center gap-1 w-max cursor-pointer hover:bg-emerald-500/25 transition-all"
+                          >
+                            <span>✏️ Erreur ? Passer en Biodégradable</span>
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-indigo-950/40 border border-indigo-500/30 p-3 rounded-xl flex flex-col gap-1.5 text-xs">
+                        <div className="flex justify-between items-center text-indigo-400 font-extrabold">
+                          <span>Heure de passage estimée :</span>
+                          <span className="text-sm bg-indigo-500/20 px-2 py-0.5 rounded-lg border border-indigo-500/30 font-mono">
+                            {nonBioSignal.eta_appointment_time || '14h30'}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] text-indigo-200/90 leading-snug">
+                          Éboueur en charge : <strong className="text-white">{assignedEb?.nom || 'Éboueur Hico'}</strong> ({assignedEb?.telephone || 'Contacté'})
+                        </p>
+                        {nonBioSignal.is_partiel && (
+                          <div className="mt-1 p-2 bg-amber-500/15 border border-amber-500/30 rounded-lg text-[10px] text-amber-300 font-bold flex items-start gap-1.5">
+                            <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                            <span>Passage Partiel : {nonBioSignal.partiel_note || '1er sachet enlevé, le second suivra.'}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-[10.5px] text-on-surface-variant leading-snug">
-                    {nonBioSignal.status === 'pending' 
-                      ? 'Signal enregistré, en attente de collecte.' 
-                      : 'Un agent se dirige vers votre parcelle.'}
-                  </p>
-                  <span className="text-[9px] font-bold text-on-surface-variant/70 uppercase">
-                    Signalé à {nonBioSignal.reported_at.substring(11, 16)}
-                  </span>
-                </div>
-              ) : (
+                );
+              })() : (
                 <div className="py-3 flex flex-col gap-1">
                   <span className="text-xs font-bold text-on-surface">Poubelle vide ✔</span>
                   <p className="text-[10px] text-on-surface-variant leading-snug">
@@ -405,7 +493,6 @@ export default function AbonneSpaceView({
               <button
                 onClick={() => {
                   onReportTrashFull('non_biodegradable');
-                  alert("Signal envoyé ! Les éboueurs ont été alertés de la mission de collecte non-dégradable.");
                 }}
                 disabled={!!nonBioSignal}
                 className={`w-full h-10 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer ${

@@ -101,6 +101,12 @@ export interface PoubelleSignal {
   litige_abonne?: boolean;
   litige_raison?: string;
   litige_date?: string;
+  // Appointment & Dispatch extensions
+  estimated_arrival_minutes?: number;
+  eta_appointment_time?: string;
+  is_partiel?: boolean;
+  partiel_note?: string;
+  type_modifie_par_abonne?: boolean;
 }
 
 export interface Eboueur {

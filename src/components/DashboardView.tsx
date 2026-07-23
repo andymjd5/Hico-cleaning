@@ -26,7 +26,7 @@ interface DashboardViewProps {
   abonnes: Abonne[];
   signals?: PoubelleSignal[];
   eboueurs?: Eboueur[];
-  onAssignMission?: (signalId: string, eboueurId: string) => void;
+  onAssignMission?: (signalId: string, eboueurId: string, options?: { is_partiel?: boolean; partiel_note?: string }) => void;
   onNavigate: (screen: Screen) => void;
   onAddCommuneToggle: () => void;
   onAddAvenueToggle: () => void;
@@ -273,19 +273,53 @@ export default function DashboardView({
                           onChange={(e) => setSelectedEboueurs({ ...selectedEboueurs, [sig.id]: e.target.value })}
                           className="bg-background border border-outline-variant text-on-surface text-xs rounded-xl px-3 py-2 flex-1 font-semibold focus:outline-none focus:border-primary"
                         >
-                          {eboueurs.map(e => (
-                            <option key={e.id} value={e.id}>
-                              🚛 {e.nom} ({e.telephone}) {e.gps_active ? '🟢 En service' : '⚪ Hors ligne'}
-                            </option>
-                          ))}
+                          {eboueurs.map(e => {
+                            const cap = e.capacite_camion || 6;
+                            const load = e.charge_actuelle || 0;
+                            const activeCount = signals.filter(s => s.status === 'assigned' && (s.assigned_eboueur_id === e.id || (s as any).eboueur_assigne_id === e.id)).length;
+                            const freeSlots = Math.max(0, cap - load - activeCount);
+                            return (
+                              <option key={e.id} value={e.id}>
+                                🚛 {e.nom} ({e.telephone}) — {freeSlots > 0 ? `${freeSlots}/${cap} places libres 🔋` : '🚨 CAMION PLEIN (0 place)'}
+                              </option>
+                            );
+                          })}
                         </select>
                         <button
                           onClick={() => {
                             const ebId = selectedEboueurs[sig.id] || eboueurs[0]?.id;
-                            if (ebId && onAssignMission) {
-                              onAssignMission(sig.id, ebId);
-                            } else {
+                            const targetEb = eboueurs.find(e => e.id === ebId);
+
+                            if (!targetEb) {
                               alert("Veuillez sélectionner un éboueur à assigner.");
+                              return;
+                            }
+
+                            const cap = targetEb.capacite_camion || 6;
+                            const load = targetEb.charge_actuelle || 0;
+                            const activeCount = signals.filter(s => s.status === 'assigned' && (s.assigned_eboueur_id === targetEb.id || (s as any).eboueur_assigne_id === targetEb.id)).length;
+                            const freeSlots = Math.max(0, cap - load - activeCount);
+
+                            if (freeSlots <= 0) {
+                              alert(`🚨 CAMION PLEIN !\n\nLe véhicule de M. ${targetEb.nom} est actuellement PLEIN (${load}/${cap} sachets chargés).\n\nL'éboueur doit d'abord décharger son camion au centre d'enfouissement avant de recevoir de nouvelles missions.`);
+                              return;
+                            }
+
+                            // Check if this parcel has multiple pending signals
+                            const parcelSignals = signals.filter(s => s.parcelle_id === sig.parcelle_id && s.status === 'pending');
+                            if (parcelSignals.length > 1 && freeSlots === 1) {
+                              const proceedPartiel = confirm(`⚠️ CAPACITÉ DE CAMION LIMITÉE !\n\nL'abonné a ${parcelSignals.length} poubelles en attente, mais le camion de M. ${targetEb.nom} n'a plus qu'1 SEULE PLACE libre.\n\nVoulez-vous effectuer un PASSAGE PARTIEL (1ère poubelle ramassée maintenant, la 2ème plus tard) ?`);
+                              if (proceedPartiel && onAssignMission) {
+                                onAssignMission(sig.id, ebId, {
+                                  is_partiel: true,
+                                  partiel_note: '1er sachet enlevé, le second sera collecté lors de la prochaine rotation.'
+                                });
+                              }
+                              return;
+                            }
+
+                            if (onAssignMission) {
+                              onAssignMission(sig.id, ebId);
                             }
                           }}
                           className="bg-primary text-on-primary hover:bg-primary/90 px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 transition-all shrink-0"
