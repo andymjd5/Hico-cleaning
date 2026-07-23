@@ -30,14 +30,12 @@ export default function BottomNavBar({
         { id: 'abonne_redevance', label: 'Redevance', icon: CreditCard, subTab: 'redevance' as const },
         { id: 'abonne_inbox', label: 'Messages', icon: Mail, subTab: 'inbox' as const },
         { id: 'profil' as Screen, label: 'Profil', icon: User },
-        { id: 'mobile_menu' as any, label: 'Menu', icon: Menu },
       ];
     }
     if (userRole === 'eboueur') {
       return [
         { id: 'eboueur_space' as Screen, label: 'Missions', icon: Truck },
         { id: 'profil' as Screen, label: 'Profil', icon: User },
-        { id: 'mobile_menu' as any, label: 'Menu', icon: Menu },
       ];
     }
     return [
@@ -45,7 +43,6 @@ export default function BottomNavBar({
       { id: 'communes' as Screen, label: 'Recensement', icon: FileText, altId: 'recensement_form' as Screen },
       { id: 'dechets_map' as Screen, label: 'Déchets', icon: Trash2 },
       { id: 'abonne_list' as Screen, label: 'Abonnés', icon: Users, altId: 'abonne_detail' as Screen },
-      { id: 'mobile_menu' as any, label: 'Menu', icon: Menu },
     ];
   };
 
