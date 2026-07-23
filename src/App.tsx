@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Agent, Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur, InboxMessage, SachetStock, SachetDistribution, SubscriptionPayment, StaffPayment, MaterialExpense, DisputeSignal } from './types';
+import { Agent, Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur, InboxMessage, SachetStock, SachetDistribution, SubscriptionPayment, StaffPayment, MaterialExpense, DisputeSignal, AgentDotation, AgentDotationLog } from './types';
 import { 
   INITIAL_AGENTS, 
   INITIAL_COMMUNES, 
@@ -265,6 +265,24 @@ export default function App() {
     const saved = localStorage.getItem('hico_sachet_distributions');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [agentDotations, setAgentDotations] = useState<AgentDotation[]>(() => {
+    const saved = localStorage.getItem('hico_agent_dotations');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [agentDotationLogs, setAgentDotationLogs] = useState<AgentDotationLog[]>(() => {
+    const saved = localStorage.getItem('hico_agent_dotation_logs');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('hico_agent_dotations', JSON.stringify(agentDotations));
+  }, [agentDotations]);
+
+  useEffect(() => {
+    localStorage.setItem('hico_agent_dotation_logs', JSON.stringify(agentDotationLogs));
+  }, [agentDotationLogs]);
 
   const [payments, setPayments] = useState<SubscriptionPayment[]>(() => {
     const saved = localStorage.getItem('hico_payments');
@@ -1793,6 +1811,104 @@ export default function App() {
     return true;
   };
 
+  const handleDotationAgent = async (
+    agentId: string, 
+    communeId: string, 
+    bioQty: number, 
+    nonBioQty: number, 
+    attribuePar: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    let success = false;
+    let errorMsg = '';
+    let updatedCommuneStock: SachetStock | null = null;
+
+    setSachetStocks(prev => {
+      const updated = prev.map(stock => {
+        if (stock.commune_id === communeId) {
+          if (stock.biodegradable < bioQty || stock.non_biodegradable < nonBioQty) {
+            errorMsg = `Stock communal insuffisant (Disponible: ${stock.biodegradable} Bio, ${stock.non_biodegradable} Non-Bio).`;
+            return stock;
+          }
+          success = true;
+          updatedCommuneStock = {
+            ...stock,
+            biodegradable: stock.biodegradable - bioQty,
+            non_biodegradable: stock.non_biodegradable - nonBioQty,
+            last_replenished: new Date().toISOString()
+          };
+          return updatedCommuneStock!;
+        }
+        return stock;
+      });
+      return updated;
+    });
+
+    if (!success) {
+      return { success: false, error: errorMsg || 'Commune non trouvée dans le stock.' };
+    }
+
+    const agentObj = agents.find(a => a.id === agentId);
+    const communeObj = communes.find(c => c.id === communeId);
+
+    // 1. Update or create AgentDotation
+    let targetDotation: AgentDotation | null = null;
+    setAgentDotations(prev => {
+      const existing = prev.find(d => d.agent_id === agentId);
+      if (existing) {
+        targetDotation = {
+          ...existing,
+          commune_id: communeId,
+          biodegradable: existing.biodegradable + bioQty,
+          non_biodegradable: existing.non_biodegradable + nonBioQty,
+          last_assigned: new Date().toISOString()
+        };
+        return prev.map(d => d.agent_id === agentId ? targetDotation! : d);
+      } else {
+        targetDotation = {
+          id: 'dot-' + Math.random().toString(36).substring(2, 10),
+          agent_id: agentId,
+          agent_nom: agentObj?.nom || 'Agent',
+          commune_id: communeId,
+          biodegradable: bioQty,
+          non_biodegradable: nonBioQty,
+          last_assigned: new Date().toISOString()
+        };
+        return [...prev, targetDotation!];
+      }
+    });
+
+    // 2. Log in AgentDotationLogs
+    const newLog: AgentDotationLog = {
+      id: 'dotlog-' + Math.random().toString(36).substring(2, 10),
+      agent_id: agentId,
+      agent_nom: agentObj?.nom || 'Agent',
+      commune_id: communeId,
+      commune_nom: communeObj?.nom || 'Commune',
+      biodegradable: bioQty,
+      non_biodegradable: nonBioQty,
+      date: new Date().toISOString(),
+      attribue_par: attribuePar
+    };
+    setAgentDotationLogs(prev => [newLog, ...prev]);
+
+    // 3. Supabase sync if connected
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        if (updatedCommuneStock) {
+          await supabase.from('sachet_stocks').upsert([updatedCommuneStock]);
+        }
+        if (targetDotation) {
+          await supabase.from('agent_dotations').upsert([targetDotation]);
+        }
+        await supabase.from('agent_dotation_logs').insert([newLog]);
+      } catch (err) {
+        console.warn("Supabase agent dotation sync failed:", err);
+      }
+    }
+
+    return { success: true };
+  };
+
   // ==========================================
   // GESTION FINANCIERE & RECETTES & LITIGES HANDLERS
   // ==========================================
@@ -3097,8 +3213,11 @@ export default function App() {
                   agents={agents}
                   stocks={sachetStocks}
                   distributions={sachetDistributions}
+                  agentDotations={agentDotations}
+                  agentDotationLogs={agentDotationLogs}
                   onReplenishStock={handleReplenishStock}
                   onDistributeSachets={handleDistributeSachets}
+                  onDotationAgent={handleDotationAgent}
                 />
               )}
 
@@ -3331,6 +3450,7 @@ export default function App() {
                     currentEboueur={currentEb}
                     assignedMissions={myAssignedMissions}
                     completedMissions={myCompletedMissions}
+                    agentDotation={agentDotations.find(d => d.agent_id === currentEb.id || d.agent_id === currentUser?.id)}
                     onToggleGps={handleToggleEboueurGps}
                     onUpdateGpsCoords={handleUpdateEboueurGpsCoords}
                     onCompleteMission={handleCompleteMission}

@@ -127,7 +127,31 @@ export interface SachetDistribution {
   quantite_biodegradable: number;
   quantite_non_biodegradable: number;
   distribue_par: string; // Nom de l'éboueur ou agent
+  eboueur_id?: string;
+  type_distribution?: 'remise_ramassage' | 'distribution_directe';
   notes?: string;
+}
+
+export interface AgentDotation {
+  id: string;
+  agent_id: string;
+  agent_nom: string;
+  commune_id: string;
+  biodegradable: number;
+  non_biodegradable: number;
+  last_assigned: string;
+}
+
+export interface AgentDotationLog {
+  id: string;
+  agent_id: string;
+  agent_nom: string;
+  commune_id: string;
+  commune_nom: string;
+  biodegradable: number;
+  non_biodegradable: number;
+  date: string;
+  attribue_par: string;
 }
 
 export interface SubscriptionPayment {

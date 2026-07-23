@@ -5,7 +5,9 @@ import {
   Parcelle, 
   SachetStock, 
   SachetDistribution,
-  Agent
+  Agent,
+  AgentDotation,
+  AgentDotationLog
 } from '../types';
 import { 
   Package, 
@@ -20,7 +22,9 @@ import {
   Calendar, 
   User, 
   ShieldAlert,
-  Info
+  Info,
+  Truck,
+  Users
 } from 'lucide-react';
 
 interface SachetsManagementViewProps {
@@ -30,8 +34,11 @@ interface SachetsManagementViewProps {
   agents: Agent[];
   stocks: SachetStock[];
   distributions: SachetDistribution[];
+  agentDotations?: AgentDotation[];
+  agentDotationLogs?: AgentDotationLog[];
   onReplenishStock: (communeId: string | null, bioQty: number, nonBioQty: number) => Promise<{ success: boolean; error?: string }> | { success: boolean; error?: string };
   onDistributeSachets: (distribution: Omit<SachetDistribution, 'id'>) => boolean | Promise<boolean>;
+  onDotationAgent?: (agentId: string, communeId: string, bioQty: number, nonBioQty: number, attribuePar: string) => Promise<{ success: boolean; error?: string }> | { success: boolean; error?: string };
 }
 
 export default function SachetsManagementView({
@@ -41,12 +48,24 @@ export default function SachetsManagementView({
   agents,
   stocks,
   distributions,
+  agentDotations = [],
+  agentDotationLogs = [],
   onReplenishStock,
-  onDistributeSachets
+  onDistributeSachets,
+  onDotationAgent
 }: SachetsManagementViewProps) {
-  // Tabs: 'stocks' | 'replenish' | 'distribute' | 'history'
-  const [activeTab, setActiveTab] = useState<'stocks' | 'replenish' | 'distribute' | 'history'>('stocks');
-  const [historySubTab, setHistorySubTab] = useState<'distributions' | 'replenishments'>('distributions');
+  // Tabs: 'stocks' | 'replenish' | 'dotations' | 'distribute' | 'history'
+  const [activeTab, setActiveTab] = useState<'stocks' | 'replenish' | 'dotations' | 'distribute' | 'history'>('stocks');
+  const [historySubTab, setHistorySubTab] = useState<'distributions' | 'replenishments' | 'dotations'>('distributions');
+
+  // Dotation Agent Form state
+  const [dotCommuneId, setDotCommuneId] = useState(communes[0]?.id || '');
+  const [dotAgentId, setDotAgentId] = useState('');
+  const [dotBioQty, setDotBioQty] = useState<number>(20);
+  const [dotNonBioQty, setDotNonBioQty] = useState<number>(20);
+  const [dotAttribuePar, setDotAttribuePar] = useState('Direction Hico-Cleaning');
+  const [dotSuccess, setDotSuccess] = useState(false);
+  const [dotError, setDotError] = useState<string | null>(null);
 
   // Search State
   const [searchCommune, setSearchCommune] = useState('');
@@ -215,6 +234,52 @@ export default function SachetsManagementView({
     }
   };
 
+  // Handle Dotation Submission (Commune Stock -> Agent/Éboueur Dotation)
+  const handleDotationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDotError(null);
+    setDotSuccess(false);
+
+    if (!dotCommuneId || !dotAgentId) {
+      setDotError("Veuillez sélectionner une commune et un agent/éboueur.");
+      return;
+    }
+
+    if (dotBioQty <= 0 && dotNonBioQty <= 0) {
+      setDotError("Veuillez saisir au moins une quantité positive à attribuer.");
+      return;
+    }
+
+    const commStock = stocks.find(s => s.commune_id === dotCommuneId);
+    if (!commStock) {
+      setDotError("Aucun stock n'est disponible pour cette commune.");
+      return;
+    }
+
+    if (commStock.biodegradable < dotBioQty) {
+      setDotError(`Stock communal insuffisant pour les sachets biodégradables (${commStock.biodegradable} u en réserve).`);
+      return;
+    }
+
+    if (commStock.non_biodegradable < dotNonBioQty) {
+      setDotError(`Stock communal insuffisant pour les sachets non-dégradables (${commStock.non_biodegradable} u en réserve).`);
+      return;
+    }
+
+    if (onDotationAgent) {
+      const res = await onDotationAgent(dotAgentId, dotCommuneId, dotBioQty, dotNonBioQty, dotAttribuePar);
+      if (res.success) {
+        setDotSuccess(true);
+        setTimeout(() => setDotSuccess(false), 3000);
+      } else {
+        setDotError(res.error || "Erreur lors de l'attribution de la dotation.");
+      }
+    } else {
+      setDotSuccess(true);
+      setTimeout(() => setDotSuccess(false), 3000);
+    }
+  };
+
   // Find central/global stock and filter local commune stocks
   const centralStock = useMemo(() => {
     return stocks.find(s => s.commune_id === null || s.id === 'stk-central');
@@ -350,6 +415,18 @@ export default function SachetsManagementView({
         >
           <Plus size={14} />
           Réapprovisionnement
+        </button>
+
+        <button
+          onClick={() => setActiveTab('dotations')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+            activeTab === 'dotations'
+              ? 'bg-secondary text-white shadow-md'
+              : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+          }`}
+        >
+          <Truck size={14} />
+          Dotations Éboueurs & Terrain
         </button>
 
         <button
@@ -661,6 +738,245 @@ export default function SachetsManagementView({
         </div>
       )}
 
+      {/* ==================== TAB: DOTATIONS ÉBOUEURS ==================== */}
+      {activeTab === 'dotations' && (
+        <div className="bg-surface border border-outline-variant rounded-3xl p-6 shadow-xl flex flex-col gap-6 animate-fade-in">
+          <div>
+            <h3 className="text-base font-black text-on-surface flex items-center gap-2">
+              <Truck size={20} className="text-secondary" />
+              <span>Dotations aux Éboueurs & Suivi des Sachets sur le Terrain</span>
+            </h3>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              Transférez les sachets du Stock Communal vers la dotation de l'éboueur (son camion) pour distribution directe aux abonnés.
+            </p>
+          </div>
+
+          {/* Form Dotation */}
+          <form onSubmit={handleDotationSubmit} className="bg-background/40 border border-outline-variant rounded-2xl p-5 flex flex-col gap-5">
+            <h4 className="text-xs font-black uppercase tracking-wider text-secondary flex items-center gap-1.5">
+              <Plus size={16} />
+              <span>Nouvelle Dotation de Sachets à un Agent Éboueur</span>
+            </h4>
+
+            {dotError && (
+              <div className="bg-error/15 border border-error/20 text-error p-3 rounded-xl text-xs font-bold flex items-center gap-2">
+                <AlertTriangle size={15} />
+                <span>{dotError}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Left Column: Select Commune & Agent */}
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    1. Commune Réserve (Dépôt)
+                  </label>
+                  <select
+                    value={dotCommuneId}
+                    onChange={(e) => setDotCommuneId(e.target.value)}
+                    className="w-full h-11 px-3 bg-background border border-outline-variant rounded-xl text-on-surface text-sm focus:outline-none focus:border-primary transition-all font-bold"
+                    required
+                  >
+                    {communes.map(c => (
+                      <option key={c.id} value={c.id}>{c.nom}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Info Stock Communal */}
+                {(() => {
+                  const commStock = stocks.find(s => s.commune_id === dotCommuneId);
+                  return (
+                    <div className="bg-secondary/10 border border-secondary/20 p-3 rounded-xl text-xs flex justify-between items-center">
+                      <span className="text-on-surface-variant font-medium">Réserve Communale :</span>
+                      <div className="flex gap-3 font-mono font-bold">
+                        <span className="text-emerald-400">Bio: {commStock?.biodegradable ?? 0} u</span>
+                        <span className="text-indigo-400">Non-Bio: {commStock?.non_biodegradable ?? 0} u</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    2. Agent / Éboueur Bénéficiaire
+                  </label>
+                  <select
+                    value={dotAgentId}
+                    onChange={(e) => setDotAgentId(e.target.value)}
+                    className="w-full h-11 px-3 bg-background border border-outline-variant rounded-xl text-on-surface text-sm focus:outline-none focus:border-primary transition-all font-bold"
+                    required
+                  >
+                    <option value="">-- Choisir un éboueur / agent --</option>
+                    {agents.filter(a => a.role === 'eboueur' || a.role === 'agent').map(a => (
+                      <option key={a.id} value={a.id}>{a.nom} ({a.role === 'eboueur' ? 'Éboueur' : 'Agent'}) — {a.telephone}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Right Column: Quantities & Validation */}
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      Sachets Bio (Vert)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="5"
+                      value={dotBioQty}
+                      onChange={(e) => setDotBioQty(parseInt(e.target.value) || 0)}
+                      className="w-full h-11 px-3.5 bg-background border border-outline-variant rounded-xl text-on-surface text-sm focus:outline-none focus:border-primary transition-all font-mono font-bold"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      Sachets Non-Bio (Bleu)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="5"
+                      value={dotNonBioQty}
+                      onChange={(e) => setDotNonBioQty(parseInt(e.target.value) || 0)}
+                      className="w-full h-11 px-3.5 bg-background border border-outline-variant rounded-xl text-on-surface text-sm focus:outline-none focus:border-primary transition-all font-mono font-bold"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    Remis Par
+                  </label>
+                  <input
+                    type="text"
+                    value={dotAttribuePar}
+                    onChange={(e) => setDotAttribuePar(e.target.value)}
+                    className="w-full h-11 px-3.5 bg-background border border-outline-variant rounded-xl text-on-surface text-sm focus:outline-none focus:border-primary transition-all font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 mt-2">
+                  {dotSuccess && (
+                    <span className="text-xs text-[#10b981] font-bold self-center flex items-center gap-1 bg-[#10b981]/15 border border-[#10b981]/20 px-3 py-1.5 rounded-xl">
+                      <Check size={14} /> Dotation remise à l'éboueur avec succès !
+                    </span>
+                  )}
+                  <button
+                    type="submit"
+                    className="px-6 h-11 bg-secondary text-white font-bold text-xs rounded-xl hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-md flex items-center gap-2"
+                  >
+                    <Truck size={16} /> Confirmer la Dotation Agent
+                  </button>
+                </div>
+              </div>
+            </div>
+          </form>
+
+          {/* Table: Etat des stocks en possession des éboueurs */}
+          <div className="flex flex-col gap-3">
+            <h4 className="text-xs font-black uppercase tracking-wider text-on-surface flex items-center gap-2">
+              <Users size={16} className="text-secondary" />
+              <span>Stock de Sachets en Possession des Éboueurs sur le Terrain</span>
+            </h4>
+
+            <div className="overflow-x-auto rounded-2xl border border-outline-variant/60">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-background border-b border-outline-variant text-[10px] font-bold uppercase tracking-widest text-on-surface-variant select-none">
+                    <th className="py-3.5 px-4 font-black">Éboueur / Agent</th>
+                    <th className="py-3.5 px-4 font-black">Commune Assignée</th>
+                    <th className="py-3.5 px-4 font-black text-center">Stock Bio en Camion</th>
+                    <th className="py-3.5 px-4 font-black text-center">Stock Non-Bio en Camion</th>
+                    <th className="py-3.5 px-4 font-black text-center">Distribués aux Abonnés</th>
+                    <th className="py-3.5 px-4 font-black">Statut Dotation</th>
+                    <th className="py-3.5 px-4 font-black text-right">Dernière Dotation</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/40 text-xs font-medium">
+                  {agents.filter(a => a.role === 'eboueur' || a.role === 'agent').map((agent) => {
+                    const dot = agentDotations.find(d => d.agent_id === agent.id);
+                    const commune = communes.find(c => c.id === dot?.commune_id);
+
+                    // Calculate total distributed by this agent to subscribers
+                    const totalDistByAgent = distributions.filter(d => 
+                      d.eboueur_id === agent.id || d.distribue_par.toLowerCase().includes(agent.nom.toLowerCase())
+                    ).reduce((acc, d) => acc + d.quantite_biodegradable + d.quantite_non_biodegradable, 0);
+
+                    const bioLeft = dot?.biodegradable ?? 0;
+                    const nonBioLeft = dot?.non_biodegradable ?? 0;
+                    const totalLeft = bioLeft + nonBioLeft;
+
+                    return (
+                      <tr key={agent.id} className="hover:bg-background/40 transition-colors">
+                        <td className="py-4 px-4 font-extrabold text-on-surface">
+                          <div className="flex flex-col">
+                            <span>{agent.nom}</span>
+                            <span className="text-[10px] font-mono text-on-surface-variant">{agent.telephone}</span>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 font-semibold text-on-surface">
+                          {commune?.nom || 'Non assigné'}
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          <span className={`font-bold font-mono px-2.5 py-1 rounded-lg ${
+                            bioLeft <= 5 
+                              ? 'bg-rose-500/15 text-rose-400 border border-rose-500/20' 
+                              : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15'
+                          }`}>
+                            {bioLeft} u
+                          </span>
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          <span className={`font-bold font-mono px-2.5 py-1 rounded-lg ${
+                            nonBioLeft <= 5 
+                              ? 'bg-rose-500/15 text-rose-400 border border-rose-500/20' 
+                              : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/15'
+                          }`}>
+                            {nonBioLeft} u
+                          </span>
+                        </td>
+                        <td className="py-4 px-4 text-center font-bold font-mono text-secondary">
+                          {totalDistByAgent} u
+                        </td>
+                        <td className="py-4 px-4">
+                          {totalLeft === 0 ? (
+                            <span className="flex items-center gap-1 text-rose-400 font-extrabold text-[10px] uppercase tracking-wider bg-rose-500/15 border border-rose-500/20 px-2 py-0.5 rounded w-max">
+                              🚨 Rupture Dotation
+                            </span>
+                          ) : totalLeft <= 10 ? (
+                            <span className="flex items-center gap-1 text-amber-500 font-extrabold text-[10px] uppercase tracking-wider bg-amber-500/15 border border-amber-500/20 px-2 py-0.5 rounded w-max">
+                              ⚠️ Stock Bas
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[#10b981] font-extrabold text-[10px] uppercase tracking-wider bg-[#10b981]/15 border border-[#10b981]/20 px-2 py-0.5 rounded w-max">
+                              <Check size={11} /> Opérationnel
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-4 px-4 text-right font-mono text-on-surface-variant">
+                          {dot?.last_assigned 
+                            ? new Date(dot.last_assigned).toLocaleDateString('fr-FR')
+                            : 'Aucune'
+                          }
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ==================== TAB 3: DISTRIBUTE FORM ==================== */}
       {activeTab === 'distribute' && (
         <div className="bg-surface border border-outline-variant rounded-3xl p-6 shadow-xl flex flex-col gap-5 animate-fade-in">
@@ -847,6 +1163,16 @@ export default function SachetsManagementView({
                 Distributions Abonnés
               </button>
               <button
+                onClick={() => setHistorySubTab('dotations')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  historySubTab === 'dotations'
+                    ? 'bg-secondary text-white shadow'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Dotations Éboueurs
+              </button>
+              <button
                 onClick={() => setHistorySubTab('replenishments')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   historySubTab === 'replenishments'
@@ -913,6 +1239,54 @@ export default function SachetsManagementView({
                     <tr>
                       <td colSpan={6} className="py-8 text-center italic">
                         Aucune distribution de sachets poubelles enregistrée pour l'instant.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : historySubTab === 'dotations' ? (
+            /* Subtab Content: Agent Dotations history */
+            <div className="overflow-x-auto rounded-2xl border border-outline-variant/60">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-background border-b border-outline-variant text-[10px] font-bold uppercase tracking-widest text-on-surface-variant select-none">
+                    <th className="py-3 px-4">Date & Heure</th>
+                    <th className="py-3 px-4">Agent Éboueur</th>
+                    <th className="py-3 px-4">Commune Source</th>
+                    <th className="py-3 px-4 text-center">Bio Remis</th>
+                    <th className="py-3 px-4 text-center">Non-Bio Remis</th>
+                    <th className="py-3 px-4">Attribué Par</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/40 text-xs font-medium text-on-surface-variant">
+                  {agentDotationLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-background/20 transition-colors">
+                      <td className="py-3.5 px-4 font-mono">
+                        {new Date(log.date).toLocaleString('fr-FR')}
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-on-surface">
+                        {log.agent_nom}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-secondary">
+                        {log.commune_nom}
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-bold font-mono text-emerald-400">
+                        +{log.biodegradable} u
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-bold font-mono text-indigo-400">
+                        +{log.non_biodegradable} u
+                      </td>
+                      <td className="py-3.5 px-4 text-on-surface font-medium">
+                        {log.attribue_par}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {agentDotationLogs.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center italic">
+                        Aucune dotation d'éboueur enregistrée pour le moment.
                       </td>
                     </tr>
                   )}

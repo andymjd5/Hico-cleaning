@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   Eboueur, 
-  PoubelleSignal 
+  PoubelleSignal,
+  AgentDotation
 } from '../types';
 import { 
   Truck, 
@@ -18,13 +19,15 @@ import {
   Terminal,
   ChevronDown,
   ChevronUp,
-  RefreshCw
+  RefreshCw,
+  Package
 } from 'lucide-react';
 
 interface EboueurSpaceViewProps {
   currentEboueur: Eboueur;
   assignedMissions: PoubelleSignal[];
   completedMissions: PoubelleSignal[];
+  agentDotation?: AgentDotation;
   onToggleGps: () => void;
   onUpdateGpsCoords?: (latitude: number, longitude: number) => void;
   onCompleteMission: (signalId: string) => void;
@@ -39,6 +42,7 @@ export default function EboueurSpaceView({
   currentEboueur,
   assignedMissions,
   completedMissions,
+  agentDotation,
   onToggleGps,
   onCompleteMission,
   onUnloadTruck,
@@ -180,6 +184,24 @@ export default function EboueurSpaceView({
             <p className="text-[11px] text-on-surface-variant font-medium leading-normal">
               À chaque retrait effectué chez l'abonné, le camion enregistre 1 sachet collecté et lui remet 1 sachet de rechange neuf (décompté du stock communal).
             </p>
+          </div>
+        </div>
+
+        {/* Dotation Sachets Neufs (Bio & Non-Bio) */}
+        <div className="bg-background/60 border border-outline-variant p-3.5 rounded-2xl flex flex-col gap-2 shrink-0 min-w-[200px]">
+          <span className="text-[10px] font-black uppercase tracking-wider text-secondary flex items-center gap-1">
+            <Package size={14} /> Stock Sachets Neufs en Camion
+          </span>
+          <div className="flex items-center gap-3 font-mono font-black text-xs">
+            <div className="flex flex-col">
+              <span className="text-[9px] text-emerald-400 uppercase font-bold">Bio (Vert)</span>
+              <span className="text-sm text-on-surface">{agentDotation?.biodegradable ?? 20} u</span>
+            </div>
+            <div className="border-l border-outline-variant h-6"></div>
+            <div className="flex flex-col">
+              <span className="text-[9px] text-indigo-400 uppercase font-bold">Non-Bio (Bleu)</span>
+              <span className="text-sm text-on-surface">{agentDotation?.non_biodegradable ?? 20} u</span>
+            </div>
           </div>
         </div>
 
