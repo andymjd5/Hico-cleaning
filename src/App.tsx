@@ -28,7 +28,7 @@ import SachetsManagementView from './components/SachetsManagementView';
 import FinanceManagementView from './components/FinanceManagementView';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info, Menu } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info, Menu, CreditCard, Mail } from 'lucide-react';
 
 interface ToastItem {
   id: string;
@@ -172,6 +172,7 @@ export default function App() {
   // 3. Drill-down Context states
   const [selectedCommuneId, setSelectedCommuneId] = useState<string | null>(null);
   const [selectedAvenueObj, setSelectedAvenueObj] = useState<Avenue | null>(null);
+  const [abonneSubTab, setAbonneSubTab] = useState<'signalement' | 'redevance' | 'inbox'>('signalement');
 
   // 4. local DB states with automatic migration to clean production state
   const [communes, setCommunes] = useState<Commune[]>(() => {
@@ -2705,17 +2706,50 @@ export default function App() {
               
               {/* === ABONNE EXCLUSIVE MENU === */}
               {currentUser?.role === 'abonne' && (
-                <button 
-                  onClick={() => setCurrentScreen('abonne_space')}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                    currentScreen === 'abonne_space'
-                      ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                      : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                  }`}
-                >
-                  <Trash2 size={18} />
-                  <span>Mon Espace Abonné</span>
-                </button>
+                <>
+                  <button 
+                    onClick={() => { setAbonneSubTab('signalement'); setCurrentScreen('abonne_space'); }}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                      currentScreen === 'abonne_space' && abonneSubTab === 'signalement'
+                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                    }`}
+                  >
+                    <Trash2 size={18} />
+                    <span>Signalement Poubelles</span>
+                  </button>
+
+                  <button 
+                    onClick={() => { setAbonneSubTab('redevance'); setCurrentScreen('abonne_space'); }}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                      currentScreen === 'abonne_space' && abonneSubTab === 'redevance'
+                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                    }`}
+                  >
+                    <CreditCard size={18} />
+                    <span>Redevance de Salubrité</span>
+                  </button>
+
+                  <button 
+                    onClick={() => { setAbonneSubTab('inbox'); setCurrentScreen('abonne_space'); }}
+                    className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                      currentScreen === 'abonne_space' && abonneSubTab === 'inbox'
+                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Mail size={18} />
+                      <span>Boîte de Réception</span>
+                    </div>
+                    {inboxMessages.filter(m => !m.read).length > 0 && (
+                      <span className="px-2 py-0.5 text-[10px] font-extrabold bg-rose-500 text-white rounded-full animate-pulse shadow-sm">
+                        {inboxMessages.filter(m => !m.read).length}
+                      </span>
+                    )}
+                  </button>
+                </>
               )}
 
               {/* === EBOUEUR EXCLUSIVE MENU === */}
@@ -3151,6 +3185,7 @@ export default function App() {
                     commune={userCommune}
                     avenue={userAvenue}
                     activeSignals={poubelleSignals}
+                    activeTab={abonneSubTab}
                     onReportTrashFull={handleReportTrashFull}
                     onResetSignals={handleResetSignals}
                     onCancelSignal={handleCancelSignal}
@@ -3360,6 +3395,9 @@ export default function App() {
             currentScreen={currentScreen} 
             userRole={currentUser?.role}
             hasNewSignals={hasNewSignals}
+            unreadMessagesCount={inboxMessages.filter(m => !m.read).length}
+            abonneSubTab={abonneSubTab}
+            onAbonneSubTabChange={setAbonneSubTab}
             onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
             onScreenChange={(screenId) => {
               // Clear temporary selection indices when moving randomly through footer
@@ -3407,15 +3445,44 @@ export default function App() {
 
                   {/* === ABONNE EXCLUSIVE MENU === */}
                   {currentUser?.role === 'abonne' && (
-                    <button 
-                      onClick={() => { setCurrentScreen('abonne_space'); setIsMobileMenuOpen(false); }}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
-                        currentScreen === 'abonne_space' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
-                      }`}
-                    >
-                      <Trash2 size={18} />
-                      <span>Mon Espace Abonné</span>
-                    </button>
+                    <>
+                      <button 
+                        onClick={() => { setAbonneSubTab('signalement'); setCurrentScreen('abonne_space'); setIsMobileMenuOpen(false); }}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                          currentScreen === 'abonne_space' && abonneSubTab === 'signalement' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                        }`}
+                      >
+                        <Trash2 size={18} />
+                        <span>Signalement Poubelles</span>
+                      </button>
+
+                      <button 
+                        onClick={() => { setAbonneSubTab('redevance'); setCurrentScreen('abonne_space'); setIsMobileMenuOpen(false); }}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                          currentScreen === 'abonne_space' && abonneSubTab === 'redevance' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                        }`}
+                      >
+                        <CreditCard size={18} />
+                        <span>Redevance de Salubrité</span>
+                      </button>
+
+                      <button 
+                        onClick={() => { setAbonneSubTab('inbox'); setCurrentScreen('abonne_space'); setIsMobileMenuOpen(false); }}
+                        className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                          currentScreen === 'abonne_space' && abonneSubTab === 'inbox' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Mail size={18} />
+                          <span>Boîte de Réception</span>
+                        </div>
+                        {inboxMessages.filter(m => !m.read).length > 0 && (
+                          <span className="px-2 py-0.5 text-[10px] font-extrabold bg-rose-500 text-white rounded-full animate-pulse shadow-sm">
+                            {inboxMessages.filter(m => !m.read).length}
+                          </span>
+                        )}
+                      </button>
+                    </>
                   )}
 
                   {/* === EBOUEUR EXCLUSIVE MENU === */}

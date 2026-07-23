@@ -42,6 +42,7 @@ interface AbonneSpaceViewProps {
   onSendMessage: (sender: string, content: string) => void;
   onRecordOnlinePayment?: (amount: number, provider: 'mpesa' | 'orange' | 'airtel', phone: string) => void;
   onLogout?: () => void;
+  activeTab?: 'signalement' | 'redevance' | 'inbox';
 }
 
 export default function AbonneSpaceView({
@@ -56,10 +57,19 @@ export default function AbonneSpaceView({
   messages,
   onSendMessage,
   onRecordOnlinePayment,
-  onLogout
+  onLogout,
+  activeTab: activeTabProp = 'signalement'
 }: AbonneSpaceViewProps) {
   // Navigation active tab for Subscriber interface
-  const [activeTab, setActiveTab] = useState<'signalement' | 'redevance' | 'inbox'>('signalement');
+  const [internalTab, setInternalTab] = useState<'signalement' | 'redevance' | 'inbox'>(activeTabProp);
+
+  useEffect(() => {
+    if (activeTabProp) {
+      setInternalTab(activeTabProp);
+    }
+  }, [activeTabProp]);
+
+  const activeTab = activeTabProp || internalTab;
 
   // Unread messages count for badge indicator
   const unreadCount = useMemo(() => {
@@ -245,50 +255,6 @@ export default function AbonneSpaceView({
           </div>
         </div>
       </header>
-
-      {/* Top Navigation Tabs Bar */}
-      <nav className="flex items-center gap-2 p-1.5 bg-surface border border-outline-variant rounded-2xl shadow-sm overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('signalement')}
-          className={`flex-1 min-h-[44px] px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'signalement'
-              ? 'bg-primary text-white shadow-md'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-background/50'
-          }`}
-        >
-          <Trash2 size={16} />
-          <span>Signalement Poubelles</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('redevance')}
-          className={`flex-1 min-h-[44px] px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'redevance'
-              ? 'bg-[#10b981] text-white shadow-md'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-background/50'
-          }`}
-        >
-          <CreditCard size={16} />
-          <span>Redevance de Salubrité</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('inbox')}
-          className={`flex-1 min-h-[44px] px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap relative ${
-            activeTab === 'inbox'
-              ? 'bg-secondary text-white shadow-md'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-background/50'
-          }`}
-        >
-          <Mail size={16} />
-          <span>Boîte de Réception</span>
-          {unreadCount > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 text-[10px] font-extrabold bg-rose-500 text-white rounded-full border border-white/20 animate-pulse shadow-sm">
-              {unreadCount}
-            </span>
-          )}
-        </button>
-      </nav>
 
       {/* TAB 1: SIGNALEMENT POUBELLES */}
       {activeTab === 'signalement' && (
@@ -630,44 +596,6 @@ export default function AbonneSpaceView({
           </div>
         </section>
       )}
-
-      {/* Mobile Sticky Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-md border-t border-outline-variant/80 p-2 sm:hidden z-50 flex items-center justify-around shadow-2xl">
-        <button
-          onClick={() => setActiveTab('signalement')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-            activeTab === 'signalement' ? 'text-primary font-bold scale-105' : 'text-on-surface-variant opacity-70'
-          }`}
-        >
-          <Trash2 size={20} />
-          <span className="text-[10px]">Signalement</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('redevance')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-            activeTab === 'redevance' ? 'text-[#10b981] font-bold scale-105' : 'text-on-surface-variant opacity-70'
-          }`}
-        >
-          <CreditCard size={20} />
-          <span className="text-[10px]">Redevance</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('inbox')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative ${
-            activeTab === 'inbox' ? 'text-secondary font-bold scale-105' : 'text-on-surface-variant opacity-70'
-          }`}
-        >
-          <Mail size={20} />
-          <span className="text-[10px]">Messages</span>
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 right-2 w-4 h-4 text-[9px] font-extrabold bg-rose-500 text-white rounded-full flex items-center justify-center border border-white animate-pulse shadow-sm">
-              {unreadCount}
-            </span>
-          )}
-        </button>
-      </div>
 
       {/* ============================== */}
       {/* CHECKOUT MODAL MOBILE MONEY */}
