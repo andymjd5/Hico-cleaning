@@ -8,6 +8,7 @@ export interface Avenue {
   id: string;
   commune_id: string;
   nom: string;
+  quartier?: string;
   created_at: string;
 }
 

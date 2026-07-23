@@ -21,12 +21,24 @@ export default function AvenuesView({
 }: AvenuesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCommuneId, setFilterCommuneId] = useState<string>(selectedCommuneId || '');
+  const [filterQuartier, setFilterQuartier] = useState<string>('');
 
-  // Filter avenues based on search input and commune dropdown selector
+  // Extract list of unique quartiers for the filtered commune or overall
+  const availableQuartiers = Array.from(
+    new Set(
+      avenues
+        .filter((a) => (!filterCommuneId || a.commune_id === filterCommuneId) && a.quartier)
+        .map((a) => a.quartier!)
+    )
+  ).sort();
+
+  // Filter avenues based on search input, commune dropdown, and quartier dropdown
   const filteredAvenues = avenues.filter((ave) => {
-    const matchesSearch = ave.nom.toLowerCase().includes(searchTerm.toLowerCase());
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = ave.nom.toLowerCase().includes(term) || (ave.quartier && ave.quartier.toLowerCase().includes(term));
     const matchesCommune = filterCommuneId ? ave.commune_id === filterCommuneId : true;
-    return matchesSearch && matchesCommune;
+    const matchesQuartier = filterQuartier ? ave.quartier === filterQuartier : true;
+    return matchesSearch && matchesCommune && matchesQuartier;
   });
 
   return (
@@ -55,10 +67,10 @@ export default function AvenuesView({
 
       {/* Info indicator */}
       <div className="bg-surface/80 border border-outline-variant rounded-2xl p-4 text-xs font-sans shadow-lg leading-relaxed text-on-surface-variant">
-        📍 <span className="font-semibold text-primary">Étape 2 du Recensement :</span> Sélectionnez l'avenue active pour recenser ses parcelles. Les parcelles créées d'ici s'associent directement à cette avenue.
+        📍 <span className="font-semibold text-primary">Étape 2 du Recensement :</span> Sélectionnez l'avenue active pour recenser ses parcelles. Les parcelles créées d'ici s'associent directement à cette avenue et à son quartier.
       </div>
 
-      {/* Search & Filter Controls matching Image 1 */}
+      {/* Search & Filter Controls */}
       <div className="bg-surface border border-outline-variant rounded-2xl p-4 flex flex-col md:flex-row gap-3 shadow-md">
         {/* Search */}
         <div className="relative flex-grow">
@@ -70,15 +82,18 @@ export default function AvenuesView({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full h-11 pl-11 pr-4 bg-background border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-xl focus:outline-none text-on-surface placeholder:text-on-surface-variant/50 text-sm transition-all font-sans"
-            placeholder="Rechercher une avenue..."
+            placeholder="Rechercher une avenue ou un quartier..."
           />
         </div>
 
-        {/* Filter Dropdown */}
-        <div className="relative min-w-[200px] shrink-0">
+        {/* Filter Commune Dropdown */}
+        <div className="relative min-w-[180px] shrink-0">
           <select 
             value={filterCommuneId}
-            onChange={(e) => setFilterCommuneId(e.target.value)}
+            onChange={(e) => {
+              setFilterCommuneId(e.target.value);
+              setFilterQuartier('');
+            }}
             className="w-full h-11 pl-4 pr-8 bg-background border border-outline-variant rounded-xl focus:outline-none focus:border-primary text-on-surface text-sm cursor-pointer font-sans"
           >
             <option value="" className="bg-surface text-on-surface">Toutes les communes</option>
@@ -89,9 +104,27 @@ export default function AvenuesView({
             ))}
           </select>
         </div>
+
+        {/* Filter Quartier Dropdown */}
+        {availableQuartiers.length > 0 && (
+          <div className="relative min-w-[180px] shrink-0">
+            <select 
+              value={filterQuartier}
+              onChange={(e) => setFilterQuartier(e.target.value)}
+              className="w-full h-11 pl-4 pr-8 bg-background border border-outline-variant rounded-xl focus:outline-none focus:border-primary text-on-surface text-sm cursor-pointer font-sans"
+            >
+              <option value="" className="bg-surface text-on-surface">Tous les quartiers</option>
+              {availableQuartiers.map((q) => (
+                <option key={q} value={q} className="bg-surface text-on-surface">
+                  {q}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* Avenues Grid (Bento/Card Style) matching Image 1 */}
+      {/* Avenues Grid (Bento/Card Style) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredAvenues.map((avenue) => {
           const matchingCommune = communes.find((c) => c.id === avenue.commune_id);
@@ -100,18 +133,25 @@ export default function AvenuesView({
             <div 
               key={avenue.id}
               onClick={() => onSelectAvenue(avenue)}
-              className="bg-surface border border-outline-variant rounded-2xl p-5 hover:border-outline hover:bg-surface/80 hover:shadow-xl transition-all duration-200 group flex flex-col gap-5 cursor-pointer relative overflow-hidden active:scale-[0.99]"
+              className="bg-surface border border-outline-variant rounded-2xl p-5 hover:border-outline hover:bg-surface/80 hover:shadow-xl transition-all duration-200 group flex flex-col gap-4 cursor-pointer relative overflow-hidden active:scale-[0.99]"
             >
-              <div className="flex justify-between items-start">
-                <h3 className="text-base font-bold text-on-surface group-hover:text-primary font-sans transition-colors duration-200 leading-snug">
-                  {avenue.nom}
-                </h3>
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  <h3 className="text-base font-bold text-on-surface group-hover:text-primary font-sans transition-colors duration-200 leading-snug">
+                    {avenue.nom}
+                  </h3>
+                  {avenue.quartier && (
+                    <span className="inline-block mt-1 text-[11px] font-medium text-primary/80 bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md">
+                      Q. {avenue.quartier}
+                    </span>
+                  )}
+                </div>
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
-                    alert(`Options pour l'avenue "${avenue.nom}" : Édition et suppression.` );
+                    alert(`Options pour l'avenue "${avenue.nom}" (${avenue.quartier ? `Quartier ${avenue.quartier}` : ''}) : Édition et suppression.` );
                   }}
-                  className="text-on-surface-variant hover:text-on-surface transition-colors p-1.5 rounded-lg hover:bg-background cursor-pointer"
+                  className="text-on-surface-variant hover:text-on-surface transition-colors p-1.5 rounded-lg hover:bg-background cursor-pointer shrink-0"
                 >
                   <MoreVertical size={16} />
                 </button>
@@ -127,7 +167,7 @@ export default function AvenuesView({
           );
         })}
 
-        {/* Add New Placeholder Card matching mockup */}
+        {/* Add New Placeholder Card */}
         <div 
           onClick={onAddAvenueToggle}
           className="border-2 border-dashed border-outline-variant rounded-2xl p-5 hover:border-primary hover:bg-surface/50 transition-all duration-200 flex flex-col items-center justify-center gap-3 cursor-pointer min-h-[148px] text-on-surface-variant hover:text-on-surface group active:scale-[0.99]"

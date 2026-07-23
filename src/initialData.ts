@@ -44,7 +44,114 @@ export const INITIAL_COMMUNES: Commune[] = [
   { id: 'c-selembao', nom: 'Selembao', created_at: new Date('2026-06-01').toISOString() }
 ];
 
-export const INITIAL_AVENUES: Avenue[] = [];
+const rawBarumbuAvenues: { nom: string; quartier: string }[] = [
+  // Bitshaku Tshaku
+  { nom: 'Avenue Bas-Congo', quartier: 'Bitshaku Tshaku' },
+  { nom: 'Avenue de la Lowa', quartier: 'Bitshaku Tshaku' },
+  { nom: 'Avenue de la Tshuapa', quartier: 'Bitshaku Tshaku' },
+  { nom: 'Avenue du Kasaï', quartier: 'Bitshaku Tshaku' },
+  { nom: 'Avenue Itaga', quartier: 'Bitshaku Tshaku' },
+  { nom: 'Avenue Kato', quartier: 'Bitshaku Tshaku' },
+  { nom: 'Avenue Lokele', quartier: 'Bitshaku Tshaku' },
+  { nom: 'Avenue Mbomu', quartier: 'Bitshaku Tshaku' },
+  { nom: 'Avenue Rwakadingi', quartier: 'Bitshaku Tshaku' },
+  { nom: 'Avenue Usoke', quartier: 'Bitshaku Tshaku' },
+  { nom: 'Rue de la Luvua', quartier: 'Bitshaku Tshaku' },
+  { nom: 'Rue du lac Moero', quartier: 'Bitshaku Tshaku' },
+
+  // Funa I
+  { nom: "Avenue de l'Aérodrome", quartier: 'Funa I' },
+  { nom: 'Avenue du Kasaï', quartier: 'Funa I' },
+  { nom: 'Bobanga', quartier: 'Funa I' },
+  { nom: 'Rue de Mbanza-Ngungu', quartier: 'Funa I' },
+  { nom: 'Rue de Songololo', quartier: 'Funa I' },
+  { nom: 'Rue de Tshela', quartier: 'Funa I' },
+  { nom: 'Rue Disasi', quartier: 'Funa I' },
+  { nom: 'Rue Jaques Mokelenge', quartier: 'Funa I' },
+  { nom: 'Rue Tobo', quartier: 'Funa I' },
+
+  // Funa II
+  { nom: 'Avenue Luambo Makiadi', quartier: 'Funa II' },
+  { nom: 'Boulevard Lumumba', quartier: 'Funa II' },
+
+  // Kapinga (Kapinga Bapu)
+  { nom: "Avenue de l'Aérodrome", quartier: 'Kapinga (Kapinga Bapu)' },
+  { nom: 'Avenue Kabambare', quartier: 'Kapinga (Kapinga Bapu)' },
+
+  // Kasaï
+  { nom: 'Avenue Bas-Congo', quartier: 'Kasaï' },
+  { nom: 'Avenue de Kapanga', quartier: 'Kasaï' },
+  { nom: 'Avenue Lokele', quartier: 'Kasaï' },
+  { nom: 'Rue de Kibate', quartier: 'Kasaï' },
+  { nom: 'Rue de Kindu', quartier: 'Kasaï' },
+  { nom: 'Rue de Luvungi', quartier: 'Kasaï' },
+
+  // Libulu
+  { nom: 'Avenue Bas-Congo', quartier: 'Libulu' },
+  { nom: 'Avenue de Kilosa', quartier: 'Libulu' },
+  { nom: 'Avenue de la Croix Rouge', quartier: 'Libulu' },
+  { nom: 'Avenue Dodoma', quartier: 'Libulu' },
+  { nom: 'Avenue du Kasaï', quartier: 'Libulu' },
+  { nom: 'Avenue Kabalo', quartier: 'Libulu' },
+  { nom: 'Avenue Kalembelembe', quartier: 'Libulu' },
+  { nom: 'Avenue Kigoma', quartier: 'Libulu' },
+  { nom: 'Avenue Kitega', quartier: 'Libulu' },
+  { nom: 'Avenue Lokele', quartier: 'Libulu' },
+  { nom: 'Avenue Luambo Makiadi', quartier: 'Libulu' },
+  { nom: 'Rue de Baraka', quartier: 'Libulu' },
+  { nom: 'Rue de Luapula', quartier: 'Libulu' },
+  { nom: 'Rue de Mahenge', quartier: 'Libulu' },
+  { nom: 'Rue de Nyanza', quartier: 'Libulu' },
+
+  // Mozindo
+  { nom: 'Avenue de la Croix Rouge', quartier: 'Mozindo' },
+  { nom: 'Avenue de la Pharmacie', quartier: 'Mozindo' },
+  { nom: 'Avenue du Canal', quartier: 'Mozindo' },
+  { nom: 'Avenue Itaga', quartier: 'Mozindo' },
+
+  // Ndolo
+  { nom: 'Avenue de la Commune', quartier: 'Ndolo' },
+  { nom: 'Avenue de la Pharmacie', quartier: 'Ndolo' },
+  { nom: 'Avenue de la Prison', quartier: 'Ndolo' },
+  { nom: "Avenue de l'Aérodrome", quartier: 'Ndolo' },
+  { nom: 'Avenue du Canal', quartier: 'Ndolo' },
+  { nom: 'Avenue du Parti', quartier: 'Ndolo' },
+  { nom: 'Avenue du Pont', quartier: 'Ndolo' },
+  { nom: 'Avenue du Progrès', quartier: 'Ndolo' },
+  { nom: 'Avenue Kabalo', quartier: 'Ndolo' },
+  { nom: 'Avenue Kabambare', quartier: 'Ndolo' },
+  { nom: 'Avenue Kabasele Tshiamala Joseph', quartier: 'Ndolo' },
+  { nom: 'Avenue Kasaï', quartier: 'Ndolo' },
+  { nom: 'Aviation', quartier: 'Ndolo' },
+  { nom: 'Echevin', quartier: 'Ndolo' },
+  { nom: 'Epolo', quartier: 'Ndolo' },
+  { nom: 'Essandja', quartier: 'Ndolo' },
+  { nom: 'Inventeur Kabasele Mwamba', quartier: 'Ndolo' },
+  { nom: 'Rue de Luvungi', quartier: 'Ndolo' },
+
+  // Tshimanga
+  { nom: "Avenue d'Udjidji", quartier: 'Tshimanga' },
+  { nom: 'Avenue de Goma', quartier: 'Tshimanga' },
+  { nom: 'Avenue de Kabolo', quartier: 'Tshimanga' },
+  { nom: 'Avenue de Kananga', quartier: 'Tshimanga' },
+  { nom: 'Avenue de Kasongo', quartier: 'Tshimanga' },
+  { nom: 'Avenue de Rutshuru', quartier: 'Tshimanga' },
+  { nom: 'Avenue de Tabora', quartier: 'Tshimanga' },
+  { nom: 'Avenue des Vieillards', quartier: 'Tshimanga' },
+  { nom: 'Avenue du Canal', quartier: 'Tshimanga' },
+  { nom: 'Avenue du Syndicat', quartier: 'Tshimanga' },
+  { nom: 'Avenue Itaga', quartier: 'Tshimanga' },
+  { nom: 'Avenue Kwango', quartier: 'Tshimanga' },
+  { nom: 'Avenue Sonabata', quartier: 'Tshimanga' }
+];
+
+export const INITIAL_AVENUES: Avenue[] = rawBarumbuAvenues.map((item, index) => ({
+  id: `av-barumbu-${index + 1}`,
+  commune_id: 'c-barumbu',
+  nom: item.nom,
+  quartier: item.quartier,
+  created_at: new Date('2026-06-01').toISOString()
+}));
 
 export const INITIAL_PARCELLES: Parcelle[] = [];
 

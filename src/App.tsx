@@ -193,7 +193,11 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(parsed.map((a: any) => a.id));
+          const missing = INITIAL_AVENUES.filter(a => !existingIds.has(a.id));
+          return missing.length > 0 ? [...parsed, ...missing] : parsed;
+        }
       } catch (e) {
         console.error('Failed to parse saved avenues', e);
       }
@@ -1025,7 +1029,31 @@ export default function App() {
         .from('avenues')
         .select('*');
       if (avesError) throw avesError;
-      setAvenues(aves || []);
+      let activeAvenues = aves || [];
+      if (activeAvenues.length === 0) {
+        try {
+          const { error: seedAveError } = await supabase.from('avenues').insert(INITIAL_AVENUES);
+          if (seedAveError) {
+            console.warn("Supabase seed avenues failed, using INITIAL_AVENUES fallback", seedAveError);
+          }
+        } catch (e) {
+          console.warn("Supabase seed avenues exception", e);
+        }
+        activeAvenues = [...INITIAL_AVENUES];
+      } else {
+        const existingIds = new Set(activeAvenues.map((a: any) => a.id));
+        const missingFromInitial = INITIAL_AVENUES.filter(a => !existingIds.has(a.id));
+        if (missingFromInitial.length > 0) {
+          try {
+            await supabase.from('avenues').insert(missingFromInitial);
+            activeAvenues = [...activeAvenues, ...missingFromInitial];
+          } catch (e) {
+            console.warn("Insert missing initial avenues exception", e);
+            activeAvenues = [...activeAvenues, ...missingFromInitial];
+          }
+        }
+      }
+      setAvenues(activeAvenues);
 
       // 3. Fetch Parcelles
       const { data: parcs, error: parcsError } = await supabase
@@ -1300,7 +1328,15 @@ export default function App() {
 
       const parsedC = savedCommunes ? JSON.parse(savedCommunes) : null;
       setCommunes(Array.isArray(parsedC) && parsedC.length > 0 ? parsedC : INITIAL_COMMUNES);
-      setAvenues(savedAvenues ? JSON.parse(savedAvenues) : INITIAL_AVENUES);
+      
+      const parsedA = savedAvenues ? JSON.parse(savedAvenues) : null;
+      if (Array.isArray(parsedA) && parsedA.length > 0) {
+        const existingIds = new Set(parsedA.map((a: any) => a.id));
+        const missing = INITIAL_AVENUES.filter(a => !existingIds.has(a.id));
+        setAvenues(missing.length > 0 ? [...parsedA, ...missing] : parsedA);
+      } else {
+        setAvenues(INITIAL_AVENUES);
+      }
       setParcelles(savedParcelles ? JSON.parse(savedParcelles) : INITIAL_PARCELLES);
       setAbonnes(savedAbonnes ? JSON.parse(savedAbonnes) : INITIAL_ABONNES);
     }
@@ -1334,6 +1370,7 @@ export default function App() {
   // Modal Inputs state
   const [newCommuneName, setNewCommuneName] = useState('');
   const [newAvenueName, setNewAvenueName] = useState('');
+  const [newAvenueQuartier, setNewAvenueQuartier] = useState('');
   const [newAvenueCommuneId, setNewAvenueCommuneId] = useState('');
 
   const handleLogin = (agent: Agent) => {
@@ -1430,12 +1467,14 @@ export default function App() {
       id: newId,
       commune_id: targetedCommuneId,
       nom: newAvenueName.trim(),
+      quartier: newAvenueQuartier.trim() || undefined,
       created_at: new Date().toISOString()
     };
 
     // Optimistically update local UI immediately
     setAvenues([newA, ...avenues]);
     setNewAvenueName('');
+    setNewAvenueQuartier('');
     setShowAddAvenueModal(false);
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
@@ -4137,6 +4176,20 @@ export default function App() {
                         />
                       </div>
 
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant" htmlFor="modal_ave_quartier">
+                          Quartier (Optionnel)
+                        </label>
+                        <input 
+                          type="text" 
+                          id="modal_ave_quartier"
+                          value={newAvenueQuartier}
+                          onChange={(e) => setNewAvenueQuartier(e.target.value)}
+                          placeholder="Ex: Bitshaku Tshaku, Funa I..."
+                          className="w-full h-11 px-3.5 bg-background border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mt-1 transition-colors"
+                        />
+                      </div>
+
                       <div className="flex justify-end gap-3 mt-2">
                         <button 
                           type="button" 
@@ -4214,8 +4267,12 @@ CREATE TABLE IF NOT EXISTS avenues (
   id TEXT PRIMARY KEY,
   commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
   nom TEXT NOT NULL,
+  quartier TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration pour ajouter la colonne quartier si la table existait déjà
+ALTER TABLE avenues ADD COLUMN IF NOT EXISTS quartier TEXT;
 
 -- 3. Table des parcelles
 CREATE TABLE IF NOT EXISTS parcelles (
@@ -4504,8 +4561,12 @@ CREATE TABLE IF NOT EXISTS avenues (
   id TEXT PRIMARY KEY,
   commune_id TEXT REFERENCES communes(id) ON DELETE CASCADE,
   nom TEXT NOT NULL,
+  quartier TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration pour ajouter la colonne quartier si la table existait déjà
+ALTER TABLE avenues ADD COLUMN IF NOT EXISTS quartier TEXT;
 
 -- 3. Table des parcelles
 CREATE TABLE IF NOT EXISTS parcelles (
