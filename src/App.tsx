@@ -1178,9 +1178,9 @@ export default function App() {
       try {
         const { data: dists, error: distsError } = await supabase
           .from('sachet_distributions')
-          .select('*')
-          .order('date_distribution', { ascending: false });
+          .select('*');
         if (!distsError && dists) {
+          dists.sort((a: any, b: any) => new Date(b.date_distribution || b.created_at || 0).getTime() - new Date(a.date_distribution || a.created_at || 0).getTime());
           setSachetDistributions(dists);
         }
       } catch (e) {
@@ -1191,9 +1191,9 @@ export default function App() {
       try {
         const { data: pays, error: paysError } = await supabase
           .from('subscription_payments')
-          .select('*')
-          .order('date_paiement', { ascending: false });
+          .select('*');
         if (!paysError && pays) {
+          pays.sort((a: any, b: any) => new Date(b.date_paiement || b.created_at || 0).getTime() - new Date(a.date_paiement || a.created_at || 0).getTime());
           setPayments(pays);
         }
       } catch (e) {
@@ -1204,9 +1204,9 @@ export default function App() {
       try {
         const { data: spays, error: spaysError } = await supabase
           .from('staff_payments')
-          .select('*')
-          .order('date_paiement', { ascending: false });
+          .select('*');
         if (!spaysError && spays) {
+          spays.sort((a: any, b: any) => new Date(b.date_paiement || b.created_at || 0).getTime() - new Date(a.date_paiement || a.created_at || 0).getTime());
           setStaffPayments(spays);
         }
       } catch (e) {
@@ -1217,9 +1217,9 @@ export default function App() {
       try {
         const { data: exps, error: expsError } = await supabase
           .from('material_expenses')
-          .select('*')
-          .order('date_depense', { ascending: false });
+          .select('*');
         if (!expsError && exps) {
+          exps.sort((a: any, b: any) => new Date(b.date_depense || b.created_at || 0).getTime() - new Date(a.date_depense || a.created_at || 0).getTime());
           setMaterialExpenses(exps);
         }
       } catch (e) {
@@ -1230,9 +1230,9 @@ export default function App() {
       try {
         const { data: disps, error: dispsError } = await supabase
           .from('dispute_signals')
-          .select('*')
-          .order('date_constat', { ascending: false });
+          .select('*');
         if (!dispsError && disps) {
+          disps.sort((a: any, b: any) => new Date(b.date_constat || b.created_at || 0).getTime() - new Date(a.date_constat || a.created_at || 0).getTime());
           setDisputes(disps);
         }
       } catch (e) {
@@ -1243,9 +1243,9 @@ export default function App() {
       try {
         const { data: msgs, error: msgsError } = await supabase
           .from('inbox_messages')
-          .select('*')
-          .order('sent_at', { ascending: false });
+          .select('*');
         if (!msgsError && msgs) {
+          msgs.sort((a: any, b: any) => new Date(b.sent_at || b.created_at || 0).getTime() - new Date(a.sent_at || a.created_at || 0).getTime());
           setInboxMessages(msgs);
         }
       } catch (e) {
