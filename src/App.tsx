@@ -233,8 +233,15 @@ export default function App() {
 
   // 4.2. Waste management and collector tracking states
   const [poubelleSignals, setPoubelleSignals] = useState<PoubelleSignal[]>(() => {
-    // Clear old local signals to allow user to re-test fresh alert submissions
-    localStorage.removeItem('hico_poubelle_signals');
+    const saved = localStorage.getItem('hico_poubelle_signals');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        console.error("Failed to parse saved poubelle signals", e);
+      }
+    }
     return [];
   });
 
@@ -508,6 +515,28 @@ export default function App() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
+  if (!item) return 'pending';
+  const statusStr = String(item.status || '').toLowerCase();
+  const statutStr = String(item.statut || '').toLowerCase();
+
+  if (
+    ['completed', 'resolu', 'complete', 'termine', 'ramasse'].includes(statusStr) ||
+    ['completed', 'resolu', 'complete', 'termine', 'ramasse'].includes(statutStr)
+  ) {
+    return 'completed';
+  }
+
+  if (
+    ['assigned', 'assigne', 'en_route', 'en_cours', 'attribue'].includes(statusStr) ||
+    ['assigned', 'assigne', 'en_route', 'en_cours', 'attribue'].includes(statutStr)
+  ) {
+    return 'assigned';
+  }
+
+  return 'pending';
+};
+
   // ⏱️ 3-Second Realtime Polling Engine Fallback
   useEffect(() => {
     if (!isSupabaseConfigured || dbStatus !== 'connected') return;
@@ -527,13 +556,11 @@ export default function App() {
             let newestSig: PoubelleSignal | null = null;
 
             data.forEach(item => {
-              const exists = updated.some(s => s.id === item.id);
-              if (!exists) {
-                const rawStatus = item.status || item.statut || 'pending';
-                let mappedStatus: 'pending' | 'assigned' | 'completed' = 'pending';
-                if (rawStatus === 'assigned' || rawStatus === 'assigne') mappedStatus = 'assigned';
-                else if (rawStatus === 'completed' || rawStatus === 'resolu' || rawStatus === 'complete' || rawStatus === 'termine') mappedStatus = 'completed';
+              const mappedStatus = mapSignalStatus(item);
+              const assignedEbId = item.assigned_eboueur_id || item.eboueur_assigne_id || null;
+              const existsIndex = updated.findIndex(s => s.id === item.id);
 
+              if (existsIndex === -1) {
                 const parc = parcelles.find(p => p.id === item.parcelle_id);
                 const ave = avenues.find(a => a.id === (item.avenue_id || parc?.avenue_id));
                 const comm = communes.find(c => c.id === (item.commune_id || ave?.commune_id));
@@ -550,7 +577,10 @@ export default function App() {
                   bailleur_nom: item.bailleur_nom || ab?.nom_complet || 'Abonné',
                   bailleur_telephone: item.bailleur_telephone || ab?.telephone_principal || '',
                   status: mappedStatus,
-                  assigned_eboueur_id: item.assigned_eboueur_id || item.eboueur_assigne_id || null,
+                  assigned_eboueur_id: assignedEbId,
+                  estimated_arrival_minutes: item.estimated_arrival_minutes || null,
+                  eta_appointment_time: item.eta_appointment_time || null,
+                  is_partiel: item.is_partiel || false,
                   reported_at: item.reported_at || item.created_at || new Date().toISOString(),
                   completed_at: item.completed_at || item.resolved_at || null,
                   type_poubelle: item.type_poubelle || 'biodegradable'
@@ -558,10 +588,21 @@ export default function App() {
 
                 updated = [formatted, ...updated];
                 const reportedMs = new Date(formatted.reported_at).getTime();
-                // Only trigger audio/popup if initial sync is complete AND signal was created during current session
                 if (initialPollDoneRef.current && mappedStatus === 'pending' && reportedMs > appLoadTimeRef.current - 5000) {
                   foundNew = true;
                   newestSig = formatted;
+                }
+              } else {
+                // Keep local assignment intact or sync with remote if remote is assigned/completed
+                const existingSig = updated[existsIndex];
+                if (mappedStatus !== 'pending' || existingSig.status === 'pending') {
+                  updated[existsIndex] = {
+                    ...existingSig,
+                    status: mappedStatus !== 'pending' ? mappedStatus : existingSig.status,
+                    assigned_eboueur_id: assignedEbId || existingSig.assigned_eboueur_id,
+                    estimated_arrival_minutes: item.estimated_arrival_minutes || existingSig.estimated_arrival_minutes,
+                    eta_appointment_time: item.eta_appointment_time || existingSig.eta_appointment_time
+                  };
                 }
               }
             });
@@ -603,13 +644,7 @@ export default function App() {
             setPoubelleSignals(prev => {
               if (prev.some(s => s.id === newSig.id)) return prev;
 
-              const rawStatus = newSig.status || newSig.statut || 'pending';
-              let mappedStatus: 'pending' | 'assigned' | 'completed' = 'pending';
-              if (rawStatus === 'assigned' || rawStatus === 'assigne') {
-                mappedStatus = 'assigned';
-              } else if (rawStatus === 'completed' || rawStatus === 'resolu' || rawStatus === 'complete' || rawStatus === 'termine') {
-                mappedStatus = 'completed';
-              }
+              const mappedStatus = mapSignalStatus(newSig);
 
               const parc = parcelles.find(p => p.id === newSig.parcelle_id);
               const ave = avenues.find(a => a.id === (newSig.avenue_id || parc?.avenue_id));
@@ -644,13 +679,7 @@ export default function App() {
             setPoubelleSignals(prev => prev.map(s => {
               if (s.id !== updatedSig.id) return s;
 
-              const rawStatus = updatedSig.status || updatedSig.statut || s.status || 'pending';
-              let mappedStatus: 'pending' | 'assigned' | 'completed' = 'pending';
-              if (rawStatus === 'assigned' || rawStatus === 'assigne') {
-                mappedStatus = 'assigned';
-              } else if (rawStatus === 'completed' || rawStatus === 'resolu' || rawStatus === 'complete' || rawStatus === 'termine') {
-                mappedStatus = 'completed';
-              }
+              const mappedStatus = mapSignalStatus(updatedSig);
 
               const assignedEboueurId = 
                 (updatedSig.assigned_eboueur_id !== undefined && updatedSig.assigned_eboueur_id !== null)
@@ -814,6 +843,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('hico_disputes', JSON.stringify(disputes));
   }, [disputes]);
+
+  useEffect(() => {
+    localStorage.setItem('hico_poubelle_signals', JSON.stringify(poubelleSignals));
+  }, [poubelleSignals]);
 
   // Seed sachet stocks when communes are loaded and stocks are empty
   useEffect(() => {
@@ -1148,13 +1181,7 @@ export default function App() {
             const comm = (activeCommunes || []).find(c => c.id === (s.commune_id || ave?.commune_id));
             const ab = (abs || []).find(a => a.id === s.bailleur_id || a.parcelle_id === s.parcelle_id);
 
-            const rawStatus = s.status || s.statut || 'pending';
-            let mappedStatus: 'pending' | 'assigned' | 'completed' = 'pending';
-            if (rawStatus === 'assigned' || rawStatus === 'assigne') {
-              mappedStatus = 'assigned';
-            } else if (rawStatus === 'completed' || rawStatus === 'resolu' || rawStatus === 'complete' || rawStatus === 'termine') {
-              mappedStatus = 'completed';
-            }
+            const mappedStatus = mapSignalStatus(s);
 
             return {
               id: s.id,
@@ -1168,6 +1195,9 @@ export default function App() {
               bailleur_telephone: s.bailleur_telephone || ab?.telephone_principal || '',
               status: mappedStatus,
               assigned_eboueur_id: s.assigned_eboueur_id || s.eboueur_assigne_id || null,
+              estimated_arrival_minutes: s.estimated_arrival_minutes || null,
+              eta_appointment_time: s.eta_appointment_time || null,
+              is_partiel: s.is_partiel || false,
               reported_at: s.reported_at || s.created_at || new Date().toISOString(),
               completed_at: s.completed_at || s.resolved_at || null,
               type_poubelle: s.type_poubelle || 'biodegradable'
@@ -1178,10 +1208,28 @@ export default function App() {
           formatted.sort((a, b) => new Date(b.reported_at).getTime() - new Date(a.reported_at).getTime());
           
           setPoubelleSignals(prev => {
-            // Keep local signals that might not have synced to Supabase yet
-            const remoteIds = new Set(formatted.map(f => f.id));
-            const unsyncedLocal = prev.filter(p => !remoteIds.has(p.id));
-            const merged = [...unsyncedLocal, ...formatted];
+            // Merge remote signals with local state to preserve assignments if remote sync was delayed
+            const remoteMap = new Map(formatted.map(f => [f.id, f]));
+            const localIds = new Set(prev.map(p => p.id));
+
+            const mergedPrev = prev.map(p => {
+              const remote = remoteMap.get(p.id);
+              if (!remote) return p;
+              // If local status is assigned/completed and remote returned pending, retain local assigned status
+              if ((p.status === 'assigned' || p.status === 'completed') && remote.status === 'pending') {
+                return {
+                  ...remote,
+                  status: p.status,
+                  assigned_eboueur_id: p.assigned_eboueur_id || remote.assigned_eboueur_id,
+                  estimated_arrival_minutes: p.estimated_arrival_minutes || remote.estimated_arrival_minutes,
+                  eta_appointment_time: p.eta_appointment_time || remote.eta_appointment_time
+                };
+              }
+              return remote;
+            });
+
+            const brandNewRemote = formatted.filter(f => !localIds.has(f.id));
+            const merged = [...mergedPrev, ...brandNewRemote];
             merged.sort((a, b) => new Date(b.reported_at).getTime() - new Date(a.reported_at).getTime());
             return merged;
           });
@@ -2136,7 +2184,8 @@ export default function App() {
       id: validUuid,
       parcelle_id: pId,
       bailleur_id: bId,
-      statut: newSignal.status === 'assigned' ? 'assigned' : newSignal.status === 'completed' ? 'completed' : 'en_attente',
+      statut: newSignal.status === 'assigned' ? 'assigned' : newSignal.status === 'completed' ? 'completed' : 'pending',
+      status: newSignal.status || 'pending',
       type_poubelle: newSignal.type_poubelle || 'biodegradable',
       created_at: newSignal.reported_at || new Date().toISOString()
     };
@@ -2353,12 +2402,12 @@ export default function App() {
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {
-        const { error } = await supabase
+        const { error: err1 } = await supabase
           .from('signaux_poubelles')
           .update({ 
             statut: 'assigned', 
             status: 'assigned',
-            eboueur_assigne_id: eboueurId, 
+            eboueur_assigne_id: eboueurId,
             assigned_eboueur_id: eboueurId,
             estimated_arrival_minutes: estMins,
             eta_appointment_time: appointmentTime,
@@ -2366,16 +2415,15 @@ export default function App() {
           })
           .eq('id', signalId);
         
-        if (error) {
-          console.warn("French update failed, trying English update...", error);
+        if (err1) {
+          console.warn("Primary assign update error, trying fallback:", err1);
           await supabase
             .from('signaux_poubelles')
             .update({ 
-              status: 'assigned', 
-              assigned_eboueur_id: eboueurId,
-              estimated_arrival_minutes: estMins,
-              eta_appointment_time: appointmentTime,
-              is_partiel: options?.is_partiel || false
+              statut: 'assigned', 
+              status: 'assigned',
+              eboueur_assigne_id: eboueurId,
+              assigned_eboueur_id: eboueurId
             })
             .eq('id', signalId);
         }
@@ -4335,6 +4383,14 @@ CREATE TABLE IF NOT EXISTS signaux_poubelles (
   resolved_at TIMESTAMPTZ
 );
 
+-- Migration pour ajouter les colonnes d'assignation et de statut si la table existait déjà
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS status TEXT;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS assigned_eboueur_id TEXT;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS estimated_arrival_minutes INTEGER;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS eta_appointment_time TEXT;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS is_partiel BOOLEAN;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+
 -- 8. Table de suivi des règlements par locataire
 CREATE TABLE IF NOT EXISTS validations_locataires (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -4628,6 +4684,14 @@ CREATE TABLE IF NOT EXISTS signaux_poubelles (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   resolved_at TIMESTAMPTZ
 );
+
+-- Migration pour ajouter les colonnes d'assignation et de statut si la table existait déjà
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS status TEXT;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS assigned_eboueur_id TEXT;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS estimated_arrival_minutes INTEGER;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS eta_appointment_time TEXT;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS is_partiel BOOLEAN;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 
 -- 8. Table de suivi des règlements par locataire
 CREATE TABLE IF NOT EXISTS validations_locataires (
