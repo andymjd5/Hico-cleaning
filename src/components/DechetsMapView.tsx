@@ -64,7 +64,7 @@ export default function DechetsMapView({
 }: DechetsMapViewProps) {
   const [selectedSignalId, setSelectedSignalIdState] = useState<string | null>(initialSelectedSignalId || null);
   const [selectedEboueurId, setSelectedEboueurId] = useState<string | null>(null);
-  const [showAllParcelles, setShowAllParcelles] = useState<boolean>(false);
+  const [showAllParcelles, setShowAllParcelles] = useState<boolean>(true);
   
   // Realtime clock tick to auto-hide validated houses after 5 minutes
   const [nowTick, setNowTick] = useState<number>(Date.now());
@@ -361,13 +361,16 @@ export default function DechetsMapView({
         html: `
           <div class="relative flex items-center justify-center transition-all duration-300" style="transform: ${isSelected ? 'scale(1.25)' : 'scale(1.0)'}; z-index: ${isSelected ? '9999' : '100'};">
             ${pingHtml}
-            <div class="p-2 rounded-full ${markerColor} text-white border-2 ${isSelected ? 'border-yellow-400 scale-110' : 'border-white'} shadow-md flex items-center justify-center font-bold" style="width: 32px; height: 32px; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-              ${iconHtml}
+            <div class="relative p-2 rounded-full ${markerColor} text-white border-2 ${isSelected ? 'border-yellow-400 scale-110' : 'border-white'} shadow-md flex items-center justify-center font-bold" style="width: 36px; height: 36px; font-size: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+              🏠
+              <span class="absolute -top-1.5 -right-1.5 text-[10px] bg-slate-900 border border-white rounded-full px-1 shadow">
+                ${iconHtml}
+              </span>
             </div>
           </div>
         `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
       });
 
       const marker = window.L.marker([coords.lat, coords.lng], { icon: customIcon });
@@ -991,9 +994,8 @@ export default function DechetsMapView({
                               <button
                                 onClick={() => {
                                   if (isFull) {
-                                    if (!confirm(`⚠️ Le camion de ${eb.nom} est actuellement PLEIN (${load}/${cap} sachets). Voulez-vous tout de même lui assigner cette mission ?`)) {
-                                      return;
-                                    }
+                                    alert(`🚨 CAPACITÉ SATURÉE !\n\nLe véhicule de M. ${eb.nom} est actuellement PLEIN (${load}/${cap} sachets chargés).\n\nL'éboueur doit d'abord décharger son camion au centre d'enfouissement avant de recevoir de nouvelles missions.`);
+                                    return;
                                   }
                                   onAssignMission(selectedSignal.id, eb.id);
                                   setSelectedSignalId(null);

@@ -759,6 +759,87 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'parcelles' },
+        (payload) => {
+          console.log("Realtime parcelles change received:", payload);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const row = payload.new as any;
+            if (!row) return;
+            setParcelles(prev => {
+              const exists = prev.some(p => p.id === row.id);
+              if (exists) {
+                return prev.map(p => p.id === row.id ? { ...p, ...row } : p);
+              }
+              return [row, ...prev];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const oldRow = payload.old as any;
+            if (oldRow?.id) {
+              setParcelles(prev => prev.filter(p => p.id !== oldRow.id));
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'abonnes' },
+        (payload) => {
+          console.log("Realtime abonnes change received:", payload);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const row = payload.new as any;
+            if (!row) return;
+            setAbonnes(prev => {
+              const exists = prev.some(a => a.id === row.id);
+              if (exists) {
+                return prev.map(a => a.id === row.id ? { ...a, ...row } : a);
+              }
+              return [row, ...prev];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const oldRow = payload.old as any;
+            if (oldRow?.id) {
+              setAbonnes(prev => prev.filter(a => a.id !== oldRow.id));
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'eboueurs' },
+        (payload) => {
+          console.log("Realtime eboueurs change received:", payload);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const row = payload.new as any;
+            if (!row) return;
+            setEboueurs(prev => {
+              const exists = prev.some(e => e.id === row.id);
+              if (exists) {
+                return prev.map(e => e.id === row.id ? { ...e, ...row } : e);
+              }
+              return [row, ...prev];
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'avenues' },
+        (payload) => {
+          console.log("Realtime avenues change received:", payload);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const row = payload.new as any;
+            if (!row) return;
+            setAvenues(prev => {
+              if (prev.some(a => a.id === row.id)) {
+                return prev.map(a => a.id === row.id ? { ...a, ...row } : a);
+              }
+              return [...prev, row];
+            });
+          }
+        }
+      )
       .subscribe((status) => {
         console.log("Supabase Realtime subscription status:", status);
       });
@@ -2384,6 +2465,21 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     options?: { is_partiel?: boolean; partiel_note?: string }
   ) => {
     const targetEb = eboueurs.find(e => e.id === eboueurId);
+    
+    // Capacity Check
+    if (targetEb) {
+      const cap = targetEb.capacite_camion || 6;
+      const load = targetEb.charge_actuelle || 0;
+      const activeCount = poubelleSignals.filter(s => s.id !== signalId && s.status === 'assigned' && (s.assigned_eboueur_id === targetEb.id || (s as any).eboueur_assigne_id === targetEb.id)).length;
+      const freeSlots = Math.max(0, cap - load - activeCount);
+
+      if (freeSlots <= 0) {
+        addToast(`🚨 Bloqué : Le camion de M. ${targetEb.nom} est PLEIN (${load + activeCount}/${cap} sachets/places).`, 'error');
+        alert(`🚨 CAPACITÉ SATURÉE !\n\nLe véhicule de M. ${targetEb.nom} ne dispose de plus aucune place disponible (${load + activeCount}/${cap} sachets/places).\n\nL'éboueur doit d'abord décharger son camion au centre d'enfouissement avant de recevoir de nouvelles missions.`);
+        return;
+      }
+    }
+
     let estMins = 12;
     let appointmentTime = new Date(Date.now() + 12 * 60000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
@@ -4170,8 +4266,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
             </div>
           )}
 
-          {/* Real-time Notification Popup for Waste Signals (Alerte Poubelle Pleine) - ONLY ADMIN / DISPATCH */}
-          {activeNotification && (currentUser?.role === 'admin' || ['dashboard', 'dechets_map', 'communes', 'avenues', 'rapports', 'sachets_management', 'finance_management'].includes(currentScreen)) && (
+          {/* Real-time Notification Popup for Waste Signals (Alerte Poubelle Pleine) - ONLY ADMIN / DASHBOARD */}
+          {activeNotification && currentUser?.role !== 'abonne' && currentScreen !== 'abonne_space' && (currentUser?.role === 'admin' || currentScreen === 'dashboard') && (
             <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 max-w-sm w-[calc(100vw-2rem)] bg-gradient-to-br from-red-600/95 to-red-950/95 backdrop-blur-md border border-red-500/30 rounded-2xl shadow-[0_12px_40px_rgba(239,68,68,0.35)] p-4 text-white z-50 animate-slide-in-up hover:scale-[1.02] transition-transform duration-200">
               <div className="flex items-start gap-3">
                 {/* Flashing light icon */}
