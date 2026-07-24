@@ -840,6 +840,40 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'agent_dotations' },
+        (payload) => {
+          console.log("Realtime agent_dotations change received:", payload);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const row = payload.new as any;
+            if (!row) return;
+            setAgentDotations(prev => {
+              if (prev.some(d => d.id === row.id || d.agent_id === row.agent_id)) {
+                return prev.map(d => (d.id === row.id || d.agent_id === row.agent_id) ? { ...d, ...row } : d);
+              }
+              return [...prev, row];
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sachet_stocks' },
+        (payload) => {
+          console.log("Realtime sachet_stocks change received:", payload);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const row = payload.new as any;
+            if (!row) return;
+            setSachetStocks(prev => {
+              if (prev.some(s => s.id === row.id)) {
+                return prev.map(s => s.id === row.id ? { ...s, ...row } : s);
+              }
+              return [...prev, row];
+            });
+          }
+        }
+      )
       .subscribe((status) => {
         console.log("Supabase Realtime subscription status:", status);
       });
@@ -2809,6 +2843,43 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           return ag;
         }));
       }
+    }
+
+    // Decrement driver's truck dotation stock of new bags (20 Bio / 20 Non-Bio stock)
+    const targetDriverId = assignedEbId || eboueurs.find(e => e.telephone === currentUser?.telephone)?.id;
+    if (targetDriverId) {
+      setAgentDotations(prev => {
+        const existing = prev.find(d => d.agent_id === targetDriverId);
+        if (existing) {
+          const updatedDot = {
+            ...existing,
+            biodegradable: Math.max(0, existing.biodegradable - bioDelivered),
+            non_biodegradable: Math.max(0, existing.non_biodegradable - nonBioDelivered)
+          };
+          if (isSupabaseConfigured && dbStatus === 'connected') {
+            (async () => {
+              try { await supabase.from('agent_dotations').upsert([updatedDot]); } catch (_) {}
+            })();
+          }
+          return prev.map(d => d.agent_id === targetDriverId ? updatedDot : d);
+        } else {
+          const newDot: AgentDotation = {
+            id: 'dot-' + Math.random().toString(36).substring(2, 10),
+            agent_id: targetDriverId,
+            agent_nom: driverNom,
+            commune_id: communeId || 'commune-default',
+            biodegradable: Math.max(0, 20 - bioDelivered),
+            non_biodegradable: Math.max(0, 20 - nonBioDelivered),
+            last_assigned: new Date().toISOString()
+          };
+          if (isSupabaseConfigured && dbStatus === 'connected') {
+            (async () => {
+              try { await supabase.from('agent_dotations').upsert([newDot]); } catch (_) {}
+            })();
+          }
+          return [...prev, newDot];
+        }
+      });
     }
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
