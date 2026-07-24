@@ -593,12 +593,37 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   newestSig = formatted;
                 }
               } else {
-                // Keep local assignment intact or sync with remote if remote is assigned/completed
+                // Keep local assignment and completion status intact
                 const existingSig = updated[existsIndex];
-                if (mappedStatus !== 'pending' || existingSig.status === 'pending') {
+                if (existingSig.status === 'completed') {
+                  if (mappedStatus === 'completed') {
+                    updated[existsIndex] = {
+                      ...existingSig,
+                      status: 'completed',
+                      completed_at: item.completed_at || item.resolved_at || existingSig.completed_at
+                    };
+                  }
+                  // Otherwise retain local completed status
+                } else if (existingSig.status === 'assigned') {
+                  if (mappedStatus === 'completed') {
+                    updated[existsIndex] = {
+                      ...existingSig,
+                      status: 'completed',
+                      completed_at: item.completed_at || item.resolved_at || new Date().toISOString()
+                    };
+                  } else {
+                    updated[existsIndex] = {
+                      ...existingSig,
+                      status: 'assigned',
+                      assigned_eboueur_id: assignedEbId || existingSig.assigned_eboueur_id,
+                      estimated_arrival_minutes: item.estimated_arrival_minutes || existingSig.estimated_arrival_minutes,
+                      eta_appointment_time: item.eta_appointment_time || existingSig.eta_appointment_time
+                    };
+                  }
+                } else {
                   updated[existsIndex] = {
                     ...existingSig,
-                    status: mappedStatus !== 'pending' ? mappedStatus : existingSig.status,
+                    status: mappedStatus,
                     assigned_eboueur_id: assignedEbId || existingSig.assigned_eboueur_id,
                     estimated_arrival_minutes: item.estimated_arrival_minutes || existingSig.estimated_arrival_minutes,
                     eta_appointment_time: item.eta_appointment_time || existingSig.eta_appointment_time
@@ -1215,11 +1240,19 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
             const mergedPrev = prev.map(p => {
               const remote = remoteMap.get(p.id);
               if (!remote) return p;
-              // If local status is assigned/completed and remote returned pending, retain local assigned status
-              if ((p.status === 'assigned' || p.status === 'completed') && remote.status === 'pending') {
+              // If local status is completed, retain completed unless remote also says completed
+              if (p.status === 'completed') {
                 return {
                   ...remote,
-                  status: p.status,
+                  status: 'completed',
+                  completed_at: p.completed_at || remote.completed_at || new Date().toISOString()
+                };
+              }
+              // If local status is assigned and remote returned pending, retain local assigned status
+              if (p.status === 'assigned' && remote.status === 'pending') {
+                return {
+                  ...remote,
+                  status: 'assigned',
                   assigned_eboueur_id: p.assigned_eboueur_id || remote.assigned_eboueur_id,
                   estimated_arrival_minutes: p.estimated_arrival_minutes || remote.estimated_arrival_minutes,
                   eta_appointment_time: p.eta_appointment_time || remote.eta_appointment_time
@@ -2464,12 +2497,64 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     localStorage.removeItem('hico_poubelle_signals');
   };
 
-  const handleCancelSignal = (signalId: string) => {
+  const handleCancelSignal = async (signalId: string) => {
     setPoubelleSignals(prev => {
       const updated = prev.filter(s => s.id !== signalId);
       localStorage.setItem('hico_poubelle_signals', JSON.stringify(updated));
       return updated;
     });
+
+    addToast("Alerte supprimée de l'affichage.", "info");
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase
+          .from('signaux_poubelles')
+          .delete()
+          .eq('id', signalId);
+      } catch (err) {
+        console.warn("Supabase delete signal error:", err);
+      }
+    }
+  };
+
+  const handleCompleteAllSignals = async () => {
+    const activeSignals = poubelleSignals.filter(s => s.status !== 'completed');
+    if (activeSignals.length === 0) return;
+
+    const nowIso = new Date().toISOString();
+    const updatedSignals = poubelleSignals.map(s => {
+      if (s.status !== 'completed') {
+        return {
+          ...s,
+          status: 'completed' as const,
+          completed_at: nowIso
+        };
+      }
+      return s;
+    });
+
+    setPoubelleSignals(updatedSignals);
+    localStorage.setItem('hico_poubelle_signals', JSON.stringify(updatedSignals));
+
+    addToast(`${activeSignals.length} alerte(s) marquée(s) comme traitée(s) avec succès.`, 'success');
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        const activeIds = activeSignals.map(s => s.id);
+        await supabase
+          .from('signaux_poubelles')
+          .update({
+            statut: 'completed',
+            status: 'completed',
+            resolved_at: nowIso,
+            completed_at: nowIso
+          })
+          .in('id', activeIds);
+      } catch (err) {
+        console.warn("Supabase complete all signals error:", err);
+      }
+    }
   };
 
   const handleCompleteMission = async (
@@ -3357,6 +3442,9 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   signals={poubelleSignals}
                   eboueurs={eboueurs}
                   onAssignMission={handleAssignEboueur}
+                  onCompleteSignal={handleCompleteMission}
+                  onCancelSignal={handleCancelSignal}
+                  onCompleteAllSignals={handleCompleteAllSignals}
                   onNavigate={setCurrentScreen}
                   onAddCommuneToggle={() => setShowAddCommuneModal(true)}
                   onAddAvenueToggle={() => {
