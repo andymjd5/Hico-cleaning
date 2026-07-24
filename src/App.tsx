@@ -364,6 +364,8 @@ export default function App() {
   });
 
   // Real-time and notifications states
+  const initialPollDoneRef = React.useRef(false);
+  const appLoadTimeRef = React.useRef<number>(Date.now());
   const [activeNotification, setActiveNotification] = useState<PoubelleSignal | null>(null);
   const [hasNewSignals, setHasNewSignals] = useState(false);
   const [mapSelectedSignalId, setMapSelectedSignalId] = useState<string | null>(null);
@@ -555,12 +557,16 @@ export default function App() {
                 };
 
                 updated = [formatted, ...updated];
-                if (mappedStatus === 'pending') {
+                const reportedMs = new Date(formatted.reported_at).getTime();
+                // Only trigger audio/popup if initial sync is complete AND signal was created during current session
+                if (initialPollDoneRef.current && mappedStatus === 'pending' && reportedMs > appLoadTimeRef.current - 5000) {
                   foundNew = true;
                   newestSig = formatted;
                 }
               }
             });
+
+            initialPollDoneRef.current = true;
 
             if (foundNew && newestSig) {
               setActiveNotification(newestSig);
