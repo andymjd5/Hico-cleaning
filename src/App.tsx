@@ -602,8 +602,10 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                       status: 'completed',
                       completed_at: item.completed_at || item.resolved_at || existingSig.completed_at
                     };
+                  } else {
+                    // Auto-heal Supabase database record if remote statut is out of sync
+                    supabase.from('signaux_poubelles').update({ statut: 'completed' }).eq('id', item.id).then();
                   }
-                  // Otherwise retain local completed status
                 } else if (existingSig.status === 'assigned') {
                   if (mappedStatus === 'completed') {
                     updated[existsIndex] = {
@@ -1240,8 +1242,11 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
             const mergedPrev = prev.map(p => {
               const remote = remoteMap.get(p.id);
               if (!remote) return p;
-              // If local status is completed, retain completed unless remote also says completed
+              // If local status is completed, retain completed and sync Supabase if remote was out of sync
               if (p.status === 'completed') {
+                if (remote.status !== 'completed') {
+                  supabase.from('signaux_poubelles').update({ statut: 'completed' }).eq('id', p.id).then();
+                }
                 return {
                   ...remote,
                   status: 'completed',
@@ -2450,7 +2455,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
         
         if (err1) {
           console.warn("Primary assign update error, trying fallback:", err1);
-          await supabase
+          const { error: err2 } = await supabase
             .from('signaux_poubelles')
             .update({ 
               statut: 'assigned', 
@@ -2459,6 +2464,16 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
               assigned_eboueur_id: eboueurId
             })
             .eq('id', signalId);
+
+          if (err2) {
+            console.warn("Secondary assign update error, trying core column statut:", err2);
+            await supabase
+              .from('signaux_poubelles')
+              .update({ 
+                statut: 'assigned' 
+              })
+              .eq('id', signalId);
+          }
         }
       } catch (err) {
         console.warn("Supabase handleAssignEboueur update error:", err);
@@ -2519,30 +2534,22 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
   };
 
   const handleCompleteAllSignals = async () => {
-    const activeSignals = poubelleSignals.filter(s => s.status !== 'completed');
-    if (activeSignals.length === 0) return;
-
     const nowIso = new Date().toISOString();
-    const updatedSignals = poubelleSignals.map(s => {
-      if (s.status !== 'completed') {
-        return {
-          ...s,
-          status: 'completed' as const,
-          completed_at: nowIso
-        };
-      }
-      return s;
-    });
+    const updatedSignals = poubelleSignals.map(s => ({
+      ...s,
+      status: 'completed' as const,
+      completed_at: s.completed_at || nowIso
+    }));
 
     setPoubelleSignals(updatedSignals);
     localStorage.setItem('hico_poubelle_signals', JSON.stringify(updatedSignals));
 
-    addToast(`${activeSignals.length} alerte(s) marquée(s) comme traitée(s) avec succès.`, 'success');
+    addToast(`Toutes les alertes ont été marquées comme traitées avec succès.`, 'success');
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {
-        const activeIds = activeSignals.map(s => s.id);
-        await supabase
+        const allIds = poubelleSignals.map(s => s.id);
+        const { error: err1 } = await supabase
           .from('signaux_poubelles')
           .update({
             statut: 'completed',
@@ -2550,7 +2557,34 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
             resolved_at: nowIso,
             completed_at: nowIso
           })
-          .in('id', activeIds);
+          .in('id', allIds.length > 0 ? allIds : ['_none_']);
+
+        if (err1) {
+          console.warn("Primary complete all signals error, trying secondary:", err1);
+          const { error: err2 } = await supabase
+            .from('signaux_poubelles')
+            .update({
+              statut: 'completed',
+              status: 'completed'
+            })
+            .in('id', allIds.length > 0 ? allIds : ['_none_']);
+
+          if (err2) {
+            console.warn("Secondary complete all signals error, trying core column statut:", err2);
+            await supabase
+              .from('signaux_poubelles')
+              .update({
+                statut: 'completed'
+              })
+              .in('id', allIds.length > 0 ? allIds : ['_none_']);
+          }
+        }
+
+        // Also sweep any remaining uncompleted records directly in the Supabase table
+        await supabase
+          .from('signaux_poubelles')
+          .update({ statut: 'completed' })
+          .neq('statut', 'completed');
       } catch (err) {
         console.warn("Supabase complete all signals error:", err);
       }
@@ -2694,17 +2728,25 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           gps_validation: gpsVal
         };
 
-        const { error } = await supabase
+        const { error: err1 } = await supabase
           .from('signaux_poubelles')
           .update(updatePayload)
           .eq('id', signalId);
         
-        if (error) {
-          console.warn("Full update failed, trying essential fields...", error);
-          await supabase
+        if (err1) {
+          console.warn("Full update failed, trying essential fields...", err1);
+          const { error: err2 } = await supabase
             .from('signaux_poubelles')
-            .update({ status: 'completed', completed_at: new Date().toISOString() })
+            .update({ statut: 'completed', status: 'completed', completed_at: new Date().toISOString() })
             .eq('id', signalId);
+
+          if (err2) {
+            console.warn("Essential update failed, trying core column statut...", err2);
+            await supabase
+              .from('signaux_poubelles')
+              .update({ statut: 'completed' })
+              .eq('id', signalId);
+          }
         }
       } catch (err) {
         console.warn("Supabase handleCompleteMission failed:", err);
