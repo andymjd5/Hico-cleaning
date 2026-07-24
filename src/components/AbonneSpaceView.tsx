@@ -198,6 +198,12 @@ export default function AbonneSpaceView({
       });
 
       setIsProcessingPayment(false);
+      
+      if (!res.success) {
+        alert(res.message || "Erreur de paiement FlexPay.");
+        return;
+      }
+
       setIsSimulated(!!res.isSimulated);
       setPaymentMessage(res.message || '');
       setPaymentStep('waiting_pin');
