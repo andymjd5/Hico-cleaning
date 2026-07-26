@@ -855,6 +855,7 @@ export default function FinanceManagementView({
                                 if (pMode === 'mpesa') return 'M-Pesa';
                                 if (pMode === 'orange') return 'Orange Money';
                                 if (pMode === 'airtel') return 'Airtel Money';
+                                if (pMode === 'afrimoney') return 'Afrimoney';
                                 if (pMode === 'virement') return 'Virement Bancaire';
                                 if (pMode === 'carte') return 'Carte Bancaire';
                                 if (pMode === 'cash') return 'CASH / Espèces';
@@ -1596,6 +1597,7 @@ export default function FinanceManagementView({
                     <option value="mpesa">📱 M-Pesa</option>
                     <option value="orange">🍊 Orange Money</option>
                     <option value="airtel">🔴 Airtel Money</option>
+                    <option value="afrimoney">🟣 Afrimoney</option>
                     <option value="virement">🏢 Virement Bancaire</option>
                     <option value="carte">💳 Carte Bancaire</option>
                   </select>

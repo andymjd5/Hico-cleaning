@@ -58,7 +58,7 @@ export async function initiateMobileMoneyPayment(params: {
   phone: string;
   amount: number;
   currency: 'USD' | 'CDF';
-  operator: 'mpesa' | 'orange' | 'airtel';
+  operator: 'mpesa' | 'orange' | 'airtel' | 'afrimoney';
   reference: string;
 }): Promise<FlexPayInitResponse> {
   const formattedPhone = formatDRCPhoneNumber(params.phone);

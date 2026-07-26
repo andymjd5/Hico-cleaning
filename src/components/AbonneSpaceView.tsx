@@ -34,6 +34,7 @@ import {
   FileText
 } from 'lucide-react';
 import { initiateMobileMoneyPayment, checkFlexPayStatus } from '../lib/flexpay';
+import { MPesaLogo, OrangeMoneyLogo, AirtelMoneyLogo, AfrimoneyLogo } from './OperatorLogos';
 
 interface AbonneSpaceViewProps {
   currentAbonne: Abonne;
@@ -50,7 +51,7 @@ interface AbonneSpaceViewProps {
   onReportDispute?: (signalId: string, raison: string) => void;
   messages: InboxMessage[];
   onSendMessage: (sender: string, content: string) => void;
-  onRecordOnlinePayment?: (amount: number, provider: 'mpesa' | 'orange' | 'airtel', phone: string) => void;
+  onRecordOnlinePayment?: (amount: number, provider: 'mpesa' | 'orange' | 'airtel' | 'afrimoney', phone: string) => void;
   onLogout?: () => void;
   activeTab?: 'signalement' | 'redevance' | 'inbox';
 }
@@ -129,7 +130,7 @@ export default function AbonneSpaceView({
   
   // Checkout Modal State
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [selectedPaymentProvider, setSelectedPaymentProvider] = useState<'mpesa' | 'orange' | 'airtel'>('mpesa');
+  const [selectedPaymentProvider, setSelectedPaymentProvider] = useState<'mpesa' | 'orange' | 'airtel' | 'afrimoney'>('mpesa');
   const [paymentPhoneNumber, setPaymentPhoneNumber] = useState(currentAbonne.telephone_principal);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
@@ -984,39 +985,59 @@ export default function AbonneSpaceView({
                 {/* Operator Selector */}
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[10px] text-gray-400 font-bold uppercase">Opérateur Telecom</span>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <button
                       type="button"
                       onClick={() => setSelectedPaymentProvider('mpesa')}
-                      className={`h-11 rounded-xl border flex flex-col items-center justify-center text-[10px] font-bold ${
+                      className={`h-14 rounded-xl border p-1.5 flex flex-col items-center justify-center transition-all ${
                         selectedPaymentProvider === 'mpesa' 
-                          ? 'bg-orange-600/25 border-orange-600 text-orange-400' 
-                          : 'border-white/10 bg-white/5 hover:bg-white/10 text-gray-300'
+                          ? 'bg-red-950/40 border-red-500 shadow-md shadow-red-500/10' 
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
                       }`}
                     >
-                      <span>M-PESA</span>
+                      <MPesaLogo className="h-6 w-auto max-w-full" />
+                      <span className="text-[9px] font-extrabold text-gray-300 mt-0.5">M-PESA</span>
                     </button>
+
                     <button
                       type="button"
                       onClick={() => setSelectedPaymentProvider('orange')}
-                      className={`h-11 rounded-xl border flex flex-col items-center justify-center text-[10px] font-bold ${
+                      className={`h-14 rounded-xl border p-1.5 flex flex-col items-center justify-center transition-all ${
                         selectedPaymentProvider === 'orange' 
-                          ? 'bg-orange-500/25 border-orange-500 text-orange-400' 
-                          : 'border-white/10 bg-white/5 hover:bg-white/10 text-gray-300'
+                          ? 'bg-orange-950/40 border-orange-500 shadow-md shadow-orange-500/10' 
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
                       }`}
                     >
-                      <span>ORANGE</span>
+                      <div className="bg-white/90 rounded px-1 py-0.5 flex items-center justify-center">
+                        <OrangeMoneyLogo className="h-5 w-auto max-w-full" />
+                      </div>
+                      <span className="text-[9px] font-extrabold text-gray-300 mt-0.5">ORANGE</span>
                     </button>
+
                     <button
                       type="button"
                       onClick={() => setSelectedPaymentProvider('airtel')}
-                      className={`h-11 rounded-xl border flex flex-col items-center justify-center text-[10px] font-bold ${
+                      className={`h-14 rounded-xl border p-1.5 flex flex-col items-center justify-center transition-all ${
                         selectedPaymentProvider === 'airtel' 
-                          ? 'bg-red-600/25 border-red-600 text-red-400' 
-                          : 'border-white/10 bg-white/5 hover:bg-white/10 text-gray-300'
+                          ? 'bg-red-950/40 border-red-600 shadow-md shadow-red-600/10' 
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
                       }`}
                     >
-                      <span>AIRTEL</span>
+                      <AirtelMoneyLogo className="h-6 w-auto max-w-full" />
+                      <span className="text-[9px] font-extrabold text-gray-300 mt-0.5">AIRTEL</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentProvider('afrimoney')}
+                      className={`h-14 rounded-xl border p-1.5 flex flex-col items-center justify-center transition-all ${
+                        selectedPaymentProvider === 'afrimoney' 
+                          ? 'bg-purple-950/40 border-purple-500 shadow-md shadow-purple-500/10' 
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      <AfrimoneyLogo className="h-6 w-auto max-w-full" />
+                      <span className="text-[9px] font-extrabold text-gray-300 mt-0.5">AFRIMONEY</span>
                     </button>
                   </div>
                 </div>
