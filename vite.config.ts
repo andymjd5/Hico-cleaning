@@ -6,17 +6,31 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    server: {
+      hmr: process.env.DISABLE_HMR !== 'true',
+      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      proxy: {
+        '/api/flexpay-mobile': {
+          target: 'https://backend.flexpay.cd',
+          changeOrigin: true,
+          rewrite: () => '/api/rest/v1/paymentService',
+        },
+        '/api/flexpay-card': {
+          target: 'https://cardpayment.flexpay.cd',
+          changeOrigin: true,
+          rewrite: () => '/v1.1/pay',
+        },
+        '/api/flexpay-check': {
+          target: 'https://apicheck.flexpaie.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/flexpay-check/, '/api/rest/v1/check'),
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
-    },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };
 });

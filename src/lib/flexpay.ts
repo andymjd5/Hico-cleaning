@@ -32,13 +32,23 @@ export function formatDRCPhoneNumber(phone: string): string {
   return '243' + cleaned;
 }
 
-// Get environment configuration with fallback to user's keys
+// Get environment configuration with proxy endpoints for browser CORS safety
 export const FLEXPAY_CONFIG = {
   token: import.meta.env.VITE_FLEXPAY_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJcL2xvZ2luIiwicm9sZXMiOlsiTUVSQ0hBTlQiXSwiZXhwIjoxODI4MzUxMjAxLCJzdWIiOiI0OTRjZTllNmUxN2JjNzBhYWI0YjY1MWUyZGZiNmE5MiJ9.1zbYW2RXru0zRlJojiFrVeZZOlbxZi5V8mzwFkUC3cE',
   merchantId: import.meta.env.VITE_FLEXPAY_MERCHANT_ID || 'AJCP_CHURCH',
-  mobileMoneyUrl: import.meta.env.VITE_FLEXPAY_MOBILE_MONEY_URL || 'https://backend.flexpay.cd/api/rest/v1/paymentService',
-  cardPaymentUrl: import.meta.env.VITE_FLEXPAY_CARD_PAYMENT_URL || 'https://cardpayment.flexpay.cd/v1.1/pay',
-  checkUrl: import.meta.env.VITE_FLEXPAY_CHECK_URL || 'https://apicheck.flexpaie.com/api/rest/v1/check',
+  // Helper to get local proxy path in browser to prevent CORS issues
+  getMobileUrl: () => {
+    if (typeof window !== 'undefined') return '/api/flexpay-mobile';
+    return import.meta.env.VITE_FLEXPAY_MOBILE_MONEY_URL || 'https://backend.flexpay.cd/api/rest/v1/paymentService';
+  },
+  getCardUrl: () => {
+    if (typeof window !== 'undefined') return '/api/flexpay-card';
+    return import.meta.env.VITE_FLEXPAY_CARD_PAYMENT_URL || 'https://cardpayment.flexpay.cd/v1.1/pay';
+  },
+  getCheckUrl: (orderNumber: string) => {
+    if (typeof window !== 'undefined') return `/api/flexpay-check/${orderNumber}`;
+    return `${import.meta.env.VITE_FLEXPAY_CHECK_URL || 'https://apicheck.flexpaie.com/api/rest/v1/check'}/${orderNumber}`;
+  }
 };
 
 /**
@@ -65,7 +75,10 @@ export async function initiateMobileMoneyPayment(params: {
   };
 
   try {
-    const response = await fetch(FLEXPAY_CONFIG.mobileMoneyUrl, {
+    const targetUrl = FLEXPAY_CONFIG.getMobileUrl();
+    console.log("Sending FlexPay Payment Request to:", targetUrl, payload);
+
+    const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${FLEXPAY_CONFIG.token}`,
@@ -75,26 +88,18 @@ export async function initiateMobileMoneyPayment(params: {
     });
 
     if (!response.ok) {
-      throw new Error(`FlexPay HTTP error: ${response.status}`);
+      const errText = await response.text();
+      throw new Error(`FlexPay HTTP ${response.status}: ${errText}`);
     }
 
     const data = await response.json();
-    console.log("FlexPay API response:", data);
+    console.log("FlexPay API response received:", data);
 
     const isSuccess = data.code === '0' || data.code === 0 || data.success === true;
 
     if (!isSuccess) {
-      const errMsg = data.message || 'Erreur FlexPay';
-      console.warn("FlexPay API returned error code:", data);
-
-      if (errMsg.toLowerCase().includes('code marchand') || errMsg.toLowerCase().includes('token') || errMsg.toLowerCase().includes('marchand')) {
-        return {
-          success: true,
-          orderNumber: 'FP-SIM-' + Math.floor(100000 + Math.random() * 900000),
-          message: `Push USSD envoyé au ${formattedPhone}. Veuillez valider le paiement sur votre téléphone.`,
-          isSimulated: true
-        };
-      }
+      const errMsg = data.message || 'Erreur FlexPay lors de l\'initiation';
+      console.warn("FlexPay API returned error:", data);
 
       return {
         success: false,
@@ -106,18 +111,16 @@ export async function initiateMobileMoneyPayment(params: {
     return {
       success: true,
       orderNumber: data.orderNumber || data.order_number,
-      message: data.message || 'Paiement initié avec succès.'
+      message: data.message || 'Push USSD envoyé sur votre téléphone. Saisissez votre code PIN pour valider.',
+      isSimulated: false
     };
 
   } catch (error: any) {
-    console.warn("Direct FlexPay API fetch failed (likely CORS or Sandbox). Switching to simulator mode.", error);
+    console.error("FlexPay API Request Error:", error);
     
-    // Fallback/Simulation mode for browser
     return {
-      success: true,
-      orderNumber: 'FP-SIM-' + Math.floor(100000 + Math.random() * 900000),
-      message: `[Simulateur FlexPay] Push USSD envoyé sur le numéro ${formattedPhone}. Veuillez confirmer sur votre téléphone.`,
-      isSimulated: true
+      success: false,
+      message: error.message || "Impossible de contacter le service de paiement FlexPay. Vérifiez votre connexion."
     };
   }
 }
@@ -127,7 +130,6 @@ export async function initiateMobileMoneyPayment(params: {
  */
 export async function checkFlexPayStatus(reference: string): Promise<FlexPayCheckResponse> {
   if (reference.startsWith('FP-SIM-')) {
-    // Simulator check logic: randomizes success after some delay
     return {
       success: true,
       status: 'SUCCESS',
@@ -138,7 +140,8 @@ export async function checkFlexPayStatus(reference: string): Promise<FlexPayChec
   }
 
   try {
-    const response = await fetch(`${FLEXPAY_CONFIG.checkUrl}/${reference}`, {
+    const checkUrl = FLEXPAY_CONFIG.getCheckUrl(reference);
+    const response = await fetch(checkUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${FLEXPAY_CONFIG.token}`,
@@ -151,14 +154,20 @@ export async function checkFlexPayStatus(reference: string): Promise<FlexPayChec
     }
 
     const data = await response.json();
+    console.log("FlexPay Check API response:", data);
     
-    // standard FlexPay statuses: '0' for success, '1' for pending, others for failures
-    const statusCode = data.status || data.code;
+    // Standard FlexPay status codes:
+    // "0" -> Transaction succeeded
+    // "1" -> Transaction pending or not found yet
+    // Other -> Failed or Cancelled
+    const statusCode = data.status ?? data.code;
+    const transStatus = data.transaction?.status ?? statusCode;
+    
     let finalStatus: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' = 'PENDING';
     
-    if (statusCode === '0' || statusCode === 0 || data.successful === true) {
+    if (transStatus === '0' || transStatus === 0 || data.transaction?.status === '0') {
       finalStatus = 'SUCCESS';
-    } else if (statusCode === '1' || statusCode === 1) {
+    } else if (transStatus === '1' || transStatus === 1 || data.code === '1') {
       finalStatus = 'PENDING';
     } else {
       finalStatus = 'FAILED';
@@ -167,16 +176,17 @@ export async function checkFlexPayStatus(reference: string): Promise<FlexPayChec
     return {
       success: finalStatus === 'SUCCESS',
       status: finalStatus,
-      message: data.message || `Statut de la transaction: ${finalStatus}`,
-      orderNumber: data.orderNumber || data.order_number
+      message: data.message || (finalStatus === 'SUCCESS' ? 'Paiement confirmé !' : 'Paiement non encore détecté ou en cours.'),
+      orderNumber: data.orderNumber || data.transaction?.orderNumber || reference,
+      isSimulated: false
     };
 
   } catch (error: any) {
-    console.error("Failed to check FlexPay status directly:", error);
+    console.error("Failed to check FlexPay status:", error);
     return {
-      success: true,
-      status: 'SUCCESS', // Auto-approve simulation in browser to avoid blocking
-      isSimulated: true
+      success: false,
+      status: 'PENDING',
+      message: "Vérification en cours... Veuillez re-tester dans quelques instants."
     };
   }
 }

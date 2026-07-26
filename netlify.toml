@@ -2,7 +2,27 @@
   command = "npm run build"
   publish = "dist"
 
+# Proxy FlexPay API calls to avoid CORS in browser
+[[redirects]]
+  from = "/api/flexpay-mobile"
+  to = "https://backend.flexpay.cd/api/rest/v1/paymentService"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/flexpay-card"
+  to = "https://cardpayment.flexpay.cd/v1.1/pay"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/flexpay-check/*"
+  to = "https://apicheck.flexpaie.com/api/rest/v1/check/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
