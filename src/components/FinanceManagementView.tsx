@@ -32,8 +32,14 @@ import {
   Clock, 
   Bell, 
   X,
-  CreditCard
+  CreditCard,
+  Lock,
+  Smartphone,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
+import { initiateMobileMoneyPayment, checkFlexPayStatus, detectOperatorFromPhone } from '../lib/flexpay';
+import { MPesaLogo, OrangeMoneyLogo, AirtelMoneyLogo, AfrimoneyLogo } from './OperatorLogos';
 
 interface FinanceManagementViewProps {
   communes: Commune[];
@@ -89,6 +95,12 @@ export default function FinanceManagementView({
   const [newPayAmount, setNewPayAmount] = useState('');
   const [newPayProvider, setNewPayProvider] = useState<string>('cash');
   const [newPayPhone, setNewPayPhone] = useState('');
+
+  // FlexPay Mobile Money Online Payment States for Admin
+  const [flexpayStep, setFlexpayStep] = useState<'form' | 'waiting_pin' | 'success' | 'error'>('form');
+  const [flexpayMessage, setFlexpayMessage] = useState('');
+  const [flexpayOrderRef, setFlexpayOrderRef] = useState('');
+  const [isProcessingFlexpay, setIsProcessingFlexpay] = useState(false);
 
   // New filtered parcel selection states for Agent lookup
   const [searchPayCommuneId, setSearchPayCommuneId] = useState('');
@@ -202,6 +214,10 @@ export default function FinanceManagementView({
       setNewPayAmount('');
       setNewPayPhone('');
       setNewPayProvider('cash');
+      setFlexpayStep('form');
+      setFlexpayMessage('');
+      setFlexpayOrderRef('');
+      setIsProcessingFlexpay(false);
     }
   }, [showAddPaymentModal]);
 
@@ -348,16 +364,96 @@ export default function FinanceManagementView({
   }, [abonnes, disputes, payments]);
 
   // Actions
-  const handleAddPaymentSubmit = (e: React.FormEvent) => {
+  const handleAddPaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPayAbonneId || !newPayAmount) {
-      alert("Veuillez sélectionner un abonné et saisir un montant.");
+      alert("Veuillez sélectionner un abonné et vérifier le montant.");
       return;
     }
 
     const info = abonneInfoMap[newPayAbonneId];
     if (!info) return;
 
+    const isMobileMoney = ['mobile_money', 'mpesa', 'orange', 'airtel', 'afrimoney'].includes(newPayProvider);
+
+    if (isMobileMoney) {
+      const phoneToUse = newPayPhone || info.abonne.telephone_principal;
+      const detectedOp = detectOperatorFromPhone(phoneToUse) || 'mpesa';
+
+      setIsProcessingFlexpay(true);
+      setFlexpayStep('waiting_pin');
+      setFlexpayMessage("Initialisation de la demande de paiement Mobile Money...");
+
+      try {
+        const orderRef = 'ADM-' + Date.now();
+        const res = await initiateMobileMoneyPayment({
+          phone: phoneToUse,
+          amount: parseFloat(newPayAmount),
+          currency: 'USD',
+          operator: detectedOp,
+          reference: orderRef
+        });
+
+        if (res.success || res.orderNumber) {
+          const activeOrderNum = res.orderNumber || orderRef;
+          setFlexpayOrderRef(activeOrderNum);
+          setFlexpayMessage(`Un Push USSD (${detectedOp.toUpperCase()}) a été envoyé au ${phoneToUse}. En attente de la validation du code PIN par l'abonné...`);
+
+          // Start polling FlexPay status
+          let checkAttempts = 0;
+          const maxAttempts = 40; // ~2 minutes
+          const pollInterval = setInterval(async () => {
+            checkAttempts++;
+            try {
+              const statusRes = await checkFlexPayStatus(activeOrderNum);
+              if (statusRes.status === 'SUCCESS') {
+                clearInterval(pollInterval);
+                setIsProcessingFlexpay(false);
+                setFlexpayStep('success');
+                setFlexpayMessage("Paiement Mobile Money confirmé avec succès !");
+
+                // Record payment in application state
+                onAddSubscriptionPayment({
+                  abonne_id: newPayAbonneId,
+                  nom_complet: info.abonne.nom_complet,
+                  commune_id: info.commune.id,
+                  parcelle_id: info.parcelle.id,
+                  montant: parseFloat(newPayAmount),
+                  date_paiement: new Date().toISOString(),
+                  mode_paiement: detectedOp,
+                  telephone_payeur: phoneToUse,
+                  status: 'success',
+                  reference_transaction: activeOrderNum
+                });
+              } else if (statusRes.status === 'FAILED' || statusRes.status === 'CANCELLED') {
+                clearInterval(pollInterval);
+                setIsProcessingFlexpay(false);
+                setFlexpayStep('error');
+                setFlexpayMessage(statusRes.message || "Le paiement a été rejeté ou a échoué.");
+              } else if (checkAttempts >= maxAttempts) {
+                clearInterval(pollInterval);
+                setIsProcessingFlexpay(false);
+                setFlexpayStep('error');
+                setFlexpayMessage("Délai d'attente expiré (2 min). Veuillez vérifier si le PIN a été saisi.");
+              }
+            } catch (err) {
+              console.error("FlexPay poll error:", err);
+            }
+          }, 3000);
+        } else {
+          setIsProcessingFlexpay(false);
+          setFlexpayStep('error');
+          setFlexpayMessage(res.message || "Erreur lors de l'envoi de la demande Mobile Money.");
+        }
+      } catch (error: any) {
+        setIsProcessingFlexpay(false);
+        setFlexpayStep('error');
+        setFlexpayMessage(error?.message || "Échec de connexion au service Mobile Money.");
+      }
+      return;
+    }
+
+    // Cash / Virement / Carte standard manual payment
     onAddSubscriptionPayment({
       abonne_id: newPayAbonneId,
       nom_complet: info.abonne.nom_complet,
@@ -1575,15 +1671,30 @@ export default function FinanceManagementView({
               {/* Step 3: Payment details */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] text-gray-400 font-bold uppercase">Montant perçu ({currencySymbol})</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">Montant perçu ({currencySymbol})</span>
+                    {foundAbonneForParcelle && (
+                      <span className="text-[9px] text-emerald-400 font-bold flex items-center gap-0.5">
+                        <Lock size={10} /> Verrouillé ({abonneInfoMap[foundAbonneForParcelle.id]?.parcelle.nombre_menages || 1} mén.)
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="number"
                     value={newPayAmount}
                     onChange={(e) => setNewPayAmount(e.target.value)}
-                    className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary"
+                    readOnly={!!foundAbonneForParcelle}
+                    className={`bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary ${
+                      foundAbonneForParcelle ? 'bg-emerald-950/20 text-emerald-300 font-black border-emerald-500/30 cursor-not-allowed' : ''
+                    }`}
                     required
                     min="1"
                   />
+                  {foundAbonneForParcelle && (
+                    <span className="text-[9px] text-gray-400 italic">
+                      Calculé: {abonneInfoMap[foundAbonneForParcelle.id]?.parcelle.nombre_menages || 1} ménage(s) × {getSubscriptionPrice(abonneInfoMap[foundAbonneForParcelle.id]?.commune.id || '')}$
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -1594,10 +1705,7 @@ export default function FinanceManagementView({
                     className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary cursor-pointer font-bold text-indigo-400"
                   >
                     <option value="cash">💵 CASH / Espèces</option>
-                    <option value="mpesa">📱 M-Pesa</option>
-                    <option value="orange">🍊 Orange Money</option>
-                    <option value="airtel">🔴 Airtel Money</option>
-                    <option value="afrimoney">🟣 Afrimoney</option>
+                    <option value="mobile_money">📲 Mobile Money (Push USSD)</option>
                     <option value="virement">🏢 Virement Bancaire</option>
                     <option value="carte">💳 Carte Bancaire</option>
                   </select>
@@ -1607,13 +1715,21 @@ export default function FinanceManagementView({
               {/* Transaction Reference & Phone */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] text-gray-400 font-bold uppercase">Téléphone de l'émetteur</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">Téléphone du payeur</span>
+                    {detectOperatorFromPhone(newPayPhone) && (
+                      <span className="text-[9px] font-black text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        {detectOperatorFromPhone(newPayPhone)?.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
-                    placeholder="ex. 082 345 6789"
+                    placeholder="ex. 0812345678"
                     value={newPayPhone}
                     onChange={(e) => setNewPayPhone(e.target.value)}
                     className="bg-black border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none focus:border-primary"
+                    required={['mobile_money', 'mpesa', 'orange', 'airtel', 'afrimoney'].includes(newPayProvider)}
                   />
                 </div>
 
@@ -1629,14 +1745,106 @@ export default function FinanceManagementView({
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={!newPayAbonneId}
-                className="w-full h-11 bg-primary text-on-primary font-extrabold rounded-xl text-xs mt-2 flex items-center justify-center gap-1.5 hover:opacity-95 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 transition-all cursor-pointer shadow-lg"
-              >
-                <Check size={14} />
-                <span>Confirmer l'Enregistrement</span>
-              </button>
+              {/* FlexPay Mobile Money Waiting PIN Overlay */}
+              {flexpayStep === 'waiting_pin' && (
+                <div className="bg-gradient-to-b from-indigo-950/80 to-black border border-indigo-500/40 p-4 rounded-2xl flex flex-col items-center gap-3 text-center animate-fade-in shadow-xl">
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/50 flex items-center justify-center text-indigo-400">
+                      <Smartphone size={24} className="animate-bounce" />
+                    </div>
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-indigo-300">Push USSD Envoyé</h4>
+                    <p className="text-xs text-gray-300 max-w-xs leading-relaxed">
+                      Un message flash USSD a été envoyé au téléphone <strong className="text-white font-mono">{newPayPhone}</strong> ({detectOperatorFromPhone(newPayPhone)?.toUpperCase() || 'MOBILE MONEY'}).
+                    </p>
+                    <p className="text-[11px] text-indigo-200/80 mt-1">
+                      Veuillez demander à l'abonné de saisir son <strong>code PIN secret</strong> pour valider le paiement de <strong>{newPayAmount} $</strong>.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-[10px] text-indigo-400 bg-indigo-950/80 border border-indigo-500/30 px-3 py-1.5 rounded-full font-bold">
+                    <Loader2 size={12} className="animate-spin text-indigo-400" />
+                    <span>Attente de validation PIN en cours...</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFlexpayStep('form');
+                      setIsProcessingFlexpay(false);
+                    }}
+                    className="text-[11px] text-gray-400 hover:text-white underline cursor-pointer mt-1"
+                  >
+                    Annuler la demande
+                  </button>
+                </div>
+              )}
+
+              {/* FlexPay Success Message */}
+              {flexpayStep === 'success' && (
+                <div className="bg-emerald-950/60 border border-emerald-500/40 p-4 rounded-2xl flex flex-col items-center gap-2 text-center animate-fade-in">
+                  <CheckCircle2 size={32} className="text-emerald-400" />
+                  <h4 className="text-xs font-black uppercase text-emerald-300">Paiement Mobile Money Confirmé !</h4>
+                  <p className="text-xs text-gray-200">{flexpayMessage}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFlexpayStep('form');
+                      setShowAddPaymentModal(false);
+                    }}
+                    className="mt-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              )}
+
+              {/* FlexPay Error Message */}
+              {flexpayStep === 'error' && (
+                <div className="bg-red-950/60 border border-red-500/40 p-4 rounded-2xl flex flex-col items-center gap-2 text-center animate-fade-in">
+                  <AlertTriangle size={28} className="text-red-400" />
+                  <h4 className="text-xs font-black uppercase text-red-300">Échec du Paiement</h4>
+                  <p className="text-xs text-gray-300">{flexpayMessage}</p>
+                  <button
+                    type="button"
+                    onClick={() => setFlexpayStep('form')}
+                    className="mt-2 px-4 py-1.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RefreshCw size={12} /> Réessayer
+                  </button>
+                </div>
+              )}
+
+              {/* Main Submit Button (only show when not in waiting/success/error state) */}
+              {flexpayStep === 'form' && (
+                <button
+                  type="submit"
+                  disabled={!newPayAbonneId || isProcessingFlexpay}
+                  className={`w-full h-11 font-extrabold rounded-xl text-xs mt-2 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 ${
+                    ['mobile_money', 'mpesa', 'orange', 'airtel', 'afrimoney'].includes(newPayProvider)
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white shadow-indigo-600/30'
+                      : 'bg-primary text-on-primary hover:opacity-95'
+                  }`}
+                >
+                  {['mobile_money', 'mpesa', 'orange', 'airtel', 'afrimoney'].includes(newPayProvider) ? (
+                    <>
+                      <Smartphone size={16} />
+                      <span>Valider le paiement</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} />
+                      <span>Confirmer l'Enregistrement</span>
+                    </>
+                  )}
+                </button>
+              )}
             </form>
           </div>
         </div>
