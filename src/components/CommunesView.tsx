@@ -63,7 +63,7 @@ export default function CommunesView({
         </div>
         <button 
           onClick={onAddCommuneToggle}
-          className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary text-on-primary hover:opacity-95 active:scale-95 transition-all shadow-md cursor-pointer border border-outline-variant"
+          className="hidden items-center justify-center w-10 h-10 rounded-xl bg-primary text-on-primary hover:opacity-95 active:scale-95 transition-all shadow-md cursor-pointer border border-outline-variant"
           title="Ajouter une commune"
         >
           <Plus size={20} strokeWidth={2.5} />
@@ -72,7 +72,7 @@ export default function CommunesView({
 
       {/* Intro info */}
       <div className="bg-surface/80 border border-outline-variant rounded-2xl p-4 text-xs font-sans shadow-lg leading-relaxed text-on-surface-variant">
-        🗺️ <span className="font-semibold text-primary">Étape 1 du Recensement :</span> Sélectionnez d'abord la commune de l'avenue que vous souhaitez recenser. Vous pouvez également rechercher ou insérer une nouvelle commune.
+        🗺️ <span className="font-semibold text-primary">Étape 1 du Recensement :</span> Sélectionnez d'abord la commune de l'avenue que vous souhaitez recenser.
       </div>
 
       {/* Double Dropdown Selection Matching Bento Theme */}
@@ -221,7 +221,7 @@ export default function CommunesView({
             </div>
             <button 
               onClick={onAddCommuneToggle}
-              className="mt-2 text-xs font-bold text-primary border border-primary/20 px-3 py-1.5 rounded-full hover:bg-background transition-all cursor-pointer"
+              className="hidden mt-2 text-xs font-bold text-primary border border-primary/20 px-3 py-1.5 rounded-full hover:bg-background transition-all cursor-pointer"
             >
               Créer "{searchTerm}"
             </button>

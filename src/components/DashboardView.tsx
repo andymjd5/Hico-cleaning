@@ -650,7 +650,7 @@ export default function DashboardView({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <button 
             onClick={onAddCommuneToggle}
-            className="min-h-[48px] bg-surface border border-outline-variant text-on-surface hover:bg-background/80 rounded-xl flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold active:scale-[0.98] transition-all cursor-pointer"
+            className="hidden min-h-[48px] bg-surface border border-outline-variant text-on-surface hover:bg-background/80 rounded-xl items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold active:scale-[0.98] transition-all cursor-pointer"
           >
             <FolderPlus size={16} className="text-[#10b981]" />
             Ajouter une commune
