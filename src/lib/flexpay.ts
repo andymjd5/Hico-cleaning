@@ -35,7 +35,7 @@ export function formatDRCPhoneNumber(phone: string): string {
 // Get environment configuration with proxy endpoints for browser CORS safety
 export const FLEXPAY_CONFIG = {
   token: import.meta.env.VITE_FLEXPAY_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJcL2xvZ2luIiwicm9sZXMiOlsiTUVSQ0hBTlQiXSwiZXhwIjoxODI4MzUxMjAxLCJzdWIiOiI0OTRjZTllNmUxN2JjNzBhYWI0YjY1MWUyZGZiNmE5MiJ9.1zbYW2RXru0zRlJojiFrVeZZOlbxZi5V8mzwFkUC3cE',
-  merchantId: import.meta.env.VITE_FLEXPAY_MERCHANT_ID || 'AJCP_CHURCH',
+  merchantId: import.meta.env.VITE_FLEXPAY_MERCHANT_ID || 'AJCP',
   // Helper to get local proxy path in browser to prevent CORS issues
   getMobileUrl: () => {
     if (typeof window !== 'undefined') return '/api/flexpay-mobile';
