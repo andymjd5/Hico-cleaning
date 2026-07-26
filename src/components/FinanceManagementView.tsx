@@ -1566,16 +1566,18 @@ export default function FinanceManagementView({
       {/* MODAL: Saisir un paiement manuel abonne */}
       {showAddPaymentModal && (
         <div className="fixed inset-0 bg-[#000000]/80 flex items-center justify-center z-[100] p-4 animate-fade-in backdrop-blur-sm">
-          <div className="bg-[#141414] border border-white/10 rounded-3xl p-6 w-full max-w-md flex flex-col gap-6 shadow-2xl text-white">
-            <div className="flex justify-between items-center border-b border-white/5 pb-3">
-              <h3 className="text-sm font-extrabold uppercase tracking-wider text-primary flex items-center gap-1.5">
-                <DollarSign size={16} /> Saisie de Paiement Manuel
+          <div className="bg-[#141414] border border-white/10 rounded-3xl p-6 w-full max-w-lg max-h-[92vh] overflow-y-auto flex flex-col gap-5 shadow-2xl text-white relative">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3.5 sticky top-0 bg-[#141414] z-10 pt-1">
+              <h3 className="text-sm font-black uppercase tracking-wider text-primary flex items-center gap-2">
+                <DollarSign size={18} className="text-primary" /> Saisie de Paiement Manuel
               </h3>
               <button 
+                type="button"
                 onClick={() => setShowAddPaymentModal(false)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/20 border border-white/10 flex items-center justify-center text-gray-300 hover:text-white transition-all cursor-pointer shadow-md"
+                title="Fermer"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
