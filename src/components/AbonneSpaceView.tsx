@@ -33,7 +33,7 @@ import {
   HelpCircle,
   FileText
 } from 'lucide-react';
-import { initiateMobileMoneyPayment, checkFlexPayStatus } from '../lib/flexpay';
+import { initiateMobileMoneyPayment, checkFlexPayStatus, detectOperatorFromPhone } from '../lib/flexpay';
 import { MPesaLogo, OrangeMoneyLogo, AirtelMoneyLogo, AfrimoneyLogo } from './OperatorLogos';
 
 interface AbonneSpaceViewProps {
@@ -130,9 +130,19 @@ export default function AbonneSpaceView({
   
   // Checkout Modal State
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [selectedPaymentProvider, setSelectedPaymentProvider] = useState<'mpesa' | 'orange' | 'airtel' | 'afrimoney'>('mpesa');
   const [paymentPhoneNumber, setPaymentPhoneNumber] = useState(currentAbonne.telephone_principal);
+  const [selectedPaymentProvider, setSelectedPaymentProvider] = useState<'mpesa' | 'orange' | 'airtel' | 'afrimoney'>(() => {
+    return detectOperatorFromPhone(currentAbonne.telephone_principal) || 'mpesa';
+  });
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  const handlePaymentPhoneChange = (val: string) => {
+    setPaymentPhoneNumber(val);
+    const detected = detectOperatorFromPhone(val);
+    if (detected) {
+      setSelectedPaymentProvider(detected);
+    }
+  };
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [paymentStep, setPaymentStep] = useState<'form' | 'waiting_pin' | 'success'>('form');
   const [currentReference, setCurrentReference] = useState('');
@@ -763,7 +773,11 @@ export default function AbonneSpaceView({
 
             <button
               onClick={() => {
-                if (canPay) setShowCheckoutModal(true);
+                if (canPay) {
+                  const detected = detectOperatorFromPhone(paymentPhoneNumber);
+                  if (detected) setSelectedPaymentProvider(detected);
+                  setShowCheckoutModal(true);
+                }
               }}
               disabled={!canPay}
               className={`w-full h-11 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98] cursor-pointer ${
@@ -1038,12 +1052,19 @@ export default function AbonneSpaceView({
 
                 {/* Phone input */}
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] text-gray-400 font-bold uppercase">Numéro de téléphone payeur</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">Numéro de téléphone payeur</span>
+                    {detectOperatorFromPhone(paymentPhoneNumber) && (
+                      <span className="text-[9px] font-extrabold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        Détecté: {detectOperatorFromPhone(paymentPhoneNumber)}
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={paymentPhoneNumber}
-                    onChange={(e) => setPaymentPhoneNumber(e.target.value)}
-                    placeholder="081 234 5678"
+                    onChange={(e) => handlePaymentPhoneChange(e.target.value)}
+                    placeholder="ex: 0812345678 ou 0901234567"
                     className="h-10 bg-black border border-white/10 px-3 rounded-xl text-xs text-white focus:outline-none focus:border-secondary w-full"
                     required
                   />

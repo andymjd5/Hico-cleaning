@@ -32,6 +32,31 @@ export function formatDRCPhoneNumber(phone: string): string {
   return '243' + cleaned;
 }
 
+// Automatically detect mobile operator from DRC phone number prefix
+// M-Pesa: 81, 82, 83
+// Orange Money: 80, 84, 85, 89
+// Airtel Money: 97, 98, 99
+// Afrimoney: 90, 91
+export function detectOperatorFromPhone(phone: string): 'mpesa' | 'orange' | 'airtel' | 'afrimoney' | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  let cleaned = digits;
+  if (cleaned.startsWith('243')) {
+    cleaned = cleaned.substring(3);
+  }
+  if (cleaned.startsWith('0')) {
+    cleaned = cleaned.substring(1);
+  }
+  if (cleaned.length >= 2) {
+    const prefix = cleaned.substring(0, 2);
+    if (['81', '82', '83'].includes(prefix)) return 'mpesa';
+    if (['80', '84', '85', '89'].includes(prefix)) return 'orange';
+    if (['97', '98', '99'].includes(prefix)) return 'airtel';
+    if (['90', '91'].includes(prefix)) return 'afrimoney';
+  }
+  return null;
+}
+
 // Get environment configuration with proxy endpoints for browser CORS safety
 export const FLEXPAY_CONFIG = {
   token: import.meta.env.VITE_FLEXPAY_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJcL2xvZ2luIiwicm9sZXMiOlsiTUVSQ0hBTlQiXSwiZXhwIjoxODI4MzUxMjAxLCJzdWIiOiI0OTRjZTllNmUxN2JjNzBhYWI0YjY1MWUyZGZiNmE5MiJ9.1zbYW2RXru0zRlJojiFrVeZZOlbxZi5V8mzwFkUC3cE',
