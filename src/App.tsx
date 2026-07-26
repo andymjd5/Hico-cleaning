@@ -464,6 +464,35 @@ export default function App() {
     }
   };
 
+  // 🪟 Trigger Native Windows / OS Taskbar Desktop Notification
+  const triggerWindowsDesktopNotification = (signal: PoubelleSignal) => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        const isLate = signal.is_hors_delai || (signal.reported_at && new Date(signal.reported_at).getHours() >= 13);
+        const title = isLate 
+          ? "⏰ ALERTE HORS-DÉLAI (>13h) - Hico Cleaning" 
+          : "🚨 NOUVELLE POUBELLE PLEINE - Hico Cleaning";
+        const body = `📍 ${signal.commune_nom}, Ave. ${signal.avenue_nom} N°${signal.numero_parcelle}\n👤 Bailleur: ${signal.bailleur_nom} (${signal.type_poubelle === 'biodegradable' ? 'Vert Biodégradable' : 'Gris Non-Biodégradable'})`;
+        
+        try {
+          const notification = new Notification(title, {
+            body: body,
+            icon: "/pwa-192x192.png",
+            tag: signal.id,
+            requireInteraction: true
+          });
+
+          notification.onclick = () => {
+            window.focus();
+            notification.close();
+          };
+        } catch (err) {
+          console.warn("Windows desktop notification error:", err);
+        }
+      }
+    }
+  };
+
   // 📻 BroadcastChannel Realtime Cross-Tab Listener
   useEffect(() => {
     if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
@@ -476,6 +505,7 @@ export default function App() {
           setActiveNotification(incomingSig);
           setHasNewSignals(true);
           playSignalAlertSound();
+          triggerWindowsDesktopNotification(incomingSig);
           return [incomingSig, ...prev];
         });
       }
@@ -500,6 +530,7 @@ export default function App() {
                 setActiveNotification(newest);
                 setHasNewSignals(true);
                 playSignalAlertSound();
+                triggerWindowsDesktopNotification(newest);
                 return [...brandNew, ...currentList];
               }
               return currentList;
@@ -2481,6 +2512,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       setActiveNotification(newSignal);
       setHasNewSignals(true);
       playSignalAlertSound();
+      triggerWindowsDesktopNotification(newSignal);
     } else {
       addToast(`Alerte enregistrée ! L'administration planifie l'intervention de l'éboueur.`, 'success');
       
@@ -3276,6 +3308,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     setActiveNotification(newSignal);
     setHasNewSignals(true);
     playSignalAlertSound();
+    triggerWindowsDesktopNotification(newSignal);
 
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {

@@ -113,6 +113,19 @@ export default function AbonneSpaceView({
 
   // Support feedback message
   const [feedbackText, setFeedbackText] = useState('');
+
+  // ⏰ Late Signal Modal (>13h) State
+  const [pendingLateSignalType, setPendingLateSignalType] = useState<'biodegradable' | 'non_biodegradable' | null>(null);
+  const [forceLateMode, setForceLateMode] = useState<boolean>(false);
+
+  const handleInitiateTrashFullReport = (type: 'biodegradable' | 'non_biodegradable') => {
+    const currentHour = forceLateMode ? 14 : new Date().getHours();
+    if (currentHour >= 13) {
+      setPendingLateSignalType(type);
+    } else {
+      onReportTrashFull(type);
+    }
+  };
   
   // Checkout Modal State
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
@@ -285,26 +298,41 @@ export default function AbonneSpaceView({
       {activeTab === 'signalement' && (
         <section className="bg-surface border border-outline-variant rounded-2xl p-5 md:p-6 shadow-md flex flex-col gap-6 animate-fade-in">
           <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <h3 className="text-base font-extrabold text-on-surface flex items-center gap-2">
                 <Trash2 className="text-primary" size={20} />
                 Signalement Poubelles Remplies
               </h3>
 
-              {(bioSignal || nonBioSignal) && onResetSignals && (
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  onClick={() => {
-                    if (confirm("Voulez-vous réinitialiser et effacer ces alertes enregistrées pour en envoyer de nouvelles ?")) {
-                      onResetSignals();
-                    }
-                  }}
-                  className="text-[11px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
-                  title="Réinitialiser les alertes locales"
+                  onClick={() => setForceLateMode(!forceLateMode)}
+                  className={`text-[10.5px] px-2.5 py-1 rounded-xl font-extrabold flex items-center gap-1 border transition-all cursor-pointer ${
+                    forceLateMode 
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm' 
+                      : 'bg-surface-variant/30 text-on-surface-variant border-outline-variant/60 hover:text-on-surface'
+                  }`}
+                  title="Activer la simulation d'heure après 13h00 pour tester le message d'avertissement Hors-Délai"
                 >
-                  <RotateCcw size={12} />
-                  <span>Réinitialiser alertes</span>
+                  <Clock size={12} className={forceLateMode ? "text-amber-400 animate-pulse" : ""} />
+                  <span>{forceLateMode ? '🧪 Mode Test >13h ACTIF' : '🧪 Tester Mode >13h'}</span>
                 </button>
-              )}
+
+                {(bioSignal || nonBioSignal) && onResetSignals && (
+                  <button
+                    onClick={() => {
+                      if (confirm("Voulez-vous réinitialiser et effacer ces alertes enregistrées pour en envoyer de nouvelles ?")) {
+                        onResetSignals();
+                      }
+                    }}
+                    className="text-[11px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                    title="Réinitialiser les alertes locales"
+                  >
+                    <RotateCcw size={12} />
+                    <span>Réinitialiser</span>
+                  </button>
+                )}
+              </div>
             </div>
             <p className="text-xs text-on-surface-variant leading-relaxed font-medium">
               Vos poubelles sont pleines ? Signalez séparément vos sachets poubelles biodégradables (déchets organiques) et non-biodégradables (plastiques, verres, métaux) pour optimiser le ramassage logistique et la distribution de nouveaux sachets.
@@ -399,7 +427,7 @@ export default function AbonneSpaceView({
 
               <button
                 onClick={() => {
-                  onReportTrashFull('biodegradable');
+                  handleInitiateTrashFullReport('biodegradable');
                 }}
                 disabled={!!bioSignal}
                 className={`w-full h-10 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer ${
@@ -500,7 +528,7 @@ export default function AbonneSpaceView({
 
               <button
                 onClick={() => {
-                  onReportTrashFull('non_biodegradable');
+                  handleInitiateTrashFullReport('non_biodegradable');
                 }}
                 disabled={!!nonBioSignal}
                 className={`w-full h-10 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer ${
@@ -1140,6 +1168,56 @@ export default function AbonneSpaceView({
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black cursor-pointer shadow-md transition-all active:scale-95"
               >
                 Transmettre au Bureau
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⏰ MODAL SIGNALEMENT HORS-DÉLAI (>13H) */}
+      {pendingLateSignalType && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-surface border-2 border-amber-500/60 rounded-3xl p-6 max-w-md w-full shadow-2xl flex flex-col gap-5 animate-scale-in">
+            <div className="flex items-center gap-3.5 text-amber-400">
+              <div className="p-3.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300">
+                <Clock size={30} className="animate-pulse shrink-0" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-on-surface">Signalement Hors-Délai (&gt;13h00)</h3>
+                <span className="text-xs text-amber-400 font-extrabold uppercase tracking-wide">Avertissement Limite Horaire</span>
+              </div>
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-4 text-xs leading-relaxed text-on-surface flex flex-col gap-2.5">
+              <p>
+                <strong className="text-amber-300 font-black">Attention :</strong> L'heure limite d'enregistrement des poubelles pour la tournée prioritaire du matin est fixée à <strong className="text-white underline">13h00</strong>.
+              </p>
+              <p>
+                Votre alerte pour le sachet <strong className="text-amber-300 uppercase">{pendingLateSignalType === 'biodegradable' ? 'Biodégradable (Vert)' : 'Non-Biodégradable (Gris)'}</strong> sera transmise au bureau avec la mention spéciale :
+              </p>
+              <div className="bg-black/30 p-2.5 rounded-xl border border-amber-500/30 flex items-center justify-center gap-2 text-amber-300 font-mono font-black text-sm">
+                <Clock size={16} /> <span>⏰ HORS DÉLAI (&gt;13h)</span>
+              </div>
+              <p className="text-[11px] text-amber-200/90 leading-snug italic">
+                L'équipe de dispatching tentera d'affecter un camion en tournée de rattrapage, sinon la collecte s'effectuera au tout premier passage de demain matin.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setPendingLateSignalType(null)}
+                className="flex-1 py-3 px-4 rounded-2xl border border-outline-variant text-xs font-extrabold text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30 transition-all cursor-pointer active:scale-95"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  onReportTrashFull(pendingLateSignalType);
+                  setPendingLateSignalType(null);
+                }}
+                className="flex-1 py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow-lg shadow-amber-900/30 transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <span>Compris, Valider</span>
               </button>
             </div>
           </div>

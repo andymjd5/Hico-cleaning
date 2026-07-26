@@ -15,7 +15,8 @@ import {
   Truck,
   CheckCircle2,
   Clock,
-  Navigation
+  Navigation,
+  Bell
 } from 'lucide-react';
 import { Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur } from '../types';
 
@@ -54,6 +55,29 @@ export default function DashboardView({
 }: DashboardViewProps) {
   const [selectedEboueurs, setSelectedEboueurs] = useState<Record<string, string>>({});
   const [signalFilter, setSignalFilter] = useState<'all' | 'late' | 'regular'>('all');
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'default';
+  });
+
+  const handleEnableWindowsNotifications = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        setNotifPermission(perm);
+        if (perm === 'granted') {
+          new Notification("🔔 Notifications Windows Actives - Hico Cleaning", {
+            body: "Les alertes de poubelles pleines et hors-délai s'afficheront désormais en natif dans la barre des tâches Windows !",
+            icon: "/pwa-192x192.png"
+          });
+        }
+      } catch (e) {
+        console.warn("Permission error:", e);
+      }
+    }
+  };
   
   // Calculate dynamic stats purely from live data
   const totalCommunes = communes.length; 
@@ -88,14 +112,33 @@ export default function DashboardView({
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-on-background">
-      {/* Title block */}
-      <div className="flex flex-col gap-1.5">
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-on-background font-sans">
-          Tableau de Bord
-        </h2>
-        <p className="text-sm text-on-surface-variant leading-relaxed font-sans">
-          Vue d'ensemble des données de recensement et des alertes de collecte en temps réel.
-        </p>
+      {/* Title block with Windows Notification trigger */}
+      <div className="flex items-center justify-between gap-4 flex-wrap bg-surface/40 p-4 rounded-2xl border border-outline-variant/50">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-on-background font-sans">
+            Tableau de Bord
+          </h2>
+          <p className="text-xs text-on-surface-variant leading-relaxed font-sans">
+            Vue d'ensemble des données de recensement et des alertes de collecte en temps réel.
+          </p>
+        </div>
+
+        {typeof window !== 'undefined' && 'Notification' in window && notifPermission !== 'granted' && (
+          <button
+            onClick={handleEnableWindowsNotifications}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-lg shadow-indigo-900/20 transition-all cursor-pointer active:scale-95 animate-pulse"
+            title="Autoriser l'affichage des notifications natives dans la barre des tâches Windows"
+          >
+            <Bell size={16} />
+            <span>Activer Notifications Windows (Barre des Tâches) 🪟</span>
+          </button>
+        )}
+        {notifPermission === 'granted' && (
+          <div className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm">
+            <Bell size={14} className="text-emerald-400" />
+            <span>Notifications Windows Actives (Barre des Tâches) 🪟</span>
+          </div>
+        )}
       </div>
 
       {/* Bento Grid: Stats Cards */}
