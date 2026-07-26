@@ -53,6 +53,7 @@ export default function DashboardView({
   onAddAvenueToggle
 }: DashboardViewProps) {
   const [selectedEboueurs, setSelectedEboueurs] = useState<Record<string, string>>({});
+  const [signalFilter, setSignalFilter] = useState<'all' | 'late' | 'regular'>('all');
   
   // Calculate dynamic stats purely from live data
   const totalCommunes = communes.length; 
@@ -65,9 +66,25 @@ export default function DashboardView({
   // Exact live abonne count
   const totalAbonnes = abonnes.length;
 
+  // Late signal detection helper (> 13h00)
+  const isLateSignal = (sig: PoubelleSignal) => {
+    if (sig.is_hors_delai !== undefined) return sig.is_hors_delai;
+    if (!sig.reported_at) return false;
+    const hour = new Date(sig.reported_at).getHours();
+    return hour >= 13;
+  };
+
   // Active Signals (Poubelles pleines non encore complètement ramassées)
   const activeSignals = signals.filter(s => s.status !== 'completed');
   const pendingCount = signals.filter(s => s.status === 'pending').length;
+  const lateSignalsCount = activeSignals.filter(isLateSignal).length;
+  const regularSignalsCount = activeSignals.filter(s => !isLateSignal(s)).length;
+
+  const displayedActiveSignals = activeSignals.filter(s => {
+    if (signalFilter === 'late') return isLateSignal(s);
+    if (signalFilter === 'regular') return !isLateSignal(s);
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-on-background">
@@ -290,30 +307,86 @@ export default function DashboardView({
           </button>
         </div>
 
-        {activeSignals.length === 0 ? (
+        {/* Filter Tabs for Late / Regular signals */}
+        {activeSignals.length > 0 && (
+          <div className="flex items-center gap-1.5 bg-surface/80 p-1.5 rounded-2xl border border-outline-variant/60 w-fit self-start">
+            <button
+              onClick={() => setSignalFilter('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                signalFilter === 'all'
+                  ? 'bg-primary text-on-primary shadow-sm'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              Toutes ({activeSignals.length})
+            </button>
+            <button
+              onClick={() => setSignalFilter('late')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
+                signalFilter === 'late'
+                  ? 'bg-amber-500 text-black shadow-sm font-black'
+                  : 'text-amber-400 hover:bg-amber-500/10'
+              }`}
+            >
+              <span>⏰ Hors Délai (&gt;13h)</span>
+              <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-black ${signalFilter === 'late' ? 'bg-black/20 text-black' : 'bg-amber-500/20 text-amber-300'}`}>
+                {lateSignalsCount}
+              </span>
+            </button>
+            <button
+              onClick={() => setSignalFilter('regular')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
+                signalFilter === 'regular'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-emerald-400 hover:bg-emerald-500/10'
+              }`}
+            >
+              <span>⚡ Dans le délai (&lt;13h)</span>
+              <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-black ${signalFilter === 'regular' ? 'bg-black/20 text-white' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                {regularSignalsCount}
+              </span>
+            </button>
+          </div>
+        )}
+
+        {displayedActiveSignals.length === 0 ? (
           <div className="bg-surface border border-outline-variant rounded-2xl p-6 text-center text-xs text-on-surface-variant flex flex-col items-center justify-center gap-2 font-sans shadow-md">
             <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
               <CheckCircle2 size={20} />
             </div>
-            <span className="font-bold text-on-surface text-sm">Aucune alerte de poubelle pleine</span>
-            <span>Toutes les poubelles signalées ont été collectées ou aucune alerte n'est en attente.</span>
+            <span className="font-bold text-on-surface text-sm">Aucune alerte dans cette catégorie</span>
+            <span>{signalFilter === 'late' ? 'Aucune alerte de poubelle pleine enregistrée après 13h00.' : 'Toutes les poubelles signalées ont été collectées ou aucune alerte n\'est en attente.'}</span>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {activeSignals.map((sig) => {
+            {displayedActiveSignals.map((sig) => {
               const assignedEb = eboueurs.find(e => 
                 e.id === sig.assigned_eboueur_id || 
                 e.id === (sig as any).eboueur_assigne_id
               );
               const isBiodegradable = sig.type_poubelle === 'biodegradable';
+              const isLate = isLateSignal(sig);
+
+              // Sort eboueurs so those still at base/depot (0 load) come FIRST for late signals
+              const sortedEboueurs = [...eboueurs].sort((a, b) => {
+                const loadA = a.charge_actuelle || 0;
+                const loadB = b.charge_actuelle || 0;
+                if (isLate) {
+                  if (loadA === 0 && loadB > 0) return -1;
+                  if (loadA > 0 && loadB === 0) return 1;
+                }
+                return loadA - loadB;
+              });
 
               return (
                 <div 
                   key={sig.id}
-                  className="bg-surface border border-outline-variant/80 rounded-2xl p-4 flex flex-col gap-3 shadow-lg relative overflow-hidden"
+                  className={`bg-surface border rounded-2xl p-4 flex flex-col gap-3 shadow-lg relative overflow-hidden transition-all ${
+                    isLate ? 'border-amber-500/50 bg-gradient-to-b from-amber-500/5 to-transparent' : 'border-outline-variant/80'
+                  }`}
                 >
-                  <div className="flex items-center justify-between border-b border-outline-variant/50 pb-2.5">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between border-b border-outline-variant/50 pb-2.5 flex-wrap gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wide border ${
                         isBiodegradable 
                           ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' 
@@ -321,6 +394,11 @@ export default function DashboardView({
                       }`}>
                         {isBiodegradable ? '🟢 Biodégradable' : '🟣 Non-Biodégradable'}
                       </span>
+                      {isLate && (
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 shadow-sm" title="Signalement reçu après 13h00 (limite quotidienne)">
+                          <Clock size={11} className="text-amber-400 animate-pulse" /> ⏰ Signal Tardif (&gt;13h)
+                        </span>
+                      )}
                       <span className="text-[11px] font-mono text-on-surface-variant flex items-center gap-1">
                         <Clock size={12} />
                         {sig.reported_at ? sig.reported_at.substring(11, 16) : 'Récemment'}
@@ -393,25 +471,36 @@ export default function DashboardView({
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-1">
-                          <select
-                            value={selectedEboueurs[sig.id] || (eboueurs[0]?.id || '')}
-                            onChange={(e) => setSelectedEboueurs({ ...selectedEboueurs, [sig.id]: e.target.value })}
-                            className="bg-background border border-outline-variant text-on-surface text-xs rounded-xl px-3 py-2 flex-1 font-semibold focus:outline-none focus:border-primary"
-                          >
-                            {eboueurs.map(e => {
-                              const cap = e.capacite_camion || 6;
-                              const load = e.charge_actuelle || 0;
-                              const activeCount = signals.filter(s => s.status === 'assigned' && (s.assigned_eboueur_id === e.id || (s as any).eboueur_assigne_id === e.id)).length;
-                              const freeSlots = Math.max(0, cap - load - activeCount);
-                              return (
-                                <option key={e.id} value={e.id}>
-                                  🚛 {e.nom} ({e.telephone}) — {freeSlots > 0 ? `${freeSlots}/${cap} places libres 🔋` : '🚨 CAMION PLEIN (0 place)'}
-                                </option>
-                              );
-                            })}
-                          </select>
+                      <div className="flex flex-col gap-2">
+                        {isLate && (
+                          <div className="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-500/30 p-2 rounded-xl flex items-center gap-1.5 font-medium">
+                            <Clock size={13} className="text-amber-400 shrink-0" />
+                            <span>Signalement tardif (&gt;13h). Assignation recommandée aux camions encore en base ou prochaine rotation.</span>
+                          </div>
+                        )}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1">
+                            <select
+                              value={selectedEboueurs[sig.id] || (sortedEboueurs[0]?.id || '')}
+                              onChange={(e) => setSelectedEboueurs({ ...selectedEboueurs, [sig.id]: e.target.value })}
+                              className="bg-background border border-outline-variant text-on-surface text-xs rounded-xl px-3 py-2 flex-1 font-semibold focus:outline-none focus:border-primary"
+                            >
+                              {sortedEboueurs.map(e => {
+                                const cap = e.capacite_camion || 6;
+                                const load = e.charge_actuelle || 0;
+                                const activeCount = signals.filter(s => s.status === 'assigned' && (s.assigned_eboueur_id === e.id || (s as any).eboueur_assigne_id === e.id)).length;
+                                const freeSlots = Math.max(0, cap - load - activeCount);
+                                const isAtBase = load === 0 && e.status === 'idle';
+                                const statusTag = isAtBase ? '📍 En base (Prêt)' : `🚚 En tournée (${load}/${cap})`;
+                                const isRecommended = isLate && isAtBase;
+
+                                return (
+                                  <option key={e.id} value={e.id}>
+                                    {isRecommended ? '⭐ ' : ''}🚛 {e.nom} ({e.telephone}) — [{statusTag}] — {freeSlots > 0 ? `${freeSlots}/${cap} places` : '🚨 PLEIN'}
+                                  </option>
+                                );
+                              })}
+                            </select>
                           <button
                             onClick={() => {
                               const ebId = selectedEboueurs[sig.id] || eboueurs[0]?.id;
@@ -491,9 +580,10 @@ export default function DashboardView({
                           </button>
                         </div>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
+              </div>
               );
             })}
           </div>

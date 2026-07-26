@@ -64,7 +64,7 @@ export default function DechetsMapView({
 }: DechetsMapViewProps) {
   const [selectedSignalId, setSelectedSignalIdState] = useState<string | null>(initialSelectedSignalId || null);
   const [selectedEboueurId, setSelectedEboueurId] = useState<string | null>(null);
-  const [showAllParcelles, setShowAllParcelles] = useState<boolean>(true);
+  const [showAllParcelles, setShowAllParcelles] = useState<boolean>(false);
   
   // Realtime clock tick to auto-hide validated houses after 5 minutes
   const [nowTick, setNowTick] = useState<number>(Date.now());
@@ -937,9 +937,16 @@ export default function DechetsMapView({
                   </span>
                   <span className="font-extrabold text-on-surface">{selectedSignal.bailleur_nom}</span>
                   <span className="font-mono text-on-surface-variant">{selectedSignal.bailleur_telephone}</span>
-                  <span className="text-[10px] text-on-surface-variant mt-1.5 flex items-center gap-1 italic">
-                    <Clock size={11} /> Signalé à {selectedSignal.reported_at.substring(11, 16)} le {selectedSignal.reported_at.substring(0, 10)}
-                  </span>
+                  <div className="flex items-center gap-2 flex-wrap mt-1">
+                    <span className="text-[10px] text-on-surface-variant flex items-center gap-1 italic">
+                      <Clock size={11} /> Signalé à {selectedSignal.reported_at.substring(11, 16)} le {selectedSignal.reported_at.substring(0, 10)}
+                    </span>
+                    {(selectedSignal.is_hors_delai || (selectedSignal.reported_at && new Date(selectedSignal.reported_at).getHours() >= 13)) && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 inline-flex items-center gap-1">
+                        <Clock size={11} className="text-amber-400 animate-pulse" /> ⏰ Signal Tardif (&gt;13h)
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Dispatch & Closest Collector Section */}

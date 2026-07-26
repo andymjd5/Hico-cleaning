@@ -583,7 +583,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   is_partiel: item.is_partiel || false,
                   reported_at: item.reported_at || item.created_at || new Date().toISOString(),
                   completed_at: item.completed_at || item.resolved_at || null,
-                  type_poubelle: item.type_poubelle || 'biodegradable'
+                  type_poubelle: item.type_poubelle || 'biodegradable',
+                  is_hors_delai: item.is_hors_delai !== undefined ? item.is_hors_delai : (new Date(item.reported_at || item.created_at || new Date()).getHours() >= 13)
                 };
 
                 updated = [formatted, ...updated];
@@ -1342,7 +1343,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
               is_partiel: s.is_partiel || false,
               reported_at: s.reported_at || s.created_at || new Date().toISOString(),
               completed_at: s.completed_at || s.resolved_at || null,
-              type_poubelle: s.type_poubelle || 'biodegradable'
+              type_poubelle: s.type_poubelle || 'biodegradable',
+              is_hors_delai: s.is_hors_delai !== undefined ? s.is_hors_delai : (new Date(s.reported_at || s.created_at || new Date()).getHours() >= 13)
             };
           });
 
@@ -1573,6 +1575,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
   // 5. Creating overlays modals toggle states
   const [showAddCommuneModal, setShowAddCommuneModal] = useState(false);
   const [showAddAvenueModal, setShowAddAvenueModal] = useState(false);
+  const [showLateSignalModal, setShowLateSignalModal] = useState(false);
 
   // Modal Inputs state
   const [newCommuneName, setNewCommuneName] = useState('');
@@ -2340,6 +2343,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       statut: newSignal.status === 'assigned' ? 'assigned' : newSignal.status === 'completed' ? 'completed' : 'pending',
       status: newSignal.status || 'pending',
       type_poubelle: newSignal.type_poubelle || 'biodegradable',
+      is_hors_delai: newSignal.is_hors_delai || false,
       created_at: newSignal.reported_at || new Date().toISOString()
     };
 
@@ -2465,7 +2469,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       reported_at: new Date().toISOString(),
       type_poubelle: type_poubelle,
       latitude: lat,
-      longitude: lng
+      longitude: lng,
+      is_hors_delai: new Date().getHours() >= 13
     };
 
     const isAdminView = currentUser?.role === 'admin' || ['dashboard', 'dechets_map', 'communes', 'avenues', 'rapports', 'admin_settings'].includes(currentScreen);
@@ -2478,6 +2483,12 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       playSignalAlertSound();
     } else {
       addToast(`Alerte enregistrée ! L'administration planifie l'intervention de l'éboueur.`, 'success');
+      
+      // Verification for 13h cutoff limit modal notification
+      const currentHour = new Date().getHours();
+      if (currentHour >= 13) {
+        setShowLateSignalModal(true);
+      }
     }
 
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -3257,7 +3268,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       bailleur_telephone: ab.telephone_principal,
       status: 'pending',
       reported_at: new Date().toISOString(),
-      type_poubelle: typePoubelle
+      type_poubelle: typePoubelle,
+      is_hors_delai: new Date().getHours() >= 13
     };
 
     setPoubelleSignals(prev => [newSignal, ...prev]);
@@ -4473,6 +4485,30 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           {/*   MODALS OVERLAYS (Ajout commune/av) */}
           {/* ==================================== */}
 
+          {/* LATE SIGNAL NOTICE MODAL (13h Limit) */}
+          {showLateSignalModal && (
+            <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in animate-duration-200" id="modal_late_signal_overlay">
+              <div className="bg-surface border border-outline-variant/80 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-up text-on-surface p-6 flex flex-col items-center text-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-xl shadow-inner">
+                  ⏰
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <h3 className="text-base font-extrabold text-on-surface" id="title_late_signal">Demande prise en compte !</h3>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                    Votre signalement a été bien enregistré. Notez que l'heure limite quotidienne de signalement est fixée à <strong>13h00</strong>.
+                  </p>
+                </div>
+                <button
+                  id="btn_close_late_signal_modal"
+                  onClick={() => setShowLateSignalModal(false)}
+                  className="w-full py-2.5 bg-primary text-on-primary hover:opacity-90 text-xs font-extrabold uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer mt-1"
+                >
+                  D'accord
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* A. COMMUNE MODAL */}
           {showAddCommuneModal && (
             <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in animate-duration-200">
@@ -4753,6 +4789,7 @@ ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS litige_raison TEXT;
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS litige_date TIMESTAMPTZ;
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS confirmation_abonne TEXT DEFAULT 'en_attente';
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS confirmation_date TIMESTAMPTZ;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS is_hors_delai BOOLEAN DEFAULT FALSE;
 
 -- 8. Table de suivi des règlements par locataire
 CREATE TABLE IF NOT EXISTS validations_locataires (
@@ -5060,6 +5097,7 @@ ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS litige_raison TEXT;
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS litige_date TIMESTAMPTZ;
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS confirmation_abonne TEXT DEFAULT 'en_attente';
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS confirmation_date TIMESTAMPTZ;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS is_hors_delai BOOLEAN DEFAULT FALSE;
 
 -- 8. Table de suivi des règlements par locataire
 CREATE TABLE IF NOT EXISTS validations_locataires (

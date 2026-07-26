@@ -110,6 +110,7 @@ export interface PoubelleSignal {
   is_partiel?: boolean;
   partiel_note?: string;
   type_modifie_par_abonne?: boolean;
+  is_hors_delai?: boolean;
 }
 
 export interface Eboueur {
