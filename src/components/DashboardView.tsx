@@ -29,6 +29,7 @@ interface DashboardViewProps {
   onAssignMission?: (signalId: string, eboueurId: string, options?: { is_partiel?: boolean; partiel_note?: string }) => void;
   onCompleteSignal?: (signalId: string) => void;
   onCancelSignal?: (signalId: string) => void;
+  onResolveDispute?: (signalId: string) => void;
   onCompleteAllSignals?: () => void;
   onNavigate: (screen: Screen) => void;
   onAddCommuneToggle: () => void;
@@ -45,6 +46,7 @@ export default function DashboardView({
   onAssignMission,
   onCompleteSignal,
   onCancelSignal,
+  onResolveDispute,
   onCompleteAllSignals,
   onNavigate,
   onAddCommuneToggle,
@@ -184,6 +186,72 @@ export default function DashboardView({
           </span>
         </div>
       </section>
+
+      {/* SECTION EXCLUSIVE: Réclamations & Contestations Sachet Abonnés */}
+      {(() => {
+        const disputedSignals = signals.filter(s => s.litige_abonne);
+        if (disputedSignals.length === 0) return null;
+
+        return (
+          <section className="bg-rose-500/10 border border-rose-500/30 rounded-3xl p-5 flex flex-col gap-3 shadow-xl">
+            <div className="flex items-center justify-between border-b border-rose-500/20 pb-2.5">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="text-rose-400 animate-pulse" size={20} />
+                <h3 className="text-rose-300 font-extrabold text-sm md:text-base tracking-tight uppercase">
+                  Contestations & Réclamations Sachet Abonnés ({disputedSignals.length})
+                </h3>
+              </div>
+              <span className="text-xs text-rose-400 font-bold bg-rose-500/20 px-2.5 py-0.5 rounded-full border border-rose-500/30">
+                Action administrative requise
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {disputedSignals.map((sig) => {
+                const assignedEb = eboueurs.find(e => e.id === sig.assigned_eboueur_id || e.id === (sig as any).eboueur_assigne_id);
+                return (
+                  <div key={sig.id} className="bg-surface border border-rose-500/40 rounded-2xl p-4 flex flex-col gap-2 shadow-md">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-extrabold text-on-surface">
+                          👤 {sig.bailleur_nom} ({sig.bailleur_telephone})
+                        </span>
+                        <span className="text-[11px] text-on-surface-variant font-mono">
+                          Parcelle N° {sig.numero_parcelle} — {sig.avenue_nom}, {sig.commune_nom}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold text-rose-400 bg-rose-500/20 px-2 py-0.5 rounded-lg border border-rose-500/30">
+                        {sig.litige_date ? new Date(sig.litige_date).toLocaleString('fr-FR') : 'Réclamation récente'}
+                      </span>
+                    </div>
+
+                    <div className="bg-background/80 border border-outline-variant p-2.5 rounded-xl text-xs text-rose-300 font-medium">
+                      <strong>Motif de l'abonné :</strong> "{sig.litige_raison || 'Sachet non reçu / Passage non conforme'}"
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-on-surface-variant mt-1 pt-2 border-t border-outline-variant/40">
+                      <span>Chauffeur : <strong className="text-amber-400">{assignedEb?.nom || 'Éboueur non spécifié'}</strong></span>
+                      {onResolveDispute && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`Voulez-vous marquer cette réclamation comme RÉSOLUE pour M./Mme ${sig.bailleur_nom} ?`)) {
+                              onResolveDispute(sig.id);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-extrabold text-xs cursor-pointer shadow-sm active:scale-95 transition-all flex items-center gap-1"
+                        >
+                          <CheckCircle2 size={13} />
+                          <span>Clôturer / Traiter le litige</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* SECTION EXCLUSIVE: Alertes & Collectes en Attente avec Assignation */}
       <section className="flex flex-col gap-3">

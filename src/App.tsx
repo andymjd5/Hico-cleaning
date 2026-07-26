@@ -2921,6 +2921,63 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     }
   };
 
+  const handleConfirmReception = async (signalId: string) => {
+    setPoubelleSignals(prev => prev.map(sig => {
+      if (sig.id === signalId) {
+        return {
+          ...sig,
+          confirmation_abonne: 'confirme',
+          confirmation_date: new Date().toISOString(),
+          litige_abonne: false
+        };
+      }
+      return sig;
+    }));
+
+    handleSendInboxMessage(
+      'Service Contrôle Qualité (Hico)',
+      `[CONFIRMATION BÉNÉFICIAIRE] Merci ! Vous avez confirmé la bonne réception de vos sachets. Votre attestation de passage est enregistrée.`
+    );
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('signaux_poubelles').update({
+          confirmation_abonne: 'confirme',
+          confirmation_date: new Date().toISOString(),
+          litige_abonne: false
+        }).eq('id', signalId);
+      } catch (err) {
+        console.warn("Supabase handleConfirmReception failed:", err);
+      }
+    }
+  };
+
+  const handleResolveSignalDispute = async (signalId: string) => {
+    setPoubelleSignals(prev => prev.map(sig => {
+      if (sig.id === signalId) {
+        return {
+          ...sig,
+          litige_abonne: false,
+          confirmation_abonne: 'confirme',
+          confirmation_date: new Date().toISOString()
+        };
+      }
+      return sig;
+    }));
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('signaux_poubelles').update({
+          litige_abonne: false,
+          confirmation_abonne: 'confirme',
+          confirmation_date: new Date().toISOString()
+        }).eq('id', signalId);
+      } catch (err) {
+        console.warn("Supabase handleResolveSignalDispute failed:", err);
+      }
+    }
+  };
+
   const handleReportDispute = async (signalId: string, raison: string) => {
     setPoubelleSignals(prev => prev.map(sig => {
       if (sig.id === signalId) {
@@ -2928,7 +2985,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           ...sig,
           litige_abonne: true,
           litige_raison: raison,
-          litige_date: new Date().toISOString()
+          litige_date: new Date().toISOString(),
+          confirmation_abonne: 'conteste'
         };
       }
       return sig;
@@ -2944,7 +3002,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
         await supabase.from('signaux_poubelles').update({
           litige_abonne: true,
           litige_raison: raison,
-          litige_date: new Date().toISOString()
+          litige_date: new Date().toISOString(),
+          confirmation_abonne: 'conteste'
         }).eq('id', signalId);
       } catch (err) {
         console.warn("Supabase handleReportDispute failed:", err);
@@ -3653,6 +3712,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   onAssignMission={handleAssignEboueur}
                   onCompleteSignal={handleCompleteMission}
                   onCancelSignal={handleCancelSignal}
+                  onResolveDispute={handleResolveSignalDispute}
                   onCompleteAllSignals={handleCompleteAllSignals}
                   onNavigate={setCurrentScreen}
                   onAddCommuneToggle={() => setShowAddCommuneModal(true)}
@@ -3851,6 +3911,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                     onModifySignalType={handleModifySignalType}
                     onResetSignals={handleResetSignals}
                     onCancelSignal={handleCancelSignal}
+                    onConfirmReception={handleConfirmReception}
                     onReportDispute={handleReportDispute}
                     messages={inboxMessages}
                     onSendMessage={handleSendInboxMessage}
@@ -4680,13 +4741,18 @@ CREATE TABLE IF NOT EXISTS signaux_poubelles (
   resolved_at TIMESTAMPTZ
 );
 
--- Migration pour ajouter les colonnes d'assignation et de statut si la table existait déjà
+-- Migration pour ajouter les colonnes d'assignation, statut, litige et confirmation
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS status TEXT;
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS assigned_eboueur_id TEXT;
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS estimated_arrival_minutes INTEGER;
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS eta_appointment_time TEXT;
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS is_partiel BOOLEAN;
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS litige_abonne BOOLEAN DEFAULT FALSE;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS litige_raison TEXT;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS litige_date TIMESTAMPTZ;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS confirmation_abonne TEXT DEFAULT 'en_attente';
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS confirmation_date TIMESTAMPTZ;
 
 -- 8. Table de suivi des règlements par locataire
 CREATE TABLE IF NOT EXISTS validations_locataires (
@@ -4989,6 +5055,11 @@ ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS estimated_arrival_minutes
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS eta_appointment_time TEXT;
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS is_partiel BOOLEAN;
 ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS litige_abonne BOOLEAN DEFAULT FALSE;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS litige_raison TEXT;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS litige_date TIMESTAMPTZ;
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS confirmation_abonne TEXT DEFAULT 'en_attente';
+ALTER TABLE signaux_poubelles ADD COLUMN IF NOT EXISTS confirmation_date TIMESTAMPTZ;
 
 -- 8. Table de suivi des règlements par locataire
 CREATE TABLE IF NOT EXISTS validations_locataires (

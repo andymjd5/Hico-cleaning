@@ -46,6 +46,7 @@ interface AbonneSpaceViewProps {
   onModifySignalType?: (signalId: string, newType: 'biodegradable' | 'non_biodegradable') => void;
   onResetSignals?: () => void;
   onCancelSignal?: (signalId: string) => void;
+  onConfirmReception?: (signalId: string) => void;
   onReportDispute?: (signalId: string, raison: string) => void;
   messages: InboxMessage[];
   onSendMessage: (sender: string, content: string) => void;
@@ -65,6 +66,7 @@ export default function AbonneSpaceView({
   onModifySignalType,
   onResetSignals,
   onCancelSignal,
+  onConfirmReception,
   onReportDispute,
   messages,
   onSendMessage,
@@ -551,22 +553,42 @@ export default function AbonneSpaceView({
                           </span>
                         </div>
 
-                        {/* Dispute status badge */}
-                        {sig.litige_abonne ? (
-                          <span className="bg-rose-500/15 text-rose-400 border border-rose-500/30 px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1">
-                            <AlertCircle size={12} /> Litige Signalisé
+                        {/* Status & Confirmation buttons */}
+                        {sig.confirmation_abonne === 'confirme' ? (
+                          <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-xl text-[10px] font-extrabold flex items-center gap-1.5">
+                            <CheckCircle2 size={13} /> Réception Confirmée par vous ✔️
+                          </span>
+                        ) : sig.litige_abonne ? (
+                          <span className="bg-rose-500/15 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded-xl text-[10px] font-extrabold flex items-center gap-1.5">
+                            <AlertCircle size={13} /> Litige Signalisé
                           </span>
                         ) : (
-                          <button
-                            onClick={() => {
-                              setDisputeModalSignalId(sig.id);
-                              setDisputeReasonText('');
-                            }}
-                            className="text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1"
-                          >
-                            <AlertTriangle size={12} />
-                            <span>Signaler un Problème / Sachet non reçu</span>
-                          </button>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => {
+                                if (onConfirmReception) {
+                                  onConfirmReception(sig.id);
+                                }
+                              }}
+                              className="text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-xl font-extrabold transition-all cursor-pointer flex items-center gap-1 shadow-sm active:scale-95"
+                              title="Confirmer la réception de vos nouveaux sachets"
+                            >
+                              <CheckCircle2 size={12} />
+                              <span>Oui, j'ai bien reçu mes sachets</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setDisputeModalSignalId(sig.id);
+                                setDisputeReasonText('');
+                              }}
+                              className="text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1"
+                              title="Signaler que le sachet ou le service n'est pas conforme"
+                            >
+                              <AlertTriangle size={12} />
+                              <span>Non, sachet non reçu / Problème</span>
+                            </button>
+                          </div>
                         )}
                       </div>
 
@@ -1060,14 +1082,37 @@ export default function AbonneSpaceView({
             </div>
 
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              Expliquez brièvement le problème rencontré concernant ce passage (ex: <em>"L'éboueur a validé mais le sachet vert n'a pas été remis"</em> ou <em>"Poubelle non vidée à mon portail"</em>).
+              Sélectionnez un motif fréquent ou décrivez brièvement le problème rencontré :
             </p>
+
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                "Sachet vert (Bio) non remis par le chauffeur",
+                "Sachet gris (Non-bio) non remis",
+                "Poubelle/bac non vidé à mon portail",
+                "Passage validé sans remise de sachets",
+                "Chauffeur n'est pas venu"
+              ].map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => setDisputeReasonText(chip)}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer text-left ${
+                    disputeReasonText === chip
+                      ? 'bg-amber-500/25 text-amber-300 border-amber-500 font-bold'
+                      : 'bg-background hover:bg-surface border-outline-variant/60 text-on-surface-variant'
+                  }`}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
 
             <textarea
               value={disputeReasonText}
               onChange={(e) => setDisputeReasonText(e.target.value)}
-              placeholder="Précisez la raison de votre réclamation..."
-              className="w-full h-24 p-3 bg-background border border-outline-variant rounded-xl text-xs text-on-surface focus:outline-none focus:border-secondary font-sans resize-none"
+              placeholder="Ou saisissez un motif personnalisé..."
+              className="w-full h-20 p-3 bg-background border border-outline-variant rounded-xl text-xs text-on-surface focus:outline-none focus:border-secondary font-sans resize-none"
             />
 
             <div className="flex gap-2 justify-end">

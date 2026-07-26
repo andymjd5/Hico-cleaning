@@ -102,6 +102,8 @@ export interface PoubelleSignal {
   litige_abonne?: boolean;
   litige_raison?: string;
   litige_date?: string;
+  confirmation_abonne?: 'en_attente' | 'confirme' | 'conteste';
+  confirmation_date?: string;
   // Appointment & Dispatch extensions
   estimated_arrival_minutes?: number;
   eta_appointment_time?: string;
