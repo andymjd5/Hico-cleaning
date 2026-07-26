@@ -989,55 +989,49 @@ export default function AbonneSpaceView({
                     <button
                       type="button"
                       onClick={() => setSelectedPaymentProvider('mpesa')}
-                      className={`h-14 rounded-xl border p-1.5 flex flex-col items-center justify-center transition-all ${
+                      className={`h-14 rounded-xl border p-2 flex items-center justify-center transition-all ${
                         selectedPaymentProvider === 'mpesa' 
                           ? 'bg-red-950/40 border-red-500 shadow-md shadow-red-500/10' 
                           : 'border-white/10 bg-white/5 hover:bg-white/10'
                       }`}
                     >
-                      <MPesaLogo className="h-6 w-auto max-w-full" />
-                      <span className="text-[9px] font-extrabold text-gray-300 mt-0.5">M-PESA</span>
+                      <MPesaLogo className="h-7 w-auto max-w-full" />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setSelectedPaymentProvider('orange')}
-                      className={`h-14 rounded-xl border p-1.5 flex flex-col items-center justify-center transition-all ${
+                      className={`h-14 rounded-xl border p-2 flex items-center justify-center transition-all ${
                         selectedPaymentProvider === 'orange' 
                           ? 'bg-orange-950/40 border-orange-500 shadow-md shadow-orange-500/10' 
                           : 'border-white/10 bg-white/5 hover:bg-white/10'
                       }`}
                     >
-                      <div className="bg-white/90 rounded px-1 py-0.5 flex items-center justify-center">
-                        <OrangeMoneyLogo className="h-5 w-auto max-w-full" />
-                      </div>
-                      <span className="text-[9px] font-extrabold text-gray-300 mt-0.5">ORANGE</span>
+                      <OrangeMoneyLogo className="h-7 w-auto max-w-full" />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setSelectedPaymentProvider('airtel')}
-                      className={`h-14 rounded-xl border p-1.5 flex flex-col items-center justify-center transition-all ${
+                      className={`h-14 rounded-xl border p-2 flex items-center justify-center transition-all ${
                         selectedPaymentProvider === 'airtel' 
                           ? 'bg-red-950/40 border-red-600 shadow-md shadow-red-600/10' 
                           : 'border-white/10 bg-white/5 hover:bg-white/10'
                       }`}
                     >
-                      <AirtelMoneyLogo className="h-6 w-auto max-w-full" />
-                      <span className="text-[9px] font-extrabold text-gray-300 mt-0.5">AIRTEL</span>
+                      <AirtelMoneyLogo className="h-7 w-auto max-w-full" />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setSelectedPaymentProvider('afrimoney')}
-                      className={`h-14 rounded-xl border p-1.5 flex flex-col items-center justify-center transition-all ${
+                      className={`h-14 rounded-xl border p-2 flex items-center justify-center transition-all ${
                         selectedPaymentProvider === 'afrimoney' 
                           ? 'bg-purple-950/40 border-purple-500 shadow-md shadow-purple-500/10' 
                           : 'border-white/10 bg-white/5 hover:bg-white/10'
                       }`}
                     >
-                      <AfrimoneyLogo className="h-6 w-auto max-w-full" />
-                      <span className="text-[9px] font-extrabold text-gray-300 mt-0.5">AFRIMONEY</span>
+                      <AfrimoneyLogo className="h-7 w-auto max-w-full" />
                     </button>
                   </div>
                 </div>

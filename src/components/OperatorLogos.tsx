@@ -15,20 +15,20 @@ export const MPesaLogo: React.FC<{ className?: string }> = ({ className = "h-6 w
   </svg>
 );
 
-// Orange Money SVG Logo (Black Arrow top-left, Orange Arrow bottom-right + "Orange Money" text)
+// Orange Money SVG Logo (White Arrow top-left, Orange Arrow bottom-right + White "Orange" & Orange "Money" text)
 export const OrangeMoneyLogo: React.FC<{ className?: string }> = ({ className = "h-6 w-auto" }) => (
   <svg viewBox="0 0 170 50" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     {/* Arrows Graphic */}
     <g transform="translate(2, 4) scale(0.85)">
-      {/* Top Left Black Arrow */}
-      <path d="M 0,22 L 20,2 L 20,12 L 8,12 L 8,22 Z" fill="#000000" />
-      <path d="M 8,12 L 20,24 L 20,14 L 14,14 Z" fill="#000000" />
+      {/* Top Left White Arrow */}
+      <path d="M 0,22 L 20,2 L 20,12 L 8,12 L 8,22 Z" fill="#FFFFFF" />
+      <path d="M 8,12 L 20,24 L 20,14 L 14,14 Z" fill="#FFFFFF" />
       {/* Bottom Right Orange Arrow */}
       <path d="M 22,2 L 42,22 L 32,22 L 32,12 L 22,12 Z" fill="#FF6600" />
       <path d="M 32,22 L 20,34 L 20,24 L 26,24 Z" fill="#FF6600" />
     </g>
     {/* Orange Money Text */}
-    <text x="44" y="21" fontFamily="Arial, Helvetica, sans-serif" fontWeight="900" fontSize="16" fill="#000000">Orange</text>
+    <text x="44" y="21" fontFamily="Arial, Helvetica, sans-serif" fontWeight="900" fontSize="16" fill="#FFFFFF">Orange</text>
     <text x="44" y="39" fontFamily="Arial, Helvetica, sans-serif" fontWeight="900" fontSize="17" fill="#FF6600">Money</text>
   </svg>
 );
