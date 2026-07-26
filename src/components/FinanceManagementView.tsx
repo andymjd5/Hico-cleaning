@@ -1635,7 +1635,7 @@ export default function FinanceManagementView({
                       <option value="">N° de parcelle...</option>
                       {filteredPayParcelles.map(p => (
                         <option key={p.id} value={p.id}>
-                          N° {p.numero} ({p.nombre_menages} mén.)
+                          N° {p.numero_parcelle} ({p.nombre_menages} mén.)
                         </option>
                       ))}
                     </select>
