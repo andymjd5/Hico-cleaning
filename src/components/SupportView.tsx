@@ -18,6 +18,7 @@ import {
   FileText
 } from 'lucide-react';
 import { Agent, SupportTicket } from '../types';
+import { sanitizeText, validatePhoneNumber, rateLimiter } from '../lib/security';
 
 interface SupportViewProps {
   currentUser: Agent | null;
@@ -117,17 +118,31 @@ export default function SupportView({ currentUser }: SupportViewProps) {
       return;
     }
 
+    // Rate Limiting Check: max 3 tickets per 2 minutes
+    const limitCheck = rateLimiter.isAllowed('create_ticket', 3, 120000);
+    if (!limitCheck.allowed) {
+      alert(`[SÉCURITÉ] Trop de demandes de ticket. Veuillez patienter ${Math.ceil((limitCheck.retryAfterMs || 0) / 1000)} secondes avant de réessayer.`);
+      return;
+    }
+
+    // Phone validation check
+    const cleanedPhone = newAuteurPhone.trim().replace(/\s+/g, '');
+    if (!validatePhoneNumber(cleanedPhone)) {
+      alert("Format de numéro de téléphone invalide (ex: 0812345678 ou +243812345678).");
+      return;
+    }
+
     const newTicket: SupportTicket = {
       id: 'TICK-' + Math.floor(100 + Math.random() * 900),
-      sujet: newSujet.trim(),
+      sujet: sanitizeText(newSujet.trim(), 150),
       categorie: newCategory,
       priorite: newPriorite,
       status: 'nouveau',
-      auteur_nom: newAuteurNom.trim(),
-      auteur_telephone: newAuteurPhone.trim(),
+      auteur_nom: sanitizeText(newAuteurNom.trim(), 80),
+      auteur_telephone: cleanedPhone,
       auteur_role: currentUser?.role || 'visiteur',
-      commune_nom: newCommune,
-      message: newMessage.trim(),
+      commune_nom: sanitizeText(newCommune, 50),
+      message: sanitizeText(newMessage.trim(), 2000),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };

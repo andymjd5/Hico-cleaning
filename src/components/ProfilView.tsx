@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { User, Shield, LogOut, Database, Phone, Key, Check, DollarSign, UserPlus } from 'lucide-react';
+import { User, Shield, LogOut, Database, Phone, Key, Check, DollarSign, UserPlus, AlertTriangle } from 'lucide-react';
 import { Agent, Screen } from '../types';
+import { checkPasswordStrength } from '../lib/security';
 
 interface ProfilViewProps {
   currentAgent: Agent;
@@ -23,6 +24,7 @@ export default function ProfilView({
 }: ProfilViewProps) {
   const [newPassword, setNewPassword] = useState('');
   const [successMsg, setSuccessMsg] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const getPermissions = () => {
     const customPermsRaw = localStorage.getItem('hico_role_permissions');
@@ -50,8 +52,10 @@ export default function ProfilView({
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPassword.trim()) {
-      alert("Veuillez saisir un mot de passe valide.");
+    setPasswordError(null);
+    const pwdCheck = checkPasswordStrength(newPassword);
+    if (!pwdCheck.isValid) {
+      setPasswordError(pwdCheck.feedback.join(' '));
       return;
     }
     onUpdatePassword(newPassword.trim());
@@ -213,6 +217,11 @@ export default function ProfilView({
             Mettre à jour
           </button>
         </form>
+        {passwordError && (
+          <p className="text-xs text-error font-bold flex items-center gap-1.5 bg-error/15 border border-error/25 p-2.5 rounded-xl animate-fade-in" id="pass_error_msg">
+            <AlertTriangle size={14} className="shrink-0 text-error" /> {passwordError}
+          </p>
+        )}
         {successMsg && (
           <p className="text-xs text-[#10b981] font-bold flex items-center gap-1.5 bg-[#10b981]/15 border border-[#10b981]/20 p-2.5 rounded-xl animate-fade-in" id="pass_success_msg">
             <Check size={14} /> Votre mot de passe a été mis à jour avec succès !
