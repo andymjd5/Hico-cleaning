@@ -26,9 +26,10 @@ import EboueurSpaceView from './components/EboueurSpaceView';
 import AdminSettingsView from './components/AdminSettingsView';
 import SachetsManagementView from './components/SachetsManagementView';
 import FinanceManagementView from './components/FinanceManagementView';
+import SupportView from './components/SupportView';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info, Menu, CreditCard, Mail } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info, Menu, CreditCard, Mail, Headphones } from 'lucide-react';
 
 interface ToastItem {
   id: string;
@@ -1107,7 +1108,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     if (currentUser.role === 'admin') {
       const adminScreens = [
         'dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 
-        'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 
+        'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'support', 
         'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
       ];
       if (adminScreens.includes(screenId)) {
@@ -1124,7 +1125,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
         
         if (perms.admin) {
           const requiredAdminScreens = [
-            'sachets_management', 'finance_management', 'admin_settings_screens', 
+            'sachets_management', 'finance_management', 'support', 'admin_settings_screens', 
             'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
           ];
           requiredAdminScreens.forEach(s => {
@@ -1137,7 +1138,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
         
         if (perms.agent) {
           const requiredAgentScreens = [
-            'sachets_management', 'finance_management'
+            'sachets_management', 'finance_management', 'support'
           ];
           requiredAgentScreens.forEach(s => {
             if (!perms.agent.includes(s)) {
@@ -1159,12 +1160,16 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       perms = {
         admin: [
           'dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 
-          'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'admin_settings_screens', 
+          'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'support', 'admin_settings_screens', 
           'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
         ],
-        agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management'],
-        abonne: ['abonne_space'],
-        eboueur: ['eboueur_space']
+        agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'support'],
+        finance_manager: ['dashboard', 'finance_management', 'rapports', 'support'],
+        sachets_manager: ['dashboard', 'sachets_management', 'support'],
+        poubelles_manager: ['dashboard', 'dechets_map', 'support'],
+        support: ['dashboard', 'support', 'abonne_list', 'abonne_detail', 'rapports'],
+        abonne: ['abonne_space', 'support'],
+        eboueur: ['eboueur_space', 'support']
       };
     }
 
@@ -3647,6 +3652,21 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                     </button>
                   )}
 
+                  {/* Support & Assistance tab */}
+                  {isScreenAllowed('support') && (
+                    <button 
+                      onClick={() => setCurrentScreen('support')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'support'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <Headphones size={18} />
+                      <span>Support & Assistance</span>
+                    </button>
+                  )}
+
                   {/* Settings section header */}
                   {(isScreenAllowed('admin_settings_screens') || 
                     isScreenAllowed('admin_settings_pricing') || 
@@ -3885,6 +3905,10 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   onResolveDispute={handleResolveDispute}
                   onSendDisputeReminder={handleSendDisputeReminder}
                 />
+              )}
+
+              {currentScreen === 'support' && (
+                <SupportView currentUser={currentUser} />
               )}
 
               {currentScreen === 'commune_explorer' && (
@@ -4357,6 +4381,18 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                         >
                           <DollarSign size={18} />
                           <span>Gestion Financière</span>
+                        </button>
+                      )}
+
+                      {isScreenAllowed('support') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('support'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'support' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <Headphones size={18} />
+                          <span>Support & Assistance</span>
                         </button>
                       )}
 

@@ -107,7 +107,16 @@ export default function ProfilView({
               <Shield size={14} className="text-on-surface-variant/60 shrink-0" />
               Rôle Applicatif :
             </span>
-            <span className="font-bold capitalize text-right">{currentAgent.role}</span>
+            <span className="font-bold capitalize text-right">
+              {currentAgent.role === 'admin' ? 'Administrateur 👑' :
+               currentAgent.role === 'agent' ? 'Agent Recenseur 📋' :
+               currentAgent.role === 'eboueur' ? 'Chauffeur Éboueur 🚚' :
+               currentAgent.role === 'finance_manager' ? 'Gestionnaire Financier 💰' :
+               currentAgent.role === 'sachets_manager' ? 'Gestionnaire de Sachets 🛍️' :
+               currentAgent.role === 'poubelles_manager' ? 'Gestionnaire Poubelles 🗑️' :
+               currentAgent.role === 'support' ? 'Agent Support 🎧' :
+               currentAgent.role === 'abonne' ? 'Abonné 👤' : currentAgent.role}
+            </span>
           </div>
         </div>
       </div>

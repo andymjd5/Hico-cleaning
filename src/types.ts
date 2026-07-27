@@ -36,11 +36,21 @@ export interface Abonne {
   updated_at: string;
 }
 
+export type AgentRole = 
+  | 'admin' 
+  | 'agent' 
+  | 'abonne' 
+  | 'eboueur' 
+  | 'finance_manager' 
+  | 'sachets_manager' 
+  | 'poubelles_manager' 
+  | 'support';
+
 export interface Agent {
   id: string;
   nom: string;
   telephone: string;
-  role: 'admin' | 'agent' | 'abonne' | 'eboueur';
+  role: AgentRole;
   created_at: string;
   parcelle_id?: string; // used for role === 'abonne' to link their specific parcel
   password?: string;
@@ -69,7 +79,8 @@ export type Screen =
   | 'admin_settings_accounts'
   | 'admin_settings_passwords'
   | 'sachets_management'
-  | 'finance_management';
+  | 'finance_management'
+  | 'support';
 
 export interface PoubelleSignal {
   id: string;
@@ -225,5 +236,21 @@ export interface DisputeSignal {
   reminders_sent: number;
   last_reminder_date?: string;
   notes?: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  sujet: string;
+  categorie: 'facturation' | 'ramassage' | 'sachets' | 'application' | 'reclamation';
+  priorite: 'basse' | 'moyenne' | 'haute' | 'urgente';
+  status: 'nouveau' | 'en_cours' | 'resolu' | 'ferme';
+  auteur_nom: string;
+  auteur_telephone: string;
+  auteur_role?: string;
+  commune_nom?: string;
+  message: string;
+  reponse_support?: string;
+  created_at: string;
+  updated_at: string;
 }
 

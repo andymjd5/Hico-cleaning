@@ -13,7 +13,7 @@ import {
   Trash2, 
   Unlock 
 } from 'lucide-react';
-import { Agent, Screen, Commune } from '../types';
+import { Agent, AgentRole, Screen, Commune } from '../types';
 
 interface AdminSettingsViewProps {
   agents: Agent[];
@@ -119,10 +119,14 @@ export default function AdminSettingsView({
       }
     }
     return {
-      admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'],
-      agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'sachets_management'],
-      abonne: ['abonne_space'],
-      eboueur: ['eboueur_space']
+      admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'support', 'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'],
+      agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'support'],
+      finance_manager: ['dashboard', 'finance_management', 'rapports', 'support'],
+      sachets_manager: ['dashboard', 'sachets_management', 'support'],
+      poubelles_manager: ['dashboard', 'dechets_map', 'support'],
+      support: ['dashboard', 'support', 'abonne_list', 'abonne_detail', 'rapports'],
+      abonne: ['abonne_space', 'support'],
+      eboueur: ['eboueur_space', 'support']
     };
   });
   const [permissionsSuccess, setPermissionsSuccess] = useState(false);
@@ -130,7 +134,7 @@ export default function AdminSettingsView({
   // 4. Create Account State
   const [newAgentNom, setNewAgentNom] = useState('');
   const [newAgentPhone, setNewAgentPhone] = useState('');
-  const [newAgentRole, setNewAgentRole] = useState<'admin' | 'agent' | 'abonne' | 'eboueur'>('agent');
+  const [newAgentRole, setNewAgentRole] = useState<AgentRole>('agent');
   const [newAgentPassword, setNewAgentPassword] = useState('password');
   const [newAgentCapacite, setNewAgentCapacite] = useState<number>(6);
   const [accountSuccess, setAccountSuccess] = useState<string | null>(null);
@@ -313,9 +317,11 @@ export default function AdminSettingsView({
     { id: 'communes', label: 'Recensement (Communes & Avenues)', rolesAllowed: ['admin', 'agent'] },
     { id: 'abonne_list', label: 'Gestion des Abonnés', rolesAllowed: ['admin', 'agent'] },
     { id: 'commune_explorer', label: 'Explorateur de position GPS', rolesAllowed: ['admin', 'agent'] },
-    { id: 'dechets_map', label: 'Carte Poubelles & Éboueurs (Leaflet)', rolesAllowed: ['admin', 'agent', 'eboueur'] },
-    { id: 'rapports', label: 'Rapports & Graphiques D3', rolesAllowed: ['admin', 'agent'] },
-    { id: 'sachets_management', label: 'Gestion de Sachets Poubelles', rolesAllowed: ['admin', 'agent'] },
+    { id: 'dechets_map', label: 'Carte Poubelles & Éboueurs (Leaflet)', rolesAllowed: ['admin', 'agent', 'eboueur', 'poubelles_manager'] },
+    { id: 'rapports', label: 'Rapports & Graphiques D3', rolesAllowed: ['admin', 'agent', 'finance_manager'] },
+    { id: 'sachets_management', label: 'Gestion de Sachets Poubelles', rolesAllowed: ['admin', 'agent', 'sachets_manager'] },
+    { id: 'finance_management', label: 'Gestion Financière (Recettes & Dépenses)', rolesAllowed: ['admin', 'agent', 'finance_manager'] },
+    { id: 'support', label: 'Support & Assistance Client', rolesAllowed: ['admin', 'agent', 'support', 'finance_manager', 'sachets_manager', 'poubelles_manager'] },
     { id: 'abonne_space', label: 'Espace Abonné Exclusif', rolesAllowed: ['abonne'] },
     { id: 'eboueur_space', label: 'Espace Mission Éboueur Exclusif', rolesAllowed: ['eboueur'] },
     { id: 'admin_settings_screens', label: 'Paramètres: Options d\'Affichage / Rôles (Point 1)', rolesAllowed: ['admin'] },
@@ -413,22 +419,26 @@ export default function AdminSettingsView({
           <div className="overflow-x-auto mt-2 border border-outline-variant rounded-2xl" id="screens_table_wrapper">
             <table className="w-full text-left border-collapse text-xs" id="screens_table">
               <thead>
-                <tr className="bg-background border-b border-outline-variant text-on-surface-variant font-bold uppercase tracking-wider">
+                <tr className="bg-background border-b border-outline-variant text-on-surface-variant font-bold uppercase tracking-wider text-[11px]">
                   <th className="p-3.5 pl-4">Écran / Option de menu</th>
-                  <th className="p-3.5 text-center">Admin 👑</th>
-                  <th className="p-3.5 text-center">Agent 📋</th>
-                  <th className="p-3.5 text-center">Abonné 👤</th>
-                  <th className="p-3.5 text-center">Éboueur 🚚</th>
+                  <th className="p-3 text-center">Admin 👑</th>
+                  <th className="p-3 text-center">Agent 📋</th>
+                  <th className="p-3 text-center">Finance 💰</th>
+                  <th className="p-3 text-center">Sachets 🛍️</th>
+                  <th className="p-3 text-center">Poubelles 🗑️</th>
+                  <th className="p-3 text-center">Support 🎧</th>
+                  <th className="p-3 text-center">Abonné 👤</th>
+                  <th className="p-3 text-center">Éboueur 🚚</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/60">
                 {availableScreens.map((screen) => (
                   <tr key={screen.id} className="hover:bg-background/40 transition-colors">
-                    <td className="p-3.5 pl-4 font-semibold text-on-surface flex flex-col gap-0.5">
+                    <td className="p-3 pl-4 font-semibold text-on-surface flex flex-col gap-0.5">
                       <span>{screen.label}</span>
                       <span className="text-[10px] text-gray-500 font-mono font-medium">/{screen.id}</span>
                     </td>
-                    <td className="p-3.5 text-center">
+                    <td className="p-3 text-center">
                       <input 
                         type="checkbox"
                         checked={(rolePermissions['admin'] || []).includes(screen.id)}
@@ -436,7 +446,7 @@ export default function AdminSettingsView({
                         className="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary focus:ring-offset-0 cursor-pointer"
                       />
                     </td>
-                    <td className="p-3.5 text-center">
+                    <td className="p-3 text-center">
                       <input 
                         type="checkbox"
                         checked={(rolePermissions['agent'] || []).includes(screen.id)}
@@ -444,7 +454,39 @@ export default function AdminSettingsView({
                         className="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary focus:ring-offset-0 cursor-pointer"
                       />
                     </td>
-                    <td className="p-3.5 text-center">
+                    <td className="p-3 text-center">
+                      <input 
+                        type="checkbox"
+                        checked={(rolePermissions['finance_manager'] || []).includes(screen.id)}
+                        onChange={() => togglePermission('finance_manager', screen.id)}
+                        className="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary focus:ring-offset-0 cursor-pointer"
+                      />
+                    </td>
+                    <td className="p-3 text-center">
+                      <input 
+                        type="checkbox"
+                        checked={(rolePermissions['sachets_manager'] || []).includes(screen.id)}
+                        onChange={() => togglePermission('sachets_manager', screen.id)}
+                        className="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary focus:ring-offset-0 cursor-pointer"
+                      />
+                    </td>
+                    <td className="p-3 text-center">
+                      <input 
+                        type="checkbox"
+                        checked={(rolePermissions['poubelles_manager'] || []).includes(screen.id)}
+                        onChange={() => togglePermission('poubelles_manager', screen.id)}
+                        className="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary focus:ring-offset-0 cursor-pointer"
+                      />
+                    </td>
+                    <td className="p-3 text-center">
+                      <input 
+                        type="checkbox"
+                        checked={(rolePermissions['support'] || []).includes(screen.id)}
+                        onChange={() => togglePermission('support', screen.id)}
+                        className="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary focus:ring-offset-0 cursor-pointer"
+                      />
+                    </td>
+                    <td className="p-3 text-center">
                       <input 
                         type="checkbox"
                         checked={(rolePermissions['abonne'] || []).includes(screen.id)}
@@ -452,7 +494,7 @@ export default function AdminSettingsView({
                         className="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary focus:ring-offset-0 cursor-pointer"
                       />
                     </td>
-                    <td className="p-3.5 text-center">
+                    <td className="p-3 text-center">
                       <input 
                         type="checkbox"
                         checked={(rolePermissions['eboueur'] || []).includes(screen.id)}
@@ -676,6 +718,10 @@ export default function AdminSettingsView({
                 >
                   <option value="agent">Agent Recenseur 📋</option>
                   <option value="eboueur">Agent Éboueur (Chauffeur) 🚚</option>
+                  <option value="finance_manager">Responsable Gestion Financière 💰</option>
+                  <option value="sachets_manager">Responsable Gestion de Sachets 🛍️</option>
+                  <option value="poubelles_manager">Responsable Poubelles & Éboueurs 🗑️</option>
+                  <option value="support">Agent Support & Assistance 🎧</option>
                   <option value="abonne">Abonné (Bailleur) 👤</option>
                   <option value="admin">Administrateur Système 👑</option>
                 </select>
