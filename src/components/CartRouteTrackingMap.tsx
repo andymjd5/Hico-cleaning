@@ -36,9 +36,46 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
   const layerGroupRef = useRef<any>(null);
   const [isReady, setIsReady] = useState(false);
 
+  const [routePath, setRoutePath] = useState<[number, number][]>([]);
+
   // Compute live metrics (cart walking speed = 3.0 km/h)
   const distanceMeters = getDistanceMeters(collectorLat, collectorLng, targetLat, targetLng);
   const eta = calculateCartETA(distanceMeters, 3.0);
+
+  // Fetch real road route geometry following real street avenues (via OSRM)
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRealRoadRoute = async () => {
+      try {
+        const url = `https://router.project-osrm.org/route/v1/foot/${collectorLng},${collectorLat};${targetLng},${targetLat}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("OSRM route error");
+        const data = await res.json();
+        if (data.routes && data.routes[0] && data.routes[0].geometry?.coordinates) {
+          const coords: [number, number][] = data.routes[0].geometry.coordinates.map(
+            (pt: [number, number]) => [pt[1], pt[0]]
+          );
+          if (isMounted && coords.length > 0) {
+            setRoutePath(coords);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("OSRM routing fallback to orthogonal avenue geometry:", err);
+      }
+      // Orthogonal street fallback following street axes
+      if (isMounted) {
+        setRoutePath([
+          [collectorLat, collectorLng],
+          [collectorLat, targetLng],
+          [targetLat, targetLng]
+        ]);
+      }
+    };
+
+    fetchRealRoadRoute();
+    return () => { isMounted = false; };
+  }, [collectorLat, collectorLng, targetLat, targetLng]);
 
   // Initialize Leaflet Map
   useEffect(() => {
@@ -139,9 +176,13 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
     houseMarker.bindPopup(`<b>Destination: ${targetLabel}</b>`);
     houseMarker.addTo(group);
 
-    // 3. Draw Blue Route Line (Tracé en bleu)
+    // 3. Draw Blue Route Line following real avenues (Tracé en bleu)
+    const lineCoords = routePath.length > 0 
+      ? routePath 
+      : [[collectorLat, collectorLng], [collectorLat, targetLng], [targetLat, targetLng]];
+
     const polyline = window.L.polyline(
-      [[collectorLat, collectorLng], [targetLat, targetLng]],
+      lineCoords,
       {
         color: '#2563eb', // Vivid Blue
         weight: 5,
@@ -152,8 +193,8 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
     ).addTo(group);
 
     // Midpoint Tooltip
-    const midLat = (collectorLat + targetLat) / 2;
-    const midLng = (collectorLng + targetLng) / 2;
+    const midIndex = Math.floor(lineCoords.length / 2);
+    const tooltipPos = lineCoords[midIndex] || [(collectorLat + targetLat) / 2, (collectorLng + targetLng) / 2];
 
     const tooltip = window.L.tooltip({
       permanent: true,
@@ -167,20 +208,17 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
           <span style="color: #fbbf24;">⏱️ ${eta.formatted}</span>
         </div>
       `)
-      .setLatLng([midLat, midLng]);
+      .setLatLng(tooltipPos as [number, number]);
 
     group.addLayer(tooltip);
 
     // Fit map bounds smoothly
     try {
-      const bounds = window.L.latLngBounds([
-        [collectorLat, collectorLng],
-        [targetLat, targetLng]
-      ]);
+      const bounds = window.L.latLngBounds(lineCoords);
       map.fitBounds(bounds, { padding: [35, 35], maxZoom: 16 });
     } catch (_) {}
 
-  }, [isReady, collectorLat, collectorLng, targetLat, targetLng, collectorName, targetLabel, distanceMeters, eta.formatted]);
+  }, [isReady, collectorLat, collectorLng, targetLat, targetLng, collectorName, targetLabel, distanceMeters, eta.formatted, routePath]);
 
   return (
     <div className="flex flex-col gap-2 rounded-2xl overflow-hidden border border-blue-500/30 bg-slate-950 text-white shadow-xl relative">
