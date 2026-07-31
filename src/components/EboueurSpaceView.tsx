@@ -62,6 +62,8 @@ interface EboueurSpaceViewProps {
   currentUser?: any;
   allRawSignals?: PoubelleSignal[];
   allAgents?: any[];
+  activeTab?: 'missions' | 'carte' | 'historique' | 'profil';
+  onTabChange?: (tab: 'missions' | 'carte' | 'historique' | 'profil') => void;
 }
 
 function getDistanceMeters(lat1?: number | null, lon1?: number | null, lat2?: number | null, lon2?: number | null): number {
@@ -91,10 +93,14 @@ export default function EboueurSpaceView({
   onUnloadTruck,
   currentUser,
   allRawSignals = [],
-  allAgents = []
+  allAgents = [],
+  activeTab,
+  onTabChange
 }: EboueurSpaceViewProps) {
   const [showDebugConsole, setShowDebugConsole] = useState(true);
-  const [eboueurTab, setEboueurTab] = useState<'missions' | 'carte' | 'historique' | 'profil'>('missions');
+  const [internalTab, setInternalTab] = useState<'missions' | 'carte' | 'historique' | 'profil'>('missions');
+  const eboueurTab = activeTab || internalTab;
+  const setEboueurTab = onTabChange || setInternalTab;
   
   // Validation Proofs & Delivery State
   const [photosMap, setPhotosMap] = useState<Record<string, string>>({});
@@ -837,66 +843,6 @@ export default function EboueurSpaceView({
           </div>
         </div>
       )}
-
-      {/* Sticky Bottom Navigation Bar for Eboueur Space */}
-      <div className="sticky bottom-3 z-30 mt-6 bg-surface/90 backdrop-blur-md border border-outline-variant p-2 rounded-2xl shadow-2xl max-w-xl mx-auto flex items-center justify-around gap-1 sm:gap-2">
-        <button
-          onClick={() => setEboueurTab('missions')}
-          className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 sm:py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-            eboueurTab === 'missions'
-              ? 'bg-primary text-on-primary shadow-md'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-background/60'
-          }`}
-        >
-          <div className="relative flex items-center gap-1.5">
-            <Inbox size={18} />
-            {hasActiveMission && (
-              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
-                eboueurTab === 'missions' ? 'bg-white/25 text-white' : 'bg-secondary text-on-secondary'
-              }`}>
-                {assignedMissions.length}
-              </span>
-            )}
-          </div>
-          <span className="text-[11px] sm:text-xs">Missions</span>
-        </button>
-
-        <button
-          onClick={() => setEboueurTab('carte')}
-          className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 sm:py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-            eboueurTab === 'carte'
-              ? 'bg-primary text-on-primary shadow-md'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-background/60'
-          }`}
-        >
-          <Navigation size={18} />
-          <span className="text-[11px] sm:text-xs">Carte</span>
-        </button>
-
-        <button
-          onClick={() => setEboueurTab('historique')}
-          className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 sm:py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-            eboueurTab === 'historique'
-              ? 'bg-primary text-on-primary shadow-md'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-background/60'
-          }`}
-        >
-          <History size={18} />
-          <span className="text-[11px] sm:text-xs">Historique</span>
-        </button>
-
-        <button
-          onClick={() => setEboueurTab('profil')}
-          className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 sm:py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-            eboueurTab === 'profil'
-              ? 'bg-primary text-on-primary shadow-md'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-background/60'
-          }`}
-        >
-          <User size={18} />
-          <span className="text-[11px] sm:text-xs">Profil</span>
-        </button>
-      </div>
 
       {/* Photo Preview Modal */}
       {previewPhotoUrl && (

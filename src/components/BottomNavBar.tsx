@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Users, Trash2, Truck, User, Menu, CreditCard, Mail } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Trash2, Truck, User, Menu, CreditCard, Mail, Navigation, History } from 'lucide-react';
 import { Screen } from '../types';
 
 interface BottomNavBarProps {
@@ -9,6 +9,8 @@ interface BottomNavBarProps {
   unreadMessagesCount?: number;
   abonneSubTab?: 'signalement' | 'redevance' | 'inbox';
   onAbonneSubTabChange?: (subTab: 'signalement' | 'redevance' | 'inbox') => void;
+  eboueurSubTab?: 'missions' | 'carte' | 'historique';
+  onEboueurSubTabChange?: (subTab: 'missions' | 'carte' | 'historique') => void;
   onOpenMobileMenu?: () => void;
 }
 
@@ -20,6 +22,8 @@ export default function BottomNavBar({
   unreadMessagesCount = 0,
   abonneSubTab = 'signalement',
   onAbonneSubTabChange,
+  eboueurSubTab = 'missions',
+  onEboueurSubTabChange,
   onOpenMobileMenu
 }: BottomNavBarProps) {
   // Define tabs dynamically based on user role
@@ -34,7 +38,9 @@ export default function BottomNavBar({
     }
     if (userRole === 'eboueur') {
       return [
-        { id: 'eboueur_space' as Screen, label: 'Missions', icon: Truck },
+        { id: 'eboueur_missions', label: 'Missions', icon: Truck, eboueurSubTab: 'missions' as const },
+        { id: 'eboueur_carte', label: 'Carte', icon: Navigation, eboueurSubTab: 'carte' as const },
+        { id: 'eboueur_historique', label: 'Historique', icon: History, eboueurSubTab: 'historique' as const },
         { id: 'profil' as Screen, label: 'Profil', icon: User },
       ];
     }
@@ -52,6 +58,12 @@ export default function BottomNavBar({
     if (userRole === 'abonne') {
       if (tab.subTab) {
         return currentScreen === 'abonne_space' && abonneSubTab === tab.subTab;
+      }
+      return currentScreen === tab.id;
+    }
+    if (userRole === 'eboueur') {
+      if (tab.eboueurSubTab) {
+        return currentScreen === 'eboueur_space' && eboueurSubTab === tab.eboueurSubTab;
       }
       return currentScreen === tab.id;
     }
@@ -76,6 +88,9 @@ export default function BottomNavBar({
               } else if (tab.subTab) {
                 if (onAbonneSubTabChange) onAbonneSubTabChange(tab.subTab);
                 onScreenChange('abonne_space');
+              } else if (tab.eboueurSubTab) {
+                if (onEboueurSubTabChange) onEboueurSubTabChange(tab.eboueurSubTab);
+                onScreenChange('eboueur_space');
               } else {
                 onScreenChange(tab.id as Screen);
               }
