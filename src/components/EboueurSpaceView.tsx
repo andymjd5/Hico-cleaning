@@ -205,84 +205,7 @@ export default function EboueurSpaceView({
         </div>
       </header>
 
-      {/* Truck Capacity & Cargo Load Card */}
-      <div className="bg-surface border border-outline-variant rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5 flex-grow">
-          <div className="p-3 bg-secondary/15 text-secondary rounded-2xl shrink-0">
-            <Truck size={28} />
-          </div>
-          <div className="flex flex-col gap-1.5 flex-grow">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <span className="text-xs font-black text-on-surface uppercase tracking-wider">
-                Chargement du Camion : <span className="text-secondary font-mono font-bold text-sm">{currentLoad} / {maxCap} sachets</span>
-              </span>
-              <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
-                currentLoad >= maxCap 
-                  ? 'bg-rose-500/15 text-rose-400 border-rose-500/30 animate-pulse'
-                  : currentLoad >= maxCap * 0.7
-                    ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-              }`}>
-                {currentLoad >= maxCap 
-                  ? '🚨 CAMION PLEIN' 
-                  : `${freeSpace} place${freeSpace > 1 ? 's' : ''} libre${freeSpace > 1 ? 's' : ''}`
-                }
-              </span>
-            </div>
 
-            {/* Gauge progress bar */}
-            <div className="w-full h-3 bg-background border border-outline-variant/60 rounded-full overflow-hidden p-0.5">
-              <div 
-                className={`h-full rounded-full transition-all duration-500 ${
-                  currentLoad >= maxCap 
-                    ? 'bg-rose-500' 
-                    : currentLoad >= maxCap * 0.7 
-                      ? 'bg-amber-500' 
-                      : 'bg-emerald-500'
-                }`}
-                style={{ width: `${loadPercentage}%` }}
-              />
-            </div>
-
-            <p className="text-[11px] text-on-surface-variant font-medium leading-normal">
-              À chaque retrait effectué chez l'abonné, le camion enregistre 1 sachet collecté et lui remet 1 sachet de rechange neuf (décompté du stock communal).
-            </p>
-          </div>
-        </div>
-
-        {/* Dotation Sachets Neufs (Bio & Non-Bio) */}
-        <div className="bg-background/60 border border-outline-variant p-3.5 rounded-2xl flex flex-col gap-2 shrink-0 min-w-[200px]">
-          <span className="text-[10px] font-black uppercase tracking-wider text-secondary flex items-center gap-1">
-            <Package size={14} /> Stock Sachets Neufs en Camion
-          </span>
-          <div className="flex items-center gap-3 font-mono font-black text-xs">
-            <div className="flex flex-col">
-              <span className="text-[9px] text-emerald-400 uppercase font-bold">Bio (Vert)</span>
-              <span className="text-sm text-on-surface">{agentDotation?.biodegradable ?? 20} u</span>
-            </div>
-            <div className="border-l border-outline-variant h-6"></div>
-            <div className="flex flex-col">
-              <span className="text-[9px] text-indigo-400 uppercase font-bold">Non-Bio (Bleu)</span>
-              <span className="text-sm text-on-surface">{agentDotation?.non_biodegradable ?? 20} u</span>
-            </div>
-          </div>
-        </div>
-
-        {currentLoad > 0 && onUnloadTruck && (
-          <button
-            onClick={() => {
-              if (confirm(`Avez-vous déchargé les ${currentLoad} sachets de votre camion à la décharge principale ?`)) {
-                onUnloadTruck();
-              }
-            }}
-            className="shrink-0 min-h-[44px] px-4 py-2.5 bg-secondary/15 hover:bg-secondary/25 text-indigo-300 border border-secondary/30 rounded-2xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 shadow-sm"
-            title="Réinitialiser la charge après déchargement"
-          >
-            <RefreshCw size={15} />
-            <span>Décharger le camion (Vider) 🚚</span>
-          </button>
-        )}
-      </div>
 
       {/* Main dashboard panel: Active Mission vs History */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -595,10 +518,208 @@ export default function EboueurSpaceView({
               </div>
             )}
           </div>
+
+          {/* Carte Interactive de Suivi de Déplacement en Temps Réel (Placée juste sous la mission de collecte active) */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden text-slate-200 shadow-2xl font-sans mt-2">
+            {/* Header bar */}
+            <div className="p-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30">
+                  <Navigation size={20} className="animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+                    <span>Carte Interactive de Suivi & Itinéraire en Direct</span>
+                    <span className="text-[10px] bg-blue-500/20 text-blue-300 font-mono px-2.5 py-0.5 rounded-full border border-blue-500/30">
+                      GPS & Tracé Avenue 🛣️
+                    </span>
+                  </h4>
+                  <p className="text-xs text-slate-400 font-medium">
+                    Suivi cartographique du déplacement du chariot le long des avenues réelles vers la parcelle cible.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 text-xs font-bold rounded-full border border-emerald-500/20">
+                  <span className="w-2 h-2 bg-emerald-400 rounded-full animate-ping"></span>
+                  Position GPS Active
+                </span>
+              </div>
+            </div>
+
+            {/* Map Body */}
+            <div className="p-4 sm:p-5 flex flex-col gap-4">
+              {assignedMissions.length > 0 ? (
+                (() => {
+                  const activeMission = assignedMissions[0];
+                  const ebLat = currentEboueur.latitude ?? -4.3250;
+                  const ebLng = currentEboueur.longitude ?? 15.3100;
+                  const targetLat = activeMission.latitude ?? -4.3260;
+                  const targetLng = activeMission.longitude ?? 15.3120;
+
+                  return (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold text-slate-300 bg-slate-900/80 p-3 rounded-xl border border-slate-800 gap-2">
+                        <span className="flex items-center gap-1.5 text-blue-400 font-bold">
+                          <Truck size={16} />
+                          <span>Destination Actuelle : Parcelle N° {activeMission.numero_parcelle}, Av. {activeMission.avenue_nom}</span>
+                        </span>
+                        <span className="text-amber-400 font-mono font-bold">
+                          Bailleur : {activeMission.bailleur_nom || 'Bailleur'}
+                        </span>
+                      </div>
+
+                      <CartRouteTrackingMap 
+                        collectorLat={ebLat}
+                        collectorLng={ebLng}
+                        collectorName={currentEboueur.nom}
+                        targetLat={targetLat}
+                        targetLng={targetLng}
+                        targetLabel={`N° ${activeMission.numero_parcelle} Av. ${activeMission.avenue_nom}`}
+                        height="320px"
+                        showSimulateButton={true}
+                        onAdvanceStep={() => {
+                          const result = advancePositionTowardsTarget(
+                            ebLat,
+                            ebLng,
+                            targetLat,
+                            targetLng,
+                            10.0
+                          );
+                          if (onUpdateGpsCoords) {
+                            onUpdateGpsCoords(result.latitude, result.longitude);
+                          }
+                        }}
+                      />
+                    </div>
+                  );
+                })()
+              ) : (
+                (() => {
+                  const ebLat = currentEboueur.latitude ?? -4.3250;
+                  const ebLng = currentEboueur.longitude ?? 15.3100;
+                  const fallbackSignal = allRawSignals.find(s => s.status === 'pending' && s.latitude && s.longitude);
+                  const targetLat = fallbackSignal?.latitude ?? ebLat - 0.002;
+                  const targetLng = fallbackSignal?.longitude ?? ebLng + 0.003;
+                  const targetLabel = fallbackSignal ? `Parcelle N° ${fallbackSignal.numero_parcelle}, Av. ${fallbackSignal.avenue_nom}` : 'Zone d\'intervention Kinshasa';
+
+                  return (
+                    <div className="flex flex-col gap-3">
+                      <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs text-slate-300 flex items-center justify-between flex-wrap gap-2">
+                        <span className="text-slate-400 italic">
+                          Aucune mission actuellement assignée. La carte ci-dessous affiche votre position actuelle et la zone d'intervention.
+                        </span>
+                        <span className="text-emerald-400 font-bold font-mono">En attente de mission</span>
+                      </div>
+
+                      <CartRouteTrackingMap 
+                        collectorLat={ebLat}
+                        collectorLng={ebLng}
+                        collectorName={currentEboueur.nom}
+                        targetLat={targetLat}
+                        targetLng={targetLng}
+                        targetLabel={targetLabel}
+                        height="300px"
+                        showSimulateButton={false}
+                      />
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* History Panel (Right 1 column) */}
+        {/* History & Capacity Panel (Right 1 column) */}
         <div className="lg:col-span-1 flex flex-col gap-4">
+
+          {/* Truck Capacity & Cargo Load Card (Déplacé ici, juste avant le bloc d'historique) */}
+          <div className="bg-surface border border-outline-variant rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-secondary/15 text-secondary rounded-2xl shrink-0">
+                <Truck size={24} />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-black text-on-surface uppercase tracking-wider">
+                  Chargement du Véhicule
+                </span>
+                <span className="text-xs text-secondary font-mono font-bold">
+                  {currentLoad} / {maxCap} sachets collectés
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="text-on-surface-variant font-medium">Capacité actuelle :</span>
+                <span className={`font-extrabold px-2 py-0.5 rounded-full border ${
+                  currentLoad >= maxCap 
+                    ? 'bg-rose-500/15 text-rose-400 border-rose-500/30 animate-pulse'
+                    : currentLoad >= maxCap * 0.7
+                      ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                      : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                }`}>
+                  {currentLoad >= maxCap 
+                    ? '🚨 CAMION PLEIN' 
+                    : `${freeSpace} place${freeSpace > 1 ? 's' : ''} libre${freeSpace > 1 ? 's' : ''}`
+                  }
+                </span>
+              </div>
+
+              {/* Gauge progress bar */}
+              <div className="w-full h-3 bg-background border border-outline-variant/60 rounded-full overflow-hidden p-0.5">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    currentLoad >= maxCap 
+                      ? 'bg-rose-500' 
+                      : currentLoad >= maxCap * 0.7 
+                        ? 'bg-amber-500' 
+                        : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${loadPercentage}%` }}
+                />
+              </div>
+
+              <p className="text-[11px] text-on-surface-variant font-medium leading-normal mt-1">
+                À chaque retrait chez l'abonné, le camion enregistre 1 sachet collecté.
+              </p>
+            </div>
+
+            {/* Dotation Sachets Neufs (Bio & Non-Bio) */}
+            <div className="bg-background/60 border border-outline-variant p-3 rounded-xl flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-secondary flex items-center gap-1">
+                <Package size={13} /> Stock Sachets Neufs en Camion
+              </span>
+              <div className="flex items-center justify-around font-mono font-black text-xs">
+                <div className="flex flex-col items-center">
+                  <span className="text-[9px] text-emerald-400 uppercase font-bold">Bio (Vert)</span>
+                  <span className="text-sm text-on-surface">{agentDotation?.biodegradable ?? 20} u</span>
+                </div>
+                <div className="border-l border-outline-variant h-6"></div>
+                <div className="flex flex-col items-center">
+                  <span className="text-[9px] text-indigo-400 uppercase font-bold">Non-Bio (Bleu)</span>
+                  <span className="text-sm text-on-surface">{agentDotation?.non_biodegradable ?? 20} u</span>
+                </div>
+              </div>
+            </div>
+
+            {currentLoad > 0 && onUnloadTruck && (
+              <button
+                onClick={() => {
+                  if (confirm(`Avez-vous déchargé les ${currentLoad} sachets de votre camion à la décharge principale ?`)) {
+                    onUnloadTruck();
+                  }
+                }}
+                className="w-full min-h-[42px] px-4 py-2 bg-secondary/15 hover:bg-secondary/25 text-indigo-300 border border-secondary/30 rounded-xl font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                title="Réinitialiser la charge après déchargement"
+              >
+                <RefreshCw size={15} />
+                <span>Décharger le camion (Vider) 🚚</span>
+              </button>
+            )}
+          </div>
+
           <div className="bg-surface border border-outline-variant rounded-2xl p-4 sm:p-5 shadow-md flex-grow flex flex-col min-h-[320px] max-h-[500px]">
             <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface flex items-center gap-1.5 border-b border-outline-variant/30 pb-2 mb-3 select-none">
               <History size={15} className="text-secondary" />
@@ -694,116 +815,7 @@ export default function EboueurSpaceView({
         </div>
       )}
 
-      {/* Carte Interactive de Suivi de Déplacement en Temps Réel (Remplace la console de diagnostic) */}
-      <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden text-slate-200 shadow-2xl font-sans mt-4">
-        {/* Header bar */}
-        <div className="p-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30">
-              <Navigation size={20} className="animate-pulse" />
-            </div>
-            <div>
-              <h4 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
-                <span>Carte Interactive de Suivi & Itinéraire en Direct</span>
-                <span className="text-[10px] bg-blue-500/20 text-blue-300 font-mono px-2.5 py-0.5 rounded-full border border-blue-500/30">
-                  GPS & Tracé Avenue 🛣️
-                </span>
-              </h4>
-              <p className="text-xs text-slate-400 font-medium">
-                Suivi cartographique du déplacement du chariot le long des avenues réelles vers la parcelle cible.
-              </p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 text-xs font-bold rounded-full border border-emerald-500/20">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-ping"></span>
-              Position GPS Active
-            </span>
-          </div>
-        </div>
-
-        {/* Map Body */}
-        <div className="p-4 sm:p-5 flex flex-col gap-4">
-          {assignedMissions.length > 0 ? (
-            (() => {
-              const activeMission = assignedMissions[0];
-              const ebLat = currentEboueur.latitude ?? -4.3250;
-              const ebLng = currentEboueur.longitude ?? 15.3100;
-              const targetLat = activeMission.latitude ?? -4.3260;
-              const targetLng = activeMission.longitude ?? 15.3120;
-
-              return (
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold text-slate-300 bg-slate-900/80 p-3 rounded-xl border border-slate-800 gap-2">
-                    <span className="flex items-center gap-1.5 text-blue-400 font-bold">
-                      <Truck size={16} />
-                      <span>Destination Actuelle : Parcelle N° {activeMission.numero_parcelle}, Av. {activeMission.avenue_nom}</span>
-                    </span>
-                    <span className="text-amber-400 font-mono font-bold">
-                      Bailleur : {activeMission.bailleur_nom || 'Bailleur'}
-                    </span>
-                  </div>
-
-                  <CartRouteTrackingMap 
-                    collectorLat={ebLat}
-                    collectorLng={ebLng}
-                    collectorName={currentEboueur.nom}
-                    targetLat={targetLat}
-                    targetLng={targetLng}
-                    targetLabel={`N° ${activeMission.numero_parcelle} Av. ${activeMission.avenue_nom}`}
-                    height="320px"
-                    showSimulateButton={true}
-                    onAdvanceStep={() => {
-                      const result = advancePositionTowardsTarget(
-                        ebLat,
-                        ebLng,
-                        targetLat,
-                        targetLng,
-                        10.0
-                      );
-                      if (onUpdateGpsCoords) {
-                        onUpdateGpsCoords(result.latitude, result.longitude);
-                      }
-                    }}
-                  />
-                </div>
-              );
-            })()
-          ) : (
-            (() => {
-              const ebLat = currentEboueur.latitude ?? -4.3250;
-              const ebLng = currentEboueur.longitude ?? 15.3100;
-              const fallbackSignal = allRawSignals.find(s => s.status === 'pending' && s.latitude && s.longitude);
-              const targetLat = fallbackSignal?.latitude ?? ebLat - 0.002;
-              const targetLng = fallbackSignal?.longitude ?? ebLng + 0.003;
-              const targetLabel = fallbackSignal ? `Parcelle N° ${fallbackSignal.numero_parcelle}, Av. ${fallbackSignal.avenue_nom}` : 'Zone d\'intervention Kinshasa';
-
-              return (
-                <div className="flex flex-col gap-3">
-                  <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs text-slate-300 flex items-center justify-between flex-wrap gap-2">
-                    <span className="text-slate-400 italic">
-                      Aucune mission actuellement assignée. La carte ci-dessous affiche votre position actuelle et la zone d'intervention.
-                    </span>
-                    <span className="text-emerald-400 font-bold font-mono">En attente de mission</span>
-                  </div>
-
-                  <CartRouteTrackingMap 
-                    collectorLat={ebLat}
-                    collectorLng={ebLng}
-                    collectorName={currentEboueur.nom}
-                    targetLat={targetLat}
-                    targetLng={targetLng}
-                    targetLabel={targetLabel}
-                    height="300px"
-                    showSimulateButton={false}
-                  />
-                </div>
-              );
-            })()
-          )}
-        </div>
-      </div>
 
     </div>
   );
