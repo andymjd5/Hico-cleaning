@@ -375,6 +375,23 @@ export default function App() {
   const initialPollDoneRef = React.useRef(false);
   const appLoadTimeRef = React.useRef<number>(Date.now());
   const [activeNotification, setActiveNotification] = useState<PoubelleSignal | null>(null);
+  const [arrivalNotification, setArrivalNotification] = useState<{
+    signalId: string;
+    eboueurNom: string;
+    bailleurNom: string;
+    numeroParcelle: string;
+    avenueNom: string;
+    communeNom?: string;
+    distanceM: number;
+  } | null>(null);
+  const [completionNotification, setCompletionNotification] = useState<{
+    signalId: string;
+    eboueurNom: string;
+    bailleurNom: string;
+    numeroParcelle: string;
+    avenueNom: string;
+    communeNom?: string;
+  } | null>(null);
   const [hasNewSignals, setHasNewSignals] = useState(false);
   const [mapSelectedSignalId, setMapSelectedSignalId] = useState<string | null>(null);
 
@@ -2801,6 +2818,20 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       verified_at: new Date().toISOString()
     };
 
+    // Find signal info for completion popup
+    let bailleurNomVal = 'Bailleur';
+    let numParcelleVal = '';
+    let avNomVal = '';
+    let comNomVal = '';
+
+    const matchedSig = poubelleSignals.find(s => s.id === signalId);
+    if (matchedSig) {
+      bailleurNomVal = matchedSig.bailleur_nom || 'Bailleur';
+      numParcelleVal = matchedSig.numero_parcelle || '';
+      avNomVal = matchedSig.avenue_nom || '';
+      comNomVal = matchedSig.commune_nom || '';
+    }
+
     setPoubelleSignals(prev => prev.map(sig => {
       if (sig.id === signalId) {
         assignedEbId = sig.assigned_eboueur_id;
@@ -2830,6 +2861,19 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       const currentEb = eboueurs.find(e => e.telephone === currentUser?.telephone);
       if (currentEb) driverNom = currentEb.nom;
     }
+
+    // Trigger Mission Accomplie popup
+    setCompletionNotification({
+      signalId,
+      eboueurNom: driverNom,
+      bailleurNom: bailleurNomVal,
+      numeroParcelle: numParcelleVal,
+      avenueNom: avNomVal,
+      communeNom: comNomVal
+    });
+
+    // Clear arrival notification for this signal if active
+    setArrivalNotification(prev => prev?.signalId === signalId ? null : prev);
 
     // Auto distribute replacement sachets of that type during collection
     if (parcelleId && avenueId && communeId) {
@@ -3261,6 +3305,19 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     const currentEb = eboueurs.find(e => e.telephone === currentUser.telephone);
     const active = currentEb ? currentEb.gps_active : true;
     syncEboueurGpsToSupabase(currentUser.id, active, latitude, longitude);
+  };
+
+  const handleUpdateAnyEboueurPosition = (eboueurId: string, latitude: number, longitude: number) => {
+    setEboueurs(prev => prev.map(eb => {
+      if (eb.id === eboueurId || (eb.nom && eb.nom.toLowerCase().includes(eboueurId.toLowerCase()))) {
+        return {
+          ...eb,
+          latitude,
+          longitude
+        };
+      }
+      return eb;
+    }));
   };
 
   const handleSendInboxMessage = async (sender: string, content: string) => {
@@ -3933,6 +3990,10 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   onSimulateSignal={handleSimulateSignal}
                   initialSelectedSignalId={mapSelectedSignalId}
                   onSelectSignalId={setMapSelectedSignalId}
+                  onUpdateEboueurPosition={handleUpdateAnyEboueurPosition}
+                  onEboueurArrived={(info) => {
+                    setArrivalNotification(info);
+                  }}
                 />
               )}
 
@@ -4549,6 +4610,122 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
               </div>
             </div>
           )}
+
+          {/* Top-Right Native Notifications Container (Arrival & Completion Popups next to top bar) */}
+          <div className="fixed top-16 md:top-20 right-4 md:right-6 z-[9999] pointer-events-none flex flex-col gap-3 max-w-sm w-[calc(100vw-2rem)]">
+            {/* Arrival Notification (Blue / Amber) */}
+            {arrivalNotification && (
+              <div className="bg-slate-950/95 backdrop-blur-md border border-blue-500/50 rounded-2xl shadow-[0_12px_40px_rgba(59,130,246,0.35)] p-4 text-white z-[9999] animate-slide-in-down hover:scale-[1.02] transition-all duration-200 pointer-events-auto border-l-4 border-l-blue-500">
+                <div className="flex items-start gap-3">
+                  <div className="relative flex h-10 w-10 shrink-0 items-center justify-center bg-blue-600 rounded-xl shadow-lg border border-blue-400/30">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-60"></span>
+                    <MapPin size={20} className="animate-bounce text-white" />
+                  </div>
+
+                  <div className="flex-grow min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-400 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-ping"></span>
+                        📍 Éboueur Arrivé à l'adresse !
+                      </span>
+                      <button 
+                        onClick={() => setArrivalNotification(null)}
+                        className="text-white/70 hover:text-white hover:bg-white/10 p-1 rounded-full transition-all cursor-pointer"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    <p className="text-xs font-semibold leading-tight text-slate-100 mb-2">
+                      L'éboueur <strong className="text-blue-300 font-extrabold">{arrivalNotification.eboueurNom}</strong> est arrivé chez <strong className="text-amber-300 font-extrabold">{arrivalNotification.bailleurNom}</strong> !
+                    </p>
+
+                    <div className="bg-slate-900/90 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-slate-300 flex flex-col gap-0.5 mb-3 border border-blue-500/20">
+                      <div className="truncate">📍 <strong className="text-white">Parcelle:</strong> N° {arrivalNotification.numeroParcelle}</div>
+                      <div className="truncate">🛣️ <strong className="text-white">Avenue:</strong> {arrivalNotification.avenueNom}</div>
+                      {arrivalNotification.communeNom && <div className="truncate">🏢 <strong className="text-white">Commune:</strong> {arrivalNotification.communeNom}</div>}
+                      <div className="truncate text-amber-400 font-bold">📏 <strong className="text-white">Proximité:</strong> {arrivalNotification.distanceM} mètres (Arrivé)</div>
+                    </div>
+
+                    <div className="flex gap-2 justify-end items-center">
+                      <button
+                        onClick={() => setArrivalNotification(null)}
+                        className="px-3 py-1 bg-white/10 hover:bg-white/15 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all cursor-pointer"
+                      >
+                        Fermer
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCurrentScreen('dechets_map');
+                          setMapSelectedSignalId(arrivalNotification.signalId);
+                          setArrivalNotification(null);
+                        }}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold uppercase rounded-md tracking-wider transition-all flex items-center gap-1 shadow-md cursor-pointer active:scale-95"
+                      >
+                        <MapPin size={10} />
+                        Voir sur la carte 📍
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Completion Notification (Green / Emerald) */}
+            {completionNotification && (
+              <div className="bg-slate-950/95 backdrop-blur-md border border-emerald-500/50 rounded-2xl shadow-[0_12px_40px_rgba(16,185,129,0.35)] p-4 text-white z-[9999] animate-slide-in-down hover:scale-[1.02] transition-all duration-200 pointer-events-auto border-l-4 border-l-emerald-500">
+                <div className="flex items-start gap-3">
+                  <div className="relative flex h-10 w-10 shrink-0 items-center justify-center bg-emerald-600 rounded-xl shadow-lg border border-emerald-400/30">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
+                    <CheckCircle2 size={20} className="text-white animate-pulse" />
+                  </div>
+
+                  <div className="flex-grow min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping"></span>
+                        ✅ Mission Accomplie !
+                      </span>
+                      <button 
+                        onClick={() => setCompletionNotification(null)}
+                        className="text-white/70 hover:text-white hover:bg-white/10 p-1 rounded-full transition-all cursor-pointer"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    <p className="text-xs font-semibold leading-tight text-slate-100 mb-2">
+                      Collecte réalisée chez <strong className="text-amber-300 font-extrabold">{completionNotification.bailleurNom}</strong> par <strong className="text-emerald-300 font-extrabold">{completionNotification.eboueurNom}</strong> !
+                    </p>
+
+                    <div className="bg-slate-900/90 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-slate-300 flex flex-col gap-0.5 mb-3 border border-emerald-500/20">
+                      <div className="truncate">📍 <strong className="text-white">Parcelle:</strong> N° {completionNotification.numeroParcelle}</div>
+                      <div className="truncate">🛣️ <strong className="text-white">Avenue:</strong> {completionNotification.avenueNom}</div>
+                      <div className="truncate text-emerald-400 font-bold">♻️ <strong className="text-white">Statut:</strong> Poubelle vidée & sacs distribués</div>
+                    </div>
+
+                    <div className="flex gap-2 justify-end items-center">
+                      <button
+                        onClick={() => setCompletionNotification(null)}
+                        className="px-3 py-1 bg-white/10 hover:bg-white/15 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all cursor-pointer"
+                      >
+                        Fermer
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCurrentScreen('dechets_map');
+                          setCompletionNotification(null);
+                        }}
+                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase rounded-md tracking-wider transition-all flex items-center gap-1 shadow-md cursor-pointer active:scale-95"
+                      >
+                        Voir la carte 🗺️
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* ==================================== */}
           {/*   MODALS OVERLAYS (Ajout commune/av) */}

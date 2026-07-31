@@ -14,6 +14,11 @@ import {
   Abonne 
 } from '../types';
 import { 
+  getDistanceMeters, 
+  calculateCartETA, 
+  advancePositionTowardsTarget 
+} from '../lib/geoUtils';
+import { 
   Trash2, 
   MapPin, 
   Truck, 
@@ -48,7 +53,53 @@ interface DechetsMapViewProps {
   onSimulateSignal: (parcelleId: string, typePoubelle?: 'biodegradable' | 'non_biodegradable') => void;
   initialSelectedSignalId?: string | null;
   onSelectSignalId?: (id: string | null) => void;
+  onUpdateEboueurPosition?: (eboueurId: string, latitude: number, longitude: number) => void;
+  onEboueurArrived?: (info: {
+    signalId: string;
+    eboueurNom: string;
+    bailleurNom: string;
+    numeroParcelle: string;
+    avenueNom: string;
+    communeNom?: string;
+    distanceM: number;
+  }) => void;
 }
+
+// Kinshasa communes coordinates & strict bounding boxes dictionary for spatial calibration & map locking
+interface CommuneGeoConfig {
+  lat: number;
+  lng: number;
+  zoom: number;
+  sw: [number, number];
+  ne: [number, number];
+}
+
+const KINSHASA_COMMUNE_COORDS: Record<string, CommuneGeoConfig> = {
+  'bandalungwa': { lat: -4.3400, lng: 15.2850, zoom: 15, sw: [-4.3550, 15.2700], ne: [-4.3250, 15.3000] },
+  'barumbu': { lat: -4.3120, lng: 15.3180, zoom: 15, sw: [-4.3250, 15.3050], ne: [-4.2990, 15.3310] },
+  'bumbu': { lat: -4.3650, lng: 15.3000, zoom: 15, sw: [-4.3780, 15.2900], ne: [-4.3520, 15.3100] },
+  'gombe': { lat: -4.3050, lng: 15.3050, zoom: 15, sw: [-4.3200, 15.2850], ne: [-4.2900, 15.3250] },
+  'kalamu': { lat: -4.3450, lng: 15.3150, zoom: 15, sw: [-4.3600, 15.3000], ne: [-4.3300, 15.3300] },
+  'kasa-vubu': { lat: -4.3350, lng: 15.3050, zoom: 15, sw: [-4.3480, 15.2950], ne: [-4.3220, 15.3150] },
+  'kimbanseke': { lat: -4.4100, lng: 15.4200, zoom: 13, sw: [-4.4600, 15.3800], ne: [-4.3600, 15.4600] },
+  'kinshasa': { lat: -4.3250, lng: 15.3180, zoom: 15, sw: [-4.3380, 15.3080], ne: [-4.3120, 15.3280] },
+  'kintambo': { lat: -4.3250, lng: 15.2800, zoom: 15, sw: [-4.3380, 15.2680], ne: [-4.3120, 15.2920] },
+  'kisenso': { lat: -4.4050, lng: 15.3550, zoom: 14, sw: [-4.4300, 15.3350], ne: [-4.3800, 15.3750] },
+  'lemba': { lat: -4.3850, lng: 15.3350, zoom: 14, sw: [-4.4100, 15.3150], ne: [-4.3600, 15.3550] },
+  'limete': { lat: -4.3550, lng: 15.3450, zoom: 14, sw: [-4.3850, 15.3150], ne: [-4.3250, 15.3750] },
+  'lingwala': { lat: -4.3200, lng: 15.3050, zoom: 15, sw: [-4.3320, 15.2950], ne: [-4.3080, 15.3150] },
+  'makala': { lat: -4.3750, lng: 15.3100, zoom: 15, sw: [-4.3900, 15.2980], ne: [-4.3600, 15.3220] },
+  'maluku': { lat: -4.2500, lng: 15.6500, zoom: 11, sw: [-4.5000, 15.5000], ne: [-4.0000, 15.8000] },
+  'masina': { lat: -4.3700, lng: 15.3800, zoom: 13, sw: [-4.4100, 15.3500], ne: [-4.3300, 15.4200] },
+  'matete': { lat: -4.3800, lng: 15.3550, zoom: 15, sw: [-4.3950, 15.3420], ne: [-4.3650, 15.3680] },
+  'mont-ngafula': { lat: -4.4300, lng: 15.2800, zoom: 13, sw: [-4.5000, 15.2000], ne: [-4.3600, 15.3400] },
+  'ndjili': { lat: -4.3900, lng: 15.3850, zoom: 15, sw: [-4.4100, 15.3700], ne: [-4.3700, 15.4000] },
+  'ngaba': { lat: -4.3750, lng: 15.3250, zoom: 15, sw: [-4.3880, 15.3150], ne: [-4.3620, 15.3350] },
+  'ngaliema': { lat: -4.3600, lng: 15.2500, zoom: 14, sw: [-4.4000, 15.2100], ne: [-4.3200, 15.2900] },
+  'ngiri-ngiri': { lat: -4.3500, lng: 15.3000, zoom: 15, sw: [-4.3620, 15.2900], ne: [-4.3380, 15.3100] },
+  'nsele': { lat: -4.3200, lng: 15.5200, zoom: 12, sw: [-4.4500, 15.4300], ne: [-4.2000, 15.6100] },
+  'selembao': { lat: -4.3750, lng: 15.2850, zoom: 14, sw: [-4.4000, 15.2600], ne: [-4.3500, 15.3100] },
+};
 
 export default function DechetsMapView({
   signals,
@@ -60,14 +111,67 @@ export default function DechetsMapView({
   onAssignMission,
   onSimulateSignal,
   initialSelectedSignalId,
-  onSelectSignalId
+  onSelectSignalId,
+  onUpdateEboueurPosition,
+  onEboueurArrived
 }: DechetsMapViewProps) {
   const [selectedSignalId, setSelectedSignalIdState] = useState<string | null>(initialSelectedSignalId || null);
   const [selectedEboueurId, setSelectedEboueurId] = useState<string | null>(null);
   const [showAllParcelles, setShowAllParcelles] = useState<boolean>(false);
+  const [selectedCommuneFilter, setSelectedCommuneFilter] = useState<string>('');
+  const arrivedSignalsRef = useRef<Set<string>>(new Set());
   
   // Realtime clock tick to auto-hide validated houses after 5 minutes
   const [nowTick, setNowTick] = useState<number>(Date.now());
+
+  // Helper to resolve commune coordinates for calibration
+  const getCommuneCoords = (communeObj?: Commune | null) => {
+    if (!communeObj) return { lat: -4.3316, lng: 15.3139, zoom: 12 };
+
+    const nameKey = communeObj.nom.toLowerCase().trim().replace(/['\s_]+/g, '-');
+    for (const key in KINSHASA_COMMUNE_COORDS) {
+      if (nameKey.includes(key) || key.includes(nameKey)) {
+        return KINSHASA_COMMUNE_COORDS[key];
+      }
+    }
+
+    // Fallback: If parcelles in this commune have coordinates, calculate average
+    const communeAvenues = avenues.filter(a => a.commune_id === communeObj.id).map(a => a.id);
+    const communeParcelles = parcelles.filter(p => communeAvenues.includes(p.avenue_id) && p.latitude != null && p.longitude != null);
+    
+    if (communeParcelles.length > 0) {
+      const avgLat = communeParcelles.reduce((acc, p) => acc + (p.latitude || 0), 0) / communeParcelles.length;
+      const avgLng = communeParcelles.reduce((acc, p) => acc + (p.longitude || 0), 0) / communeParcelles.length;
+      return { lat: avgLat, lng: avgLng, zoom: 14 };
+    }
+
+    return { lat: -4.3316, lng: 15.3139, zoom: 12 };
+  };
+
+  // Helper to resolve strict commune bounding box for Leaflet boundary locking
+  const getCommuneBounds = (communeObj?: Commune | null) => {
+    if (!communeObj) return null;
+    const nameKey = communeObj.nom.toLowerCase().trim().replace(/['\s_]+/g, '-');
+    for (const key in KINSHASA_COMMUNE_COORDS) {
+      if (nameKey.includes(key) || key.includes(nameKey)) {
+        const cfg = KINSHASA_COMMUNE_COORDS[key];
+        return {
+          center: { lat: cfg.lat, lng: cfg.lng },
+          zoom: cfg.zoom,
+          sw: cfg.sw,
+          ne: cfg.ne
+        };
+      }
+    }
+
+    const coords = getCommuneCoords(communeObj);
+    return {
+      center: { lat: coords.lat, lng: coords.lng },
+      zoom: coords.zoom,
+      sw: [coords.lat - 0.015, coords.lng - 0.018] as [number, number],
+      ne: [coords.lat + 0.015, coords.lng + 0.018] as [number, number]
+    };
+  };
 
   // History Modal States
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -84,13 +188,20 @@ export default function DechetsMapView({
 
   // Compute signals that should be rendered on the interactive Leaflet map
   // Rules:
-  // 1. Always show active alerts ('pending' or 'assigned')
-  // 2. If completed, ONLY show if completed within the last 5 minutes (300,000 ms)
-  // 3. Always show if explicitly selected (e.g. localized by admin or clicked in history)
+  // 1. Filter by selectedCommuneFilter if set
+  // 2. Always show active alerts ('pending' or 'assigned')
+  // 3. If completed, ONLY show if completed within the last 5 minutes (300,000 ms)
+  // 4. Always show if explicitly selected (e.g. localized by admin or clicked in history)
   const visibleSignalsOnMap = useMemo(() => {
     const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
     return signals.filter((sig) => {
+      if (selectedCommuneFilter) {
+        const commObj = communes.find(c => c.id === selectedCommuneFilter);
+        const matchCommune = sig.commune_id === selectedCommuneFilter || (commObj && sig.commune_nom?.toLowerCase() === commObj.nom.toLowerCase());
+        if (!matchCommune && selectedSignalId !== sig.id) return false;
+      }
+
       if (selectedSignalId === sig.id) return true;
 
       if (sig.status === 'pending' || sig.status === 'assigned') return true;
@@ -105,7 +216,7 @@ export default function DechetsMapView({
 
       return false;
     });
-  }, [signals, selectedSignalId, nowTick]);
+  }, [signals, selectedSignalId, nowTick, selectedCommuneFilter, communes]);
 
   // Compute active/idle statuses dynamically from current active signals
   const computedEboueurs = useMemo(() => {
@@ -193,21 +304,31 @@ export default function DechetsMapView({
     return abonnes.find(a => a.parcelle_id === locParcelleId);
   }, [abonnes, locParcelleId]);
 
-  // Filter signals based on active tab
+  // Filter signals based on active tab & commune filter
   const filteredSignals = useMemo(() => {
-    if (activeTab === 'all') return signals;
-    return signals.filter(s => s.status === activeTab);
-  }, [signals, activeTab]);
+    let list = signals;
+    if (selectedCommuneFilter) {
+      const commObj = communes.find(c => c.id === selectedCommuneFilter);
+      list = list.filter(s => s.commune_id === selectedCommuneFilter || (commObj && s.commune_nom?.toLowerCase() === commObj.nom.toLowerCase()));
+    }
+    if (activeTab === 'all') return list;
+    return list.filter(s => s.status === activeTab);
+  }, [signals, activeTab, selectedCommuneFilter, communes]);
 
   // Selected signal details
   const selectedSignal = useMemo(() => {
     return signals.find(s => s.id === selectedSignalId);
   }, [signals, selectedSignalId]);
 
-  // Find parcels with GPS to plot on map
+  // Find parcels with GPS to plot on map (filtered by commune if active)
   const parcelGpsPoints = useMemo(() => {
-    return parcelles.filter(p => p.latitude != null && p.longitude != null);
-  }, [parcelles]);
+    let list = parcelles.filter(p => p.latitude != null && p.longitude != null);
+    if (selectedCommuneFilter) {
+      const communeAvenueIds = avenues.filter(a => a.commune_id === selectedCommuneFilter).map(a => a.id);
+      list = list.filter(p => communeAvenueIds.includes(p.avenue_id));
+    }
+    return list;
+  }, [parcelles, selectedCommuneFilter, avenues]);
 
   // Get coordinates for signals
   const getSignalCoords = (signal: PoubelleSignal) => {
@@ -264,7 +385,9 @@ export default function DechetsMapView({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markerGroupRef = useRef<any>(null);
+  const routeGroupRef = useRef<any>(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [isAutoMoving, setIsAutoMoving] = useState(false);
 
   // Initialize Map
   useEffect(() => {
@@ -402,8 +525,27 @@ export default function DechetsMapView({
       marker.addTo(markerGroup);
     });
 
-    // Plot Eboueurs (collectors)
-    computedEboueurs.filter(eb => eb.gps_active && eb.latitude != null && eb.longitude != null && !isNaN(eb.latitude) && !isNaN(eb.longitude)).forEach((eb) => {
+    // Plot Eboueurs (collectors) - filtered by commune if active
+    computedEboueurs
+      .filter(eb => eb.gps_active && eb.latitude != null && eb.longitude != null && !isNaN(eb.latitude) && !isNaN(eb.longitude))
+      .filter(eb => {
+        if (!selectedCommuneFilter) return true;
+        const commObj = communes.find(c => c.id === selectedCommuneFilter);
+        if (!commObj) return true;
+
+        const matchZone = eb.zone_id === selectedCommuneFilter || (eb.zone_nom && eb.zone_nom.toLowerCase().includes(commObj.nom.toLowerCase()));
+        const assignedInCommune = signals.some(s => s.assigned_eboueur_id === eb.id && (s.commune_id === selectedCommuneFilter || s.commune_nom?.toLowerCase() === commObj.nom.toLowerCase()));
+
+        const boundsInfo = getCommuneBounds(commObj);
+        let insideBounds = false;
+        if (boundsInfo && eb.latitude != null && eb.longitude != null) {
+          insideBounds = eb.latitude >= boundsInfo.sw[0] && eb.latitude <= boundsInfo.ne[0] &&
+                         eb.longitude >= boundsInfo.sw[1] && eb.longitude <= boundsInfo.ne[1];
+        }
+
+        return matchZone || assignedInCommune || insideBounds;
+      })
+      .forEach((eb) => {
       const isSelected = selectedEboueurId === eb.id;
       const isBusy = eb.status === 'en_mission';
       const cap = eb.capacite_camion || 6;
@@ -494,6 +636,142 @@ export default function DechetsMapView({
 
   }, [isMapReady, visibleSignalsOnMap, computedEboueurs, selectedSignalId, selectedEboueurId, showAllParcelles, parcelGpsPoints, abonnes, avenues, communes, nowTick]);
 
+  // Render Blue Polyline Routes & Live Distance/ETA Badges on Map
+  useEffect(() => {
+    if (!isMapReady || !mapRef.current || !window.L) return;
+
+    const map = mapRef.current;
+
+    if (!routeGroupRef.current) {
+      routeGroupRef.current = window.L.layerGroup().addTo(map);
+    } else {
+      routeGroupRef.current.clearLayers();
+    }
+
+    const routeGroup = routeGroupRef.current;
+
+    const routesToDraw: Array<{
+      eboueur: Eboueur;
+      signal: PoubelleSignal;
+      sigCoords: { lat: number; lng: number };
+    }> = [];
+
+    // Assigned signals
+    signals.forEach((sig) => {
+      if (sig.status === 'assigned' && sig.assigned_eboueur_id) {
+        const eb = computedEboueurs.find(e => 
+          e.id === sig.assigned_eboueur_id || 
+          (e.nom && e.nom.toLowerCase().includes(sig.assigned_eboueur_id!.toLowerCase()))
+        );
+        if (eb && eb.latitude != null && eb.longitude != null) {
+          const sigCoords = getSignalCoords(sig);
+          routesToDraw.push({ eboueur: eb, signal: sig, sigCoords });
+        }
+      }
+    });
+
+    // Selected signal pending
+    if (selectedSignalId) {
+      const selSig = signals.find(s => s.id === selectedSignalId);
+      if (selSig && selSig.status === 'pending') {
+        const sigCoords = getSignalCoords(selSig);
+        const nearestEb = nearestCollectors.find(e => e.hasSpace && e.latitude != null && e.longitude != null);
+        if (nearestEb) {
+          routesToDraw.push({ eboueur: nearestEb, signal: selSig, sigCoords });
+        }
+      }
+    }
+
+    routesToDraw.forEach(({ eboueur, signal, sigCoords }) => {
+      window.L.polyline(
+        [[eboueur.latitude, eboueur.longitude], [sigCoords.lat, sigCoords.lng]],
+        {
+          color: '#2563eb', // Royal Blue
+          weight: 6,
+          opacity: 0.85,
+          dashArray: '8, 8',
+          lineCap: 'round'
+        }
+      ).addTo(routeGroup);
+    });
+
+  }, [isMapReady, signals, computedEboueurs, selectedSignalId, nearestCollectors]);
+
+  // Live Auto-Movement Loop towards active signal target (3.0 km/h)
+  useEffect(() => {
+    if (!isAutoMoving) return;
+
+    const interval = setInterval(() => {
+      const activeSig = signals.find(s => s.status === 'assigned' && s.assigned_eboueur_id) || signals.find(s => s.id === selectedSignalId);
+      if (!activeSig) {
+        setIsAutoMoving(false);
+        return;
+      }
+
+      const assignedEb = computedEboueurs.find(e => 
+        e.id === activeSig.assigned_eboueur_id || 
+        (e.nom && activeSig.assigned_eboueur_id && e.nom.toLowerCase().includes(activeSig.assigned_eboueur_id.toLowerCase()))
+      ) || nearestCollectors[0] || computedEboueurs[0];
+
+      if (!assignedEb || assignedEb.latitude == null || assignedEb.longitude == null) {
+        setIsAutoMoving(false);
+        return;
+      }
+
+      const sigCoords = getSignalCoords(activeSig);
+      const res = advancePositionTowardsTarget(
+        assignedEb.latitude,
+        assignedEb.longitude,
+        sigCoords.lat,
+        sigCoords.lng,
+        8.0 // 8 meters advance per tick
+      );
+
+      if (onUpdateEboueurPosition) {
+        onUpdateEboueurPosition(assignedEb.id, res.latitude, res.longitude);
+      }
+
+      if (res.arrived) {
+        setIsAutoMoving(false);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isAutoMoving, signals, computedEboueurs, selectedSignalId, nearestCollectors, onUpdateEboueurPosition]);
+
+  // Proximity check effect: triggers arrival notification when eboueur is <= 15m from parcel
+  useEffect(() => {
+    const activeAssignedSig = (selectedSignalId ? signals.find(s => s.id === selectedSignalId && s.status === 'assigned') : null) 
+      || signals.find(s => s.status === 'assigned' && s.assigned_eboueur_id);
+
+    if (!activeAssignedSig) return;
+
+    const assignedEb = computedEboueurs.find(e => 
+      e.id === activeAssignedSig.assigned_eboueur_id || 
+      (e.nom && activeAssignedSig.assigned_eboueur_id && e.nom.toLowerCase().includes(activeAssignedSig.assigned_eboueur_id.toLowerCase()))
+    ) || nearestCollectors[0] || computedEboueurs[0];
+
+    if (!assignedEb || assignedEb.latitude == null || assignedEb.longitude == null) return;
+
+    const coords = getSignalCoords(activeAssignedSig);
+    const distM = getDistanceMeters(assignedEb.latitude, assignedEb.longitude, coords.lat, coords.lng);
+
+    if (distM <= 15 && !arrivedSignalsRef.current.has(activeAssignedSig.id)) {
+      arrivedSignalsRef.current.add(activeAssignedSig.id);
+      if (onEboueurArrived) {
+        onEboueurArrived({
+          signalId: activeAssignedSig.id,
+          eboueurNom: assignedEb.nom,
+          bailleurNom: activeAssignedSig.bailleur_nom || 'Bailleur',
+          numeroParcelle: activeAssignedSig.numero_parcelle,
+          avenueNom: activeAssignedSig.avenue_nom,
+          communeNom: activeAssignedSig.commune_nom,
+          distanceM: distM
+        });
+      }
+    }
+  }, [signals, computedEboueurs, selectedSignalId, nearestCollectors, onEboueurArrived]);
+
   // Center & fly map to selected items
   useEffect(() => {
     if (!isMapReady || !mapRef.current || !window.L) return;
@@ -517,6 +795,48 @@ export default function DechetsMapView({
       }
     }
   }, [selectedSignalId, selectedEboueurId, isMapReady]);
+
+  // Calibrate, restrict spatial bounds & lock zoom level when selectedCommuneFilter changes
+  useEffect(() => {
+    if (!isMapReady || !mapRef.current || !window.L) return;
+
+    const map = mapRef.current;
+
+    if (selectedCommuneFilter) {
+      const commObj = communes.find(c => c.id === selectedCommuneFilter);
+      const boundsInfo = getCommuneBounds(commObj);
+
+      if (boundsInfo) {
+        const leafletBounds = window.L.latLngBounds(boundsInfo.sw, boundsInfo.ne);
+
+        // Strict spatial boundary locking: user cannot drag/pan out of the commune
+        map.setMaxBounds(leafletBounds);
+        map.options.maxBoundsViscosity = 1.0;
+
+        // Strict zoom locking: user cannot zoom out to neighboring communes
+        map.setMinZoom(boundsInfo.zoom);
+        map.setMaxZoom(18);
+
+        // Fit map tightly to commune bounds
+        map.fitBounds(leafletBounds, {
+          animate: true,
+          padding: [15, 15]
+        });
+      }
+    } else {
+      // Global view: unlock spatial bounds and zoom
+      map.setMaxBounds(null);
+      map.setMinZoom(10);
+      map.setMaxZoom(18);
+
+      if (!selectedSignalId && !selectedEboueurId) {
+        map.flyTo([-4.3316, 15.3139], 12, {
+          animate: true,
+          duration: 1.5
+        });
+      }
+    }
+  }, [selectedCommuneFilter, isMapReady, communes]);
 
   const handleSimulate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -577,6 +897,64 @@ export default function DechetsMapView({
         {/* Column 1 & 2: Interactive Simulated Map */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           
+          {/* Commune Calibration & Filtering Control Box */}
+          <div className="bg-surface rounded-3xl border border-outline-variant p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-primary/15 text-primary border border-primary/20 shrink-0">
+                <Navigation size={20} className="animate-pulse" />
+              </div>
+              <div>
+                <label htmlFor="commune-calibrage-select" className="text-xs font-extrabold text-on-background uppercase tracking-wider block">
+                  Calibrage & Centrage par Commune
+                </label>
+                <p className="text-[11px] text-on-surface-variant font-medium">
+                  Sélectionnez une commune pour recadrer automatiquement la carte Leaflet et filtrer la zone d'intervention.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-grow sm:flex-grow-0 sm:w-64">
+                <select
+                  id="commune-calibrage-select"
+                  value={selectedCommuneFilter}
+                  onChange={(e) => {
+                    setSelectedCommuneFilter(e.target.value);
+                    setSelectedSignalId(null);
+                    setSelectedEboueurId(null);
+                  }}
+                  className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-xs font-bold text-on-background focus:outline-none focus:border-primary shadow-inner appearance-none cursor-pointer pr-8"
+                >
+                  <option value="">🌐 Toutes les communes (Kinshasa Global)</option>
+                  {communes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      📍 Commune de {c.nom}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant text-xs font-bold">
+                  ▼
+                </div>
+              </div>
+
+              {selectedCommuneFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCommuneFilter('');
+                    setSelectedSignalId(null);
+                    setSelectedEboueurId(null);
+                  }}
+                  className="bg-error/15 hover:bg-error/25 text-error border border-error/25 px-2.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1 cursor-pointer"
+                  title="Réinitialiser au cadrage global"
+                >
+                  <X size={14} />
+                  <span className="hidden sm:inline">Réinitialiser</span>
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="bg-surface rounded-3xl border border-outline-variant overflow-hidden shadow-lg flex flex-col h-[500px]">
             {/* Map Controls Header */}
             <div className="bg-background/80 px-4 py-3 border-b border-outline-variant flex justify-between items-center z-10 backdrop-blur-sm">
@@ -626,7 +1004,24 @@ export default function DechetsMapView({
                 style={{ zIndex: 1 }}
               />
 
+              {/* Calibration Active Badge on Map */}
+              {selectedCommuneFilter && (
+                <div className="absolute top-4 left-4 bg-background/95 border border-primary/40 px-3.5 py-2 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-2 text-xs font-extrabold text-primary backdrop-blur-md shadow-xl z-[500] animate-fade-in">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2.5 w-2.5 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+                    </span>
+                    <span>📍 Zone Exclusive : Commune de {communes.find(c => c.id === selectedCommuneFilter)?.nom || 'Sélectionnée'}</span>
+                  </div>
+                  <span className="text-[10px] font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-full border border-primary/20">
+                    🔒 Limites strictes verrouillées
+                  </span>
+                </div>
+              )}
+
               {/* Compass Calibration Helper Graphic overlay */}
+
               <div className="absolute bottom-4 right-4 bg-background/90 border border-outline-variant p-2.5 rounded-2xl flex items-center gap-2 text-[10px] font-mono font-bold text-on-surface-variant backdrop-blur-sm shadow-md z-[500]">
                 <Navigation size={14} className="text-secondary rotate-45 shrink-0" />
                 <span>Région Kinshasa (Données réelles OSM)</span>
@@ -1120,6 +1515,95 @@ export default function DechetsMapView({
               </div>
             )}
           </div>
+
+          {/* Live Blue Route Tracking & ETA Block (Shows when admin assigns an eboueur) */}
+          {(() => {
+            const activeAssignedSig = (selectedSignalId ? signals.find(s => s.id === selectedSignalId && s.status === 'assigned') : null) 
+              || signals.find(s => s.status === 'assigned' && s.assigned_eboueur_id);
+
+            if (!activeAssignedSig) return null;
+
+            const assignedEb = computedEboueurs.find(e => 
+              e.id === activeAssignedSig.assigned_eboueur_id || 
+              (e.nom && activeAssignedSig.assigned_eboueur_id && e.nom.toLowerCase().includes(activeAssignedSig.assigned_eboueur_id.toLowerCase()))
+            ) || nearestCollectors[0] || computedEboueurs[0];
+
+            if (!assignedEb || assignedEb.latitude == null || assignedEb.longitude == null) return null;
+
+            const coords = getSignalCoords(activeAssignedSig);
+            const distM = getDistanceMeters(assignedEb.latitude, assignedEb.longitude, coords.lat, coords.lng);
+            const eta = calculateCartETA(distM, 3.0);
+
+            return (
+              <div className="bg-slate-950 border border-blue-500/40 rounded-2xl p-3.5 text-white shadow-xl flex flex-col gap-2.5 animate-fade-in shrink-0">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="text-xs font-black uppercase text-blue-400 tracking-wider flex items-center gap-1.5">
+                    <Truck size={15} className="animate-bounce text-blue-400" />
+                    Suivi Tracé Bleu (Chariot 3.0 km/h)
+                  </span>
+                  <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold px-2 py-0.5 rounded-full">
+                    En direct GPS
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+                    <span className="text-[10px] text-slate-400 font-medium block">Éboueur assigné</span>
+                    <span className="font-extrabold text-white text-xs truncate block" title={assignedEb.nom}>{assignedEb.nom}</span>
+                  </div>
+                  <div className="bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+                    <span className="text-[10px] text-slate-400 font-medium block">Destination</span>
+                    <span className="font-extrabold text-amber-400 text-xs truncate block" title={`Parcelle N° ${activeAssignedSig.numero_parcelle}`}>
+                      Parcelle N° {activeAssignedSig.numero_parcelle}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-blue-950/40 border border-blue-800/40 p-2.5 rounded-xl flex items-center justify-between gap-2">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-blue-300 font-semibold">Distance & Arrivée</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-xs font-black font-mono text-amber-400">{distM} m</span>
+                      <span className="text-slate-500">•</span>
+                      <span className="text-xs font-black text-emerald-400">{eta.formatted}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const res = advancePositionTowardsTarget(
+                          assignedEb.latitude!,
+                          assignedEb.longitude!,
+                          coords.lat,
+                          coords.lng,
+                          8.0
+                        );
+                        if (onUpdateEboueurPosition) {
+                          onUpdateEboueurPosition(assignedEb.id, res.latitude, res.longitude);
+                        }
+                      }}
+                      className="px-2 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[11px] font-extrabold transition-all active:scale-95 shadow cursor-pointer flex items-center gap-0.5"
+                      title="Avancer l'éboueur de 8 mètres"
+                    >
+                      <span>🚶‍♂️ +8m</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsAutoMoving(!isAutoMoving)}
+                      className={`px-2 py-1.5 rounded-xl text-[11px] font-extrabold transition-all active:scale-95 shadow cursor-pointer flex items-center gap-0.5 ${
+                        isAutoMoving ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                      }`}
+                    >
+                      {isAutoMoving ? '⏸️ Pause' : '▶️ Auto'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Section B: Signal Logs / Mission Feed (Shows 10 most recent) */}
           <div className="bg-surface border border-outline-variant rounded-2xl flex flex-col h-[320px]">

@@ -4,6 +4,8 @@ import {
   PoubelleSignal,
   AgentDotation
 } from '../types';
+import { CartRouteTrackingMap } from './CartRouteTrackingMap';
+import { advancePositionTowardsTarget } from '../lib/geoUtils';
 import { 
   Truck, 
   MapPin, 
@@ -80,6 +82,7 @@ export default function EboueurSpaceView({
   completedMissions,
   agentDotation,
   onToggleGps,
+  onUpdateGpsCoords,
   onCompleteMission,
   onUnloadTruck,
   currentUser,
@@ -357,6 +360,32 @@ export default function EboueurSpaceView({
                         <Navigation size={14} className="rotate-45" /> En attente de passage
                       </span>
                     </div>
+
+                    {/* Live Cart Route Tracking Map & ETA */}
+                    {currentEboueur.latitude != null && currentEboueur.longitude != null && mission.latitude != null && mission.longitude != null && (
+                      <CartRouteTrackingMap 
+                        collectorLat={currentEboueur.latitude}
+                        collectorLng={currentEboueur.longitude}
+                        collectorName={currentEboueur.nom}
+                        targetLat={mission.latitude}
+                        targetLng={mission.longitude}
+                        targetLabel={`Parcelle N° ${mission.numero_parcelle}`}
+                        height="220px"
+                        showSimulateButton={true}
+                        onAdvanceStep={() => {
+                          const result = advancePositionTowardsTarget(
+                            currentEboueur.latitude,
+                            currentEboueur.longitude,
+                            mission.latitude,
+                            mission.longitude,
+                            8.0
+                          );
+                          if (onUpdateGpsCoords) {
+                            onUpdateGpsCoords(result.latitude, result.longitude);
+                          }
+                        }}
+                      />
+                    )}
 
                     {/* Verification & Proofs Block (Geofencing, Photo, Sachets) */}
                     {(() => {

@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { initiateMobileMoneyPayment, checkFlexPayStatus, detectOperatorFromPhone } from '../lib/flexpay';
 import { MPesaLogo, OrangeMoneyLogo, AirtelMoneyLogo, AfrimoneyLogo } from './OperatorLogos';
+import { CartRouteTrackingMap } from './CartRouteTrackingMap';
 
 interface AbonneSpaceViewProps {
   currentAbonne: Abonne;
@@ -553,6 +554,54 @@ export default function AbonneSpaceView({
               </button>
             </div>
           </div>
+
+          {/* Real-time GPS Tracking of Assigned Collector */}
+          {(() => {
+            const activeAssignedSig = (bioSignal?.status === 'assigned' ? bioSignal : null) || (nonBioSignal?.status === 'assigned' ? nonBioSignal : null);
+            if (!activeAssignedSig) return null;
+
+            const assignedEb = eboueurs.find(e => 
+              e.id === activeAssignedSig.assigned_eboueur_id || 
+              e.id === (activeAssignedSig as any).eboueur_assigne_id ||
+              (e.nom && activeAssignedSig.assigned_eboueur_id && e.nom.toLowerCase().includes(activeAssignedSig.assigned_eboueur_id.toLowerCase()))
+            ) || {
+              id: 'eb-default',
+              nom: 'Éboueur de Zone',
+              telephone: '0890000000',
+              latitude: currentParcelle.latitude ? currentParcelle.latitude + 0.0035 : -4.3316,
+              longitude: currentParcelle.longitude ? currentParcelle.longitude - 0.0025 : 15.3139,
+              status: 'en_mission' as const,
+              gps_active: true
+            };
+
+            const ebLat = assignedEb.latitude ?? (currentParcelle.latitude ? currentParcelle.latitude + 0.0035 : -4.3316);
+            const ebLng = assignedEb.longitude ?? (currentParcelle.longitude ? currentParcelle.longitude - 0.0025 : 15.3139);
+            const houseLat = currentParcelle.latitude ?? -4.3316;
+            const houseLng = currentParcelle.longitude ?? 15.3139;
+
+            return (
+              <div className="flex flex-col gap-3 mt-1 border-t border-outline-variant/40 pt-4 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase text-blue-400 tracking-wider flex items-center gap-2">
+                    <span>🚚 Suivi GPS du Déplacement de l'Éboueur</span>
+                  </h4>
+                  <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold px-2.5 py-0.5 rounded-full">
+                    En route vers votre parcelle
+                  </span>
+                </div>
+
+                <CartRouteTrackingMap 
+                  collectorLat={ebLat}
+                  collectorLng={ebLng}
+                  collectorName={assignedEb.nom}
+                  targetLat={houseLat}
+                  targetLng={houseLng}
+                  targetLabel={`Votre Parcelle N° ${currentParcelle.numero_parcelle}`}
+                  height="260px"
+                />
+              </div>
+            );
+          })()}
 
           {/* Verification & Proofs of Recent Pickups Section */}
           <div className="border-t border-outline-variant/40 pt-5 flex flex-col gap-4">
