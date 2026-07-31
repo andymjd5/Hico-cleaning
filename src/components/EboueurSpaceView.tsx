@@ -97,6 +97,7 @@ export default function EboueurSpaceView({
   const [sachetsNonBioMap, setSachetsNonBioMap] = useState<Record<string, number>>({});
   const [simulatedNearbyMap, setSimulatedNearbyMap] = useState<Record<string, boolean>>({});
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   const hasActiveMission = assignedMissions.length > 0;
 
@@ -107,7 +108,22 @@ export default function EboueurSpaceView({
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6 animate-fade-in text-on-background">
-      
+      {/* Local Success Notification Banner */}
+      {successBanner && (
+        <div className="bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 p-4 rounded-2xl flex items-center justify-between gap-3 text-xs font-semibold animate-slide-in-down shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 size={20} className="text-emerald-400 shrink-0" />
+            <span>{successBanner}</span>
+          </div>
+          <button 
+            onClick={() => setSuccessBanner(null)}
+            className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-[10px] font-bold uppercase rounded-lg border border-emerald-500/30 transition-all cursor-pointer shrink-0"
+          >
+            OK
+          </button>
+        </div>
+      )}
+
       {/* Welcome & GPS Status Card */}
       <header className="bg-surface border border-outline-variant rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl relative overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-r from-secondary/10 via-transparent to-primary/5 pointer-events-none" />
@@ -554,7 +570,7 @@ export default function EboueurSpaceView({
                                   verified_at: new Date().toISOString()
                                 }
                               });
-                              alert(`Félicitations ! Mission validée avec succès pour la parcelle N° ${mission.numero_parcelle}.\n\n- Localisation GPS authentifiée (${distM}m)\n- Preuve photo enregistrée\n- Sachets réarmés: ${bioQty} Bio / ${nonBioQty} Non-Bio`);
+                              setSuccessBanner(`Mission enregistrée avec succès pour la parcelle N° ${mission.numero_parcelle} (Avis transmis à la direction).`);
                             }}
                             className="w-full min-h-[46px] py-3 px-4 bg-[#10b981] hover:bg-[#10b981]/95 active:scale-[0.98] text-white font-black rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer mt-1"
                           >

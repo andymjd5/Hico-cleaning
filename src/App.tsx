@@ -482,6 +482,38 @@ export default function App() {
     }
   };
 
+  // 🪟 Trigger Native Windows / OS Taskbar Desktop Notification for Completed Mission
+  const triggerWindowsCompletionDesktopNotification = (info: {
+    eboueurNom: string;
+    bailleurNom: string;
+    numeroParcelle: string;
+    avenueNom: string;
+    communeNom?: string;
+  }) => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        const title = "✅ MISSION ACCOMPLIE - Hico Cleaning";
+        const body = `Collecte réalisée chez ${info.bailleurNom} par ${info.eboueurNom} !\n📍 ${info.communeNom || 'Zone'}, Ave. ${info.avenueNom} N°${info.numeroParcelle}\n♻️ Poubelle vidée & sachets de remplacement remis.`;
+        
+        try {
+          const notification = new Notification(title, {
+            body: body,
+            icon: "/pwa-192x192.png",
+            tag: `completion-${Date.now()}`,
+            requireInteraction: true
+          });
+
+          notification.onclick = () => {
+            window.focus();
+            notification.close();
+          };
+        } catch (err) {
+          console.warn("Windows desktop completion notification error:", err);
+        }
+      }
+    }
+  };
+
   // 🪟 Trigger Native Windows / OS Taskbar Desktop Notification
   const triggerWindowsDesktopNotification = (signal: PoubelleSignal) => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -526,6 +558,12 @@ export default function App() {
           triggerWindowsDesktopNotification(incomingSig);
           return [incomingSig, ...prev];
         });
+      } else if (event.data && event.data.type === 'MISSION_COMPLETED') {
+        const info = event.data.info;
+        if (info) {
+          setCompletionNotification(info);
+          triggerWindowsCompletionDesktopNotification(info);
+        }
       }
     };
     return () => {
@@ -2863,14 +2901,33 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     }
 
     // Trigger Mission Accomplie popup
-    setCompletionNotification({
+    const completionInfo = {
       signalId,
       eboueurNom: driverNom,
       bailleurNom: bailleurNomVal,
       numeroParcelle: numParcelleVal,
       avenueNom: avNomVal,
       communeNom: comNomVal
-    });
+    };
+
+    setCompletionNotification(completionInfo);
+
+    // Trigger Windows OS Taskbar notification if app is in background or another tab
+    triggerWindowsCompletionDesktopNotification(completionInfo);
+
+    // Broadcast completion event to other tabs (Admin Dashboard, Map view, etc.)
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('hico_realtime_signals');
+        bc.postMessage({
+          type: 'MISSION_COMPLETED',
+          info: completionInfo
+        });
+        bc.close();
+      } catch (err) {
+        console.warn("BroadcastChannel completion error:", err);
+      }
+    }
 
     // Clear arrival notification for this signal if active
     setArrivalNotification(prev => prev?.signalId === signalId ? null : prev);
@@ -4540,82 +4597,83 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
             </div>
           )}
 
-          {/* Real-time Notification Popup for Waste Signals (Alerte Poubelle Pleine) - ONLY ADMIN / DASHBOARD */}
-          {activeNotification && currentUser?.role !== 'abonne' && currentScreen !== 'abonne_space' && (currentUser?.role === 'admin' || currentScreen === 'dashboard') && (
-            <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 max-w-sm w-[calc(100vw-2rem)] bg-gradient-to-br from-red-600/95 to-red-950/95 backdrop-blur-md border border-red-500/30 rounded-2xl shadow-[0_12px_40px_rgba(239,68,68,0.35)] p-4 text-white z-50 animate-slide-in-up hover:scale-[1.02] transition-transform duration-200">
-              <div className="flex items-start gap-3">
-                {/* Flashing light icon */}
-                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center bg-red-600 rounded-xl shadow-lg border border-red-400/20">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60"></span>
-                  <Trash2 size={18} className="animate-bounce" />
-                </div>
-                
-                <div className="flex-grow min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-red-300 flex items-center gap-1 animate-pulse">
-                      <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-ping"></span>
-                      Alerte Poubelle Pleine !
-                    </span>
-                    <button 
-                      onClick={() => setActiveNotification(null)}
-                      className="text-white/70 hover:text-white hover:bg-white/10 p-1 rounded-full transition-all cursor-pointer"
-                    >
-                      <X size={14} />
-                    </button>
+          {/* Bottom-Right Floating System Notifications Container (Alerte Poubelle Pleine, Arrival & Completion Popups) */}
+          <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-[9999] pointer-events-none flex flex-col gap-3 max-w-sm w-[calc(100vw-2rem)]">
+            
+            {/* Real-time Notification Popup for Waste Signals (Alerte Poubelle Pleine) */}
+            {activeNotification && (
+              <div className="bg-gradient-to-br from-red-600/95 to-red-950/95 backdrop-blur-md border border-red-500/30 rounded-2xl shadow-[0_12px_40px_rgba(239,68,68,0.35)] p-4 text-white z-50 animate-slide-in-up hover:scale-[1.02] transition-transform duration-200 pointer-events-auto">
+                <div className="flex items-start gap-3">
+                  {/* Flashing light icon */}
+                  <div className="relative flex h-10 w-10 shrink-0 items-center justify-center bg-red-600 rounded-xl shadow-lg border border-red-400/20">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60"></span>
+                    <Trash2 size={18} className="animate-bounce" />
                   </div>
                   
-                  <p className="text-xs font-semibold leading-tight text-white mb-2 line-clamp-3">
-                    Une poubelle <span className="underline decoration-red-400 font-extrabold">{activeNotification.type_poubelle === 'biodegradable' ? 'biodégradable' : 'non-biodégradable'}</span> est signalée pleine par <span className="font-extrabold">{activeNotification.bailleur_nom}</span> !
-                  </p>
-                  
-                  <div className="bg-black/25 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-red-200 flex flex-col gap-0.5 mb-3 border border-red-500/10">
-                    <div className="truncate">📍 <strong className="text-white">Parcelle:</strong> N° {activeNotification.numero_parcelle}</div>
-                    <div className="truncate">🛣️ <strong className="text-white">Avenue:</strong> {activeNotification.avenue_nom}</div>
-                    <div className="truncate">🏢 <strong className="text-white">Commune:</strong> {activeNotification.commune_nom}</div>
-                  </div>
+                  <div className="flex-grow min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-red-300 flex items-center gap-1 animate-pulse">
+                        <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-ping"></span>
+                        Alerte Poubelle Pleine !
+                      </span>
+                      <button 
+                        onClick={() => setActiveNotification(null)}
+                        className="text-white/70 hover:text-white hover:bg-white/10 p-1 rounded-full transition-all cursor-pointer"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    
+                    <p className="text-xs font-semibold leading-tight text-white mb-2 line-clamp-3">
+                      Une poubelle <span className="underline decoration-red-400 font-extrabold">{activeNotification.type_poubelle === 'biodegradable' ? 'biodégradable' : 'non-biodégradable'}</span> est signalée pleine par <span className="font-extrabold">{activeNotification.bailleur_nom}</span> !
+                    </p>
+                    
+                    <div className="bg-black/25 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-red-200 flex flex-col gap-0.5 mb-3 border border-red-500/10">
+                      <div className="truncate">📍 <strong className="text-white">Parcelle:</strong> N° {activeNotification.numero_parcelle}</div>
+                      <div className="truncate">🛣️ <strong className="text-white">Avenue:</strong> {activeNotification.avenue_nom}</div>
+                      <div className="truncate">🏢 <strong className="text-white">Commune:</strong> {activeNotification.commune_nom}</div>
+                    </div>
 
-                  <div className="flex gap-2 justify-end items-center">
-                    <button
-                      type="button"
-                      onClick={() => playSignalAlertSound()}
-                      className="px-2.5 py-1 bg-red-800/80 hover:bg-red-700 text-red-100 border border-red-400/30 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all flex items-center gap-1 cursor-pointer active:scale-95"
-                      title="Tester l'alerte sonore"
-                    >
-                      <span>🔊 Son</span>
-                    </button>
-                    <button
-                      onClick={() => setActiveNotification(null)}
-                      className="px-3 py-1 bg-white/10 hover:bg-white/15 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all cursor-pointer"
-                    >
-                      Fermer
-                    </button>
-                    <button
-                      onClick={() => {
-                        // Switch to the map screen
-                        setCurrentScreen('dechets_map');
-                        // Center the map on this signal
-                        setMapSelectedSignalId(activeNotification.id);
-                        // Clear notification popup
-                        setActiveNotification(null);
-                        // Also clear the new signal indicator since we are navigating to see it
-                        setHasNewSignals(false);
-                      }}
-                      className="px-3 py-1 bg-white text-red-950 hover:bg-white/95 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all flex items-center gap-1 shadow-md cursor-pointer active:scale-95 duration-75"
-                    >
-                      <MapPin size={10} />
-                      Voir sur la carte 📍
-                    </button>
+                    <div className="flex gap-2 justify-end items-center">
+                      <button
+                        type="button"
+                        onClick={() => playSignalAlertSound()}
+                        className="px-2.5 py-1 bg-red-800/80 hover:bg-red-700 text-red-100 border border-red-400/30 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                        title="Tester l'alerte sonore"
+                      >
+                        <span>🔊 Son</span>
+                      </button>
+                      <button
+                        onClick={() => setActiveNotification(null)}
+                        className="px-3 py-1 bg-white/10 hover:bg-white/15 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all cursor-pointer"
+                      >
+                        Fermer
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Switch to the map screen
+                          setCurrentScreen('dechets_map');
+                          // Center the map on this signal
+                          setMapSelectedSignalId(activeNotification.id);
+                          // Clear notification popup
+                          setActiveNotification(null);
+                          // Also clear the new signal indicator since we are navigating to see it
+                          setHasNewSignals(false);
+                        }}
+                        className="px-3 py-1 bg-white text-red-950 hover:bg-white/95 text-[10px] font-bold uppercase rounded-md tracking-wider transition-all flex items-center gap-1 shadow-md cursor-pointer active:scale-95 duration-75"
+                      >
+                        <MapPin size={10} />
+                        Voir sur la carte 📍
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Top-Right Native Notifications Container (Arrival & Completion Popups next to top bar) */}
-          <div className="fixed top-16 md:top-20 right-4 md:right-6 z-[9999] pointer-events-none flex flex-col gap-3 max-w-sm w-[calc(100vw-2rem)]">
-            {/* Arrival Notification (Blue / Amber) */}
-            {arrivalNotification && (
-              <div className="bg-slate-950/95 backdrop-blur-md border border-blue-500/50 rounded-2xl shadow-[0_12px_40px_rgba(59,130,246,0.35)] p-4 text-white z-[9999] animate-slide-in-down hover:scale-[1.02] transition-all duration-200 pointer-events-auto border-l-4 border-l-blue-500">
+            {/* Arrival Notification (Blue / Amber) - ONLY FOR ADMIN / DASHBOARD */}
+            {arrivalNotification && currentUser?.role !== 'eboueur' && currentScreen !== 'eboueur_space' && (
+              <div className="bg-slate-950/95 backdrop-blur-md border border-blue-500/50 rounded-2xl shadow-[0_12px_40px_rgba(59,130,246,0.35)] p-4 text-white z-[9999] animate-slide-in-up hover:scale-[1.02] transition-all duration-200 pointer-events-auto border-l-4 border-l-blue-500">
                 <div className="flex items-start gap-3">
                   <div className="relative flex h-10 w-10 shrink-0 items-center justify-center bg-blue-600 rounded-xl shadow-lg border border-blue-400/30">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-60"></span>
@@ -4671,9 +4729,9 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
               </div>
             )}
 
-            {/* Completion Notification (Green / Emerald) */}
-            {completionNotification && (
-              <div className="bg-slate-950/95 backdrop-blur-md border border-emerald-500/50 rounded-2xl shadow-[0_12px_40px_rgba(16,185,129,0.35)] p-4 text-white z-[9999] animate-slide-in-down hover:scale-[1.02] transition-all duration-200 pointer-events-auto border-l-4 border-l-emerald-500">
+            {/* Completion Notification (Green / Emerald) - ONLY FOR ADMIN / DASHBOARD */}
+            {completionNotification && currentUser?.role !== 'eboueur' && currentScreen !== 'eboueur_space' && (
+              <div className="bg-slate-950/95 backdrop-blur-md border border-emerald-500/50 rounded-2xl shadow-[0_12px_40px_rgba(16,185,129,0.35)] p-4 text-white z-[9999] animate-slide-in-up hover:scale-[1.02] transition-all duration-200 pointer-events-auto border-l-4 border-l-emerald-500">
                 <div className="flex items-start gap-3">
                   <div className="relative flex h-10 w-10 shrink-0 items-center justify-center bg-emerald-600 rounded-xl shadow-lg border border-emerald-400/30">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
