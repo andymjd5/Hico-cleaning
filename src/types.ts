@@ -134,6 +134,8 @@ export interface Eboueur {
   gps_active: boolean;
   capacite_camion?: number; // Capacité max du camion en sachets (par défaut 6)
   charge_actuelle?: number;  // Nombre de sachets actuellement dans le camion
+  commune_nom?: string;
+  avenue_nom?: string;
 }
 
 export interface InboxMessage {
