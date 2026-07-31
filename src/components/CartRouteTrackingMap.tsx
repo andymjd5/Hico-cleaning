@@ -188,10 +188,19 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
 
     group.addLayer(tooltip);
 
-    // Fit map bounds smoothly
+    // Fit map bounds smoothly and apply strict bounded mission zone calibration
     try {
       const bounds = window.L.latLngBounds(lineCoords);
-      map.fitBounds(bounds, { padding: [35, 35], maxZoom: 16 });
+      const paddedBounds = bounds.pad(0.35); // 35% margin around mission path
+      
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
+      
+      // Strict Bounded Zone Calibration (No zooming out or dragging outside mission area)
+      map.setMaxBounds(paddedBounds);
+      
+      const boundsZoom = map.getBoundsZoom(paddedBounds, false);
+      const calculatedMinZoom = Math.max(14, boundsZoom - 1);
+      map.setMinZoom(calculatedMinZoom);
     } catch (_) {}
 
   }, [isReady, collectorLat, collectorLng, targetLat, targetLng, collectorName, targetLabel, distanceMeters, eta.formatted, routePath]);
@@ -199,14 +208,17 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
   return (
     <div className="flex flex-col gap-2 rounded-2xl overflow-hidden border border-blue-500/30 bg-slate-950 text-white shadow-xl relative">
       {/* Top Status Bar */}
-      <div className="bg-slate-900/90 px-3.5 py-2.5 border-b border-slate-800 flex items-center justify-between text-xs gap-2">
+      <div className="bg-slate-900/90 px-3.5 py-2.5 border-b border-slate-800 flex items-center justify-between text-xs gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-blue-500/20 text-blue-400 rounded-lg shrink-0">
+          <div className="p-1.5 bg-blue-500/20 text-blue-400 rounded-lg shrink-0 border border-blue-500/30">
             <Truck size={16} className="animate-pulse" />
           </div>
           <div className="flex flex-col">
-            <span className="font-extrabold text-blue-400 text-[11px] uppercase tracking-wider flex items-center gap-1">
-              Tracé Bleu & Suivi GPS en direct
+            <span className="font-extrabold text-blue-400 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+              <span>Tracé Bleu & Suivi GPS en direct</span>
+              <span className="text-[9px] bg-indigo-500/20 text-indigo-300 font-mono px-2 py-0.5 rounded-full border border-indigo-500/30 font-bold flex items-center gap-1">
+                🔒 Zone Restreinte Calibrée
+              </span>
             </span>
             <span className="text-[10px] text-slate-300">
               Vitesse calculée à pied (chariot lourd) : <strong>3.0 km/h</strong>
@@ -224,6 +236,12 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
             <span className="text-xs font-mono font-extrabold text-emerald-400">{eta.formatted}</span>
           </div>
         </div>
+      </div>
+
+      {/* Floating Mission Calibration Overlay Badge */}
+      <div className="absolute top-14 left-3 z-[1000] bg-slate-950/85 backdrop-blur-md text-slate-200 text-[10px] font-mono px-2.5 py-1 rounded-lg border border-blue-500/30 shadow-md flex items-center gap-1.5 pointer-events-none">
+        <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span>
+        <span>Carte Dédiée : Vue Fixée & Calibrée sur la Mission</span>
       </div>
 
       {/* Map Element */}

@@ -17,7 +17,8 @@ import {
   getDistanceMeters, 
   calculateCartETA, 
   advancePositionTowardsTarget,
-  fetchStreetRoute
+  fetchStreetRoute,
+  rankAndFilterCollectorsForSignal
 } from '../lib/geoUtils';
 import { 
   Trash2, 
@@ -353,35 +354,31 @@ export default function DechetsMapView({
     return parseFloat((d * 111.12).toFixed(2));
   };
 
-  // Find nearest collector for selected signal with capacity & proximity priority
-  const nearestCollectors = useMemo(() => {
+  // Find nearest collectors ranked by Same Commune + 3 Proximity Tiers + Load Balancing Queue Fairness
+  const rankedCollectorResults = useMemo(() => {
     if (!selectedSignal) return [];
     const signalCoords = getSignalCoords(selectedSignal);
     
-    return computedEboueurs
-      .filter(eb => eb.gps_active && eb.latitude != null && eb.longitude != null && !isNaN(eb.latitude) && !isNaN(eb.longitude))
-      .map(eb => {
-        const dist = calculateDistance(signalCoords.lat, signalCoords.lng, eb.latitude, eb.longitude);
-        const cap = eb.capacite_camion || 6;
-        const load = eb.charge_actuelle || 0;
-        const hasSpace = load < cap;
+    return rankAndFilterCollectorsForSignal(
+      signalCoords,
+      selectedSignal.commune_id,
+      selectedSignal.commune_nom,
+      computedEboueurs,
+      signals
+    );
+  }, [selectedSignal, computedEboueurs, signals]);
 
-        return {
-          ...eb,
-          distance: dist,
-          hasSpace,
-          freeSpace: Math.max(0, cap - load)
-        };
-      })
-      .sort((a, b) => {
-        // First priority: truck has available capacity
-        if (a.hasSpace !== b.hasSpace) {
-          return a.hasSpace ? -1 : 1;
-        }
-        // Second priority: proximity distance
-        return a.distance - b.distance;
-      });
-  }, [selectedSignal, computedEboueurs]);
+  // Backward-compatible array for maps and simulator loops
+  const nearestCollectors = useMemo(() => {
+    return rankedCollectorResults.map(res => ({
+      ...res.eboueur,
+      distance: res.distanceKm,
+      distanceMeters: res.distanceMeters,
+      hasSpace: res.hasSpace,
+      freeSpace: res.freeSpace,
+      matchResult: res
+    }));
+  }, [rankedCollectorResults]);
 
   // Map Leaflet implementation refs & states
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -1370,53 +1367,77 @@ export default function DechetsMapView({
                 {/* Dispatch & Closest Collector Section */}
                 {selectedSignal.status === 'pending' ? (
                   <div className="flex flex-col gap-3">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-secondary flex items-center gap-1.5">
-                      <Truck size={14} />
-                      Éboueurs géolocalisés à proximité
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-secondary flex items-center justify-between gap-1.5 flex-wrap">
+                      <span className="flex items-center gap-1.5">
+                        <Truck size={14} />
+                        Éboueurs Classés (Commune & Niveaux de Proximité)
+                      </span>
+                      <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-mono font-normal">
+                        Algorithme Équitable
+                      </span>
                     </h4>
 
-                    {nearestCollectors.length === 0 ? (
-                      <p className="text-xs text-on-surface-variant italic p-2 bg-background/50 rounded-lg text-center">
-                        Aucun éboueur n'a activé son GPS actuellement. Demandez aux agents d'activer leur traceur GPS.
+                    {rankedCollectorResults.length === 0 ? (
+                      <p className="text-xs text-on-surface-variant italic p-2.5 bg-background/50 rounded-lg text-center border border-outline-variant/40">
+                        Aucun éboueur n'a son GPS actif actuellement. Demandez aux éboueurs d'activer leur géolocalisation.
                       </p>
                     ) : (
-                      <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
-                        {nearestCollectors.map((eb) => {
+                      <div className="flex flex-col gap-2.5 max-h-60 overflow-y-auto pr-1">
+                        {rankedCollectorResults.map((res) => {
+                          const eb = res.eboueur;
                           const cap = eb.capacite_camion || 6;
                           const load = eb.charge_actuelle || 0;
-                          const isFull = load >= cap;
+                          const isFull = !res.hasSpace;
 
                           return (
                             <div 
                               key={eb.id}
-                              className={`p-2.5 border rounded-xl flex justify-between items-center bg-background/40 hover:bg-background/80 transition-colors cursor-pointer ${
-                                isFull ? 'border-red-500/30 bg-red-500/5' : eb.status === 'en_mission' ? 'opacity-85 border-outline-variant/60' : 'border-outline-variant'
+                              className={`p-3 border rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-background/40 hover:bg-background/80 transition-colors ${
+                                isFull ? 'border-red-500/30 bg-red-500/5' : eb.status === 'en_mission' ? 'border-amber-500/30 bg-amber-500/5' : 'border-outline-variant'
                               }`}
                             >
-                              <div className="flex flex-col gap-0.5">
-                                <span className="text-xs font-bold text-on-surface flex items-center gap-1">
-                                  {eb.nom}
-                                  {eb.status === 'en_mission' && (
-                                    <span className="text-[8px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1 rounded">
-                                      En route
-                                    </span>
-                                  )}
-                                  {isFull && (
-                                    <span className="text-[8px] bg-red-500/15 text-red-400 border border-red-500/30 px-1 rounded font-black">
-                                      Plein
-                                    </span>
-                                  )}
-                                </span>
-                                <span className="text-[10px] text-on-surface-variant flex items-center gap-1.5 flex-wrap">
-                                  <span>Distance : <strong className="text-secondary">{eb.distance} km</strong></span>
-                                  <span>•</span>
-                                  <span className={`font-mono font-bold ${isFull ? 'text-red-400' : 'text-emerald-400'}`}>
-                                    📦 {load}/{cap} {isFull ? '(Plein)' : `(${cap - load} libres)`}
+                              <div className="flex flex-col gap-1 w-full sm:w-auto">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-bold text-on-surface">
+                                    {eb.nom}
                                   </span>
-                                </span>
+
+                                  {/* Commune Badge */}
+                                  <span className={`text-[9px] px-2 py-0.5 rounded-full border font-bold font-mono ${
+                                    res.isSameCommune 
+                                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' 
+                                      : 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+                                  }`}>
+                                    {res.isSameCommune ? '📍 Même commune' : '📍 Zone voisine'}
+                                  </span>
+
+                                  {/* Proximity Tier Badge */}
+                                  <span className={`text-[9px] px-2 py-0.5 rounded-full border font-bold font-mono ${res.tierBadgeColor}`}>
+                                    {res.tierLabel}
+                                  </span>
+
+                                  {isFull && (
+                                    <span className="text-[9px] bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded-full font-black">
+                                      🚨 Plein ({load}/{cap})
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="text-[10px] text-on-surface-variant flex items-center gap-2 flex-wrap font-mono">
+                                  <span>Distance GPS : <strong className="text-secondary">{res.distanceKm} km ({res.distanceMeters} m)</strong></span>
+                                  <span>•</span>
+                                  <span className={isFull ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>
+                                    📦 Camion : {load}/{cap} {isFull ? '(Saturé)' : `(${res.freeSpace} places)`}
+                                  </span>
+                                  <span>•</span>
+                                  <span className="text-amber-300 font-semibold">
+                                    ⏳ File d'attente : {res.activeTaskCount} mission(s)
+                                  </span>
+                                </div>
                               </div>
 
                               <button
+                                type="button"
                                 onClick={() => {
                                   if (isFull) {
                                     alert(`🚨 CAPACITÉ SATURÉE !\n\nLe véhicule de M. ${eb.nom} est actuellement PLEIN (${load}/${cap} sachets chargés).\n\nL'éboueur doit d'abord décharger son camion au centre d'enfouissement avant de recevoir de nouvelles missions.`);
@@ -1426,14 +1447,14 @@ export default function DechetsMapView({
                                   setSelectedSignalId(null);
                                   alert(`Mission envoyée à l'éboueur ${eb.nom} ! Un SMS/Notification lui a été transmis.`);
                                 }}
-                                className={`px-2.5 py-1.5 font-extrabold text-[10px] rounded-lg shadow-sm flex items-center gap-1 cursor-pointer transition-all ${
+                                className={`w-full sm:w-auto px-3 py-2 font-extrabold text-[10px] rounded-lg shadow-sm flex items-center justify-center gap-1.5 cursor-pointer transition-all shrink-0 ${
                                   isFull 
                                     ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/40' 
                                     : 'bg-[#10b981] hover:bg-[#10b981]/90 text-white'
                                 }`}
                               >
-                                <Send size={10} />
-                                <span>Assigner</span>
+                                <Send size={12} />
+                                <span>Assigner Mission</span>
                               </button>
                             </div>
                           );
