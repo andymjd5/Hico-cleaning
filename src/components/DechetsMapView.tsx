@@ -16,7 +16,8 @@ import {
 import { 
   getDistanceMeters, 
   calculateCartETA, 
-  advancePositionTowardsTarget 
+  advancePositionTowardsTarget,
+  fetchStreetRoute
 } from '../lib/geoUtils';
 import { 
   Trash2, 
@@ -123,6 +124,7 @@ export default function DechetsMapView({
   
   // Realtime clock tick to auto-hide validated houses after 5 minutes
   const [nowTick, setNowTick] = useState<number>(Date.now());
+  const [routeGeometries, setRouteGeometries] = useState<Record<string, [number, number][]>>({});
 
   // Helper to resolve commune coordinates for calibration
   const getCommuneCoords = (communeObj?: Commune | null) => {
@@ -636,7 +638,7 @@ export default function DechetsMapView({
 
   }, [isMapReady, visibleSignalsOnMap, computedEboueurs, selectedSignalId, selectedEboueurId, showAllParcelles, parcelGpsPoints, abonnes, avenues, communes, nowTick]);
 
-  // Render Blue Polyline Routes & Live Distance/ETA Badges on Map
+  // Render Blue Polyline Routes & Live Distance/ETA Badges on Map (following real avenues)
   useEffect(() => {
     if (!isMapReady || !mapRef.current || !window.L) return;
 
@@ -651,6 +653,7 @@ export default function DechetsMapView({
     const routeGroup = routeGroupRef.current;
 
     const routesToDraw: Array<{
+      key: string;
       eboueur: Eboueur;
       signal: PoubelleSignal;
       sigCoords: { lat: number; lng: number };
@@ -665,7 +668,8 @@ export default function DechetsMapView({
         );
         if (eb && eb.latitude != null && eb.longitude != null) {
           const sigCoords = getSignalCoords(sig);
-          routesToDraw.push({ eboueur: eb, signal: sig, sigCoords });
+          const key = `${eb.id}_${sig.id}_${eb.latitude.toFixed(4)}_${eb.longitude.toFixed(4)}`;
+          routesToDraw.push({ key, eboueur: eb, signal: sig, sigCoords });
         }
       }
     });
@@ -676,15 +680,34 @@ export default function DechetsMapView({
       if (selSig && selSig.status === 'pending') {
         const sigCoords = getSignalCoords(selSig);
         const nearestEb = nearestCollectors.find(e => e.hasSpace && e.latitude != null && e.longitude != null);
-        if (nearestEb) {
-          routesToDraw.push({ eboueur: nearestEb, signal: selSig, sigCoords });
+        if (nearestEb && nearestEb.latitude != null && nearestEb.longitude != null) {
+          const key = `${nearestEb.id}_${selSig.id}_${nearestEb.latitude.toFixed(4)}_${nearestEb.longitude.toFixed(4)}`;
+          routesToDraw.push({ key, eboueur: nearestEb, signal: selSig, sigCoords });
         }
       }
     }
 
-    routesToDraw.forEach(({ eboueur, signal, sigCoords }) => {
+    // Trigger async fetch for missing street routes
+    routesToDraw.forEach(({ key, eboueur, sigCoords }) => {
+      if (!routeGeometries[key] && eboueur.latitude != null && eboueur.longitude != null) {
+        fetchStreetRoute(eboueur.latitude, eboueur.longitude, sigCoords.lat, sigCoords.lng).then((coords) => {
+          setRouteGeometries(prev => ({ ...prev, [key]: coords }));
+        });
+      }
+    });
+
+    // Draw polylines
+    routesToDraw.forEach(({ key, eboueur, sigCoords }) => {
+      if (eboueur.latitude == null || eboueur.longitude == null) return;
+
+      const path = routeGeometries[key] || [
+        [eboueur.latitude, eboueur.longitude],
+        [eboueur.latitude, sigCoords.lng],
+        [sigCoords.lat, sigCoords.lng]
+      ];
+
       window.L.polyline(
-        [[eboueur.latitude, eboueur.longitude], [sigCoords.lat, sigCoords.lng]],
+        path,
         {
           color: '#2563eb', // Royal Blue
           weight: 6,
@@ -695,7 +718,7 @@ export default function DechetsMapView({
       ).addTo(routeGroup);
     });
 
-  }, [isMapReady, signals, computedEboueurs, selectedSignalId, nearestCollectors]);
+  }, [isMapReady, signals, computedEboueurs, selectedSignalId, nearestCollectors, routeGeometries]);
 
   // Live Auto-Movement Loop towards active signal target (3.0 km/h)
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { getDistanceMeters, calculateCartETA } from '../lib/geoUtils';
+import { getDistanceMeters, calculateCartETA, fetchStreetRoute } from '../lib/geoUtils';
 import { Navigation, Truck, Home, Clock } from 'lucide-react';
 
 declare global {
@@ -42,38 +42,14 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
   const distanceMeters = getDistanceMeters(collectorLat, collectorLng, targetLat, targetLng);
   const eta = calculateCartETA(distanceMeters, 3.0);
 
-  // Fetch real road route geometry following real street avenues (via OSRM)
+  // Fetch real road route geometry following real street avenues
   useEffect(() => {
     let isMounted = true;
-    const fetchRealRoadRoute = async () => {
-      try {
-        const url = `https://router.project-osrm.org/route/v1/foot/${collectorLng},${collectorLat};${targetLng},${targetLat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("OSRM route error");
-        const data = await res.json();
-        if (data.routes && data.routes[0] && data.routes[0].geometry?.coordinates) {
-          const coords: [number, number][] = data.routes[0].geometry.coordinates.map(
-            (pt: [number, number]) => [pt[1], pt[0]]
-          );
-          if (isMounted && coords.length > 0) {
-            setRoutePath(coords);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn("OSRM routing fallback to orthogonal avenue geometry:", err);
-      }
-      // Orthogonal street fallback following street axes
+    fetchStreetRoute(collectorLat, collectorLng, targetLat, targetLng).then((coords) => {
       if (isMounted) {
-        setRoutePath([
-          [collectorLat, collectorLng],
-          [collectorLat, targetLng],
-          [targetLat, targetLng]
-        ]);
+        setRoutePath(coords);
       }
-    };
-
-    fetchRealRoadRoute();
+    });
     return () => { isMounted = false; };
   }, [collectorLat, collectorLng, targetLat, targetLng]);
 

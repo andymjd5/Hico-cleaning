@@ -107,3 +107,55 @@ export function advancePositionTowardsTarget(
     remainingDistance: remaining
   };
 }
+
+/**
+ * Fetches real street avenue road route geometry using OSRM foot routing, or falls back to multi-corner street avenues.
+ */
+export async function fetchStreetRoute(
+  startLat: number,
+  startLng: number,
+  endLat: number,
+  endLng: number
+): Promise<[number, number][]> {
+  if (Math.abs(startLat - endLat) < 0.00005 && Math.abs(startLng - endLng) < 0.00005) {
+    return [[startLat, startLng], [endLat, endLng]];
+  }
+
+  // Try OSRM route API (foot routing)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    const url = `https://router.project-osrm.org/route/v1/foot/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.routes && data.routes[0] && data.routes[0].geometry?.coordinates?.length > 0) {
+        const coords: [number, number][] = data.routes[0].geometry.coordinates.map(
+          (pt: [number, number]) => [pt[1], pt[0]]
+        );
+        if (coords.length > 1) {
+          return coords;
+        }
+      }
+    }
+  } catch (_) {
+    // Fallback if OSRM is unreachable or times out
+  }
+
+  // Orthogonal Street Grid Fallback following street axes/avenues instead of direct diagonal
+  // Create 3-corner avenue turn path
+  const midLng = startLng + (endLng - startLng) * 0.7;
+  const midLat = startLat + (endLat - startLat) * 0.85;
+
+  return [
+    [startLat, startLng],
+    [startLat, midLng],
+    [midLat, midLng],
+    [midLat, endLng],
+    [endLat, endLng]
+  ];
+}
+
