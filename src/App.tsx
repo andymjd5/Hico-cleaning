@@ -1350,16 +1350,27 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           .from('agents')
           .select('*');
         if (!agsError && ags) {
-          const rawMapped: Agent[] = ags.map((a: any) => ({
-            id: a.id,
-            nom: a.nom,
-            telephone: a.telephone,
-            role: a.role,
-            created_at: a.created_at,
-            password: a.password || '12345',
-            isTempPassword: a.isTempPassword ?? a.is_temp_password ?? (a.password === '12345'),
-            parcelle_id: a.parcelle_id || null
-          }));
+          const rawMapped: Agent[] = ags.map((a: any) => {
+            const pwd = a.password || '12345';
+            let isTemp = false;
+            if (a.is_temp_password !== undefined && a.is_temp_password !== null) {
+              isTemp = Boolean(a.is_temp_password);
+            } else if (a.isTempPassword !== undefined && a.isTempPassword !== null) {
+              isTemp = Boolean(a.isTempPassword);
+            } else {
+              isTemp = (pwd === '12345');
+            }
+            return {
+              id: a.id,
+              nom: a.nom,
+              telephone: a.telephone,
+              role: a.role,
+              created_at: a.created_at,
+              password: pwd,
+              isTempPassword: isTemp,
+              parcelle_id: a.parcelle_id || null
+            };
+          });
           const mergedAgents: Agent[] = rawMapped.filter(a => a.telephone !== '0891111111' && !a.nom.toLowerCase().includes('maj'));
           const hasAdmin = mergedAgents.some(a => a.role === 'admin' || a.id === 'admin-1' || a.telephone === '0600000000');
           if (!hasAdmin) {
@@ -1800,27 +1811,34 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     // Automatically register/update an Abonné agent account with default temporary password '12345'
     const cleanPhoneInput = (newAbonne.telephone_principal || '').replace(/\s+/g, '');
     if (cleanPhoneInput) {
-      const abonneAgent: Agent = {
-        id: 'abonne-' + newAbonne.id,
-        nom: newAbonne.nom_complet,
-        telephone: newAbonne.telephone_principal,
-        role: 'abonne',
-        parcelle_id: newParcelle.id,
-        created_at: new Date().toISOString(),
-        password: '12345',
-        isTempPassword: true
-      };
+      let abonneAgent: Agent;
+      const existingAgent = agents.find(a => (a.telephone || '').replace(/\s+/g, '') === cleanPhoneInput);
+
+      if (existingAgent) {
+        abonneAgent = {
+          ...existingAgent,
+          nom: newAbonne.nom_complet,
+          role: 'abonne',
+          parcelle_id: newParcelle.id
+        };
+      } else {
+        abonneAgent = {
+          id: 'abonne-' + newAbonne.id,
+          nom: newAbonne.nom_complet,
+          telephone: newAbonne.telephone_principal,
+          role: 'abonne',
+          parcelle_id: newParcelle.id,
+          created_at: new Date().toISOString(),
+          password: '12345',
+          isTempPassword: true
+        };
+      }
 
       setAgents(prev => {
         const existingIdx = prev.findIndex(a => (a.telephone || '').replace(/\s+/g, '') === cleanPhoneInput);
         if (existingIdx >= 0) {
           const copy = [...prev];
-          copy[existingIdx] = {
-            ...copy[existingIdx],
-            nom: newAbonne.nom_complet,
-            role: 'abonne',
-            parcelle_id: newParcelle.id
-          };
+          copy[existingIdx] = abonneAgent;
           return copy;
         }
         return [abonneAgent, ...prev];
@@ -1995,7 +2013,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {
-        const { error } = await supabase.from('agents').update(sanitizeAgentForDb(updatedAgent)).eq('id', updatedAgent.id);
+        const { error } = await supabase.from('agents').upsert([sanitizeAgentForDb(updatedAgent)]);
         if (error) throw error;
       } catch (err: any) {
         console.warn("Supabase agent update failed:", err);

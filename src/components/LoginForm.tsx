@@ -24,7 +24,16 @@ export default function LoginForm({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const cleanPhone = (val: string) => {
-    return val.replace(/\s+/g, '');
+    if (!val) return '';
+    let cleaned = val.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
+    if (cleaned.startsWith('+243')) {
+      cleaned = '0' + cleaned.substring(4);
+    } else if (cleaned.startsWith('00243')) {
+      cleaned = '0' + cleaned.substring(5);
+    } else if (cleaned.startsWith('243') && cleaned.length > 9) {
+      cleaned = '0' + cleaned.substring(3);
+    }
+    return cleaned;
   };
 
   const [isNewAccount, setIsNewAccount] = useState(false);
@@ -88,8 +97,8 @@ export default function LoginForm({
         return;
       }
 
-      // Check if this is first login or has an unchanged temporary password
-      if (found.isTempPassword && found.password === '12345') {
+      // Check if this is first login or has an active temporary password
+      if (found.isTempPassword) {
         setPendingFirstLoginAgent(found);
         setNewPersonalPass('');
         setConfirmPersonalPass('');
