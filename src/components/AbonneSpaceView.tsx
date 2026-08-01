@@ -83,6 +83,7 @@ export default function AbonneSpaceView({
   const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null);
   const [disputeModalSignalId, setDisputeModalSignalId] = useState<string | null>(null);
   const [disputeReasonText, setDisputeReasonText] = useState('');
+  const [showConfirmedHistory, setShowConfirmedHistory] = useState(false);
 
   useEffect(() => {
     if (activeTabProp) {
@@ -638,13 +639,18 @@ export default function AbonneSpaceView({
                 }
               });
 
-              const completedSignals = Array.from(uniqueSignalsMap.values()).sort((a, b) => {
+              const allCompletedSignals = Array.from(uniqueSignalsMap.values()).sort((a, b) => {
                 const timeA = new Date(a.completed_at || a.reported_at).getTime();
                 const timeB = new Date(b.completed_at || b.reported_at).getTime();
                 return timeB - timeA;
               });
-              
-              if (completedSignals.length === 0) {
+
+              const pendingSignals = allCompletedSignals.filter(s => s.confirmation_abonne !== 'confirme');
+              const confirmedSignals = allCompletedSignals.filter(s => s.confirmation_abonne === 'confirme');
+
+              const displayedSignals = showConfirmedHistory ? allCompletedSignals : pendingSignals;
+
+              if (allCompletedSignals.length === 0) {
                 return (
                   <div className="p-4 rounded-xl bg-background/30 border border-dashed border-outline-variant/40 text-center text-xs text-on-surface-variant italic">
                     Aucun historique de ramassage récent pour cette parcelle. Les preuves s'afficheront ici après le passage de l'éboueur.
@@ -652,9 +658,43 @@ export default function AbonneSpaceView({
                 );
               }
 
+              if (pendingSignals.length === 0 && !showConfirmedHistory) {
+                return (
+                  <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col items-center gap-2.5 text-center">
+                    <div className="flex items-center gap-2 text-emerald-400 font-extrabold text-xs">
+                      <CheckCircle2 size={18} />
+                      <span>Toutes vos attestations de passage et réceptions sont validées et transmises au support.</span>
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant max-w-md">
+                      Aucun ramassage en attente de validation. Dès qu'un éboueur effectuera une nouvelle collecte, sa preuve réapparaîtra ici.
+                    </p>
+                    {confirmedSignals.length > 0 && (
+                      <button
+                        onClick={() => setShowConfirmedHistory(true)}
+                        className="mt-1 text-[11px] text-secondary hover:underline font-bold cursor-pointer flex items-center gap-1.5"
+                      >
+                        <span>Voir l'historique des {confirmedSignals.length} ramassages déjà validés</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <div className="flex flex-col gap-3">
-                  {completedSignals.map((sig) => (
+                  {showConfirmedHistory && (
+                    <div className="flex justify-between items-center bg-surface/80 p-2.5 rounded-xl border border-outline-variant/40 text-xs">
+                      <span className="font-extrabold text-on-surface">Historique complet ({allCompletedSignals.length} ramassages)</span>
+                      <button
+                        onClick={() => setShowConfirmedHistory(false)}
+                        className="text-[11px] text-secondary hover:underline font-bold cursor-pointer"
+                      >
+                        Masquer les ramassages déjà validés
+                      </button>
+                    </div>
+                  )}
+
+                  {displayedSignals.map((sig) => (
                     <div key={sig.id} className="p-3.5 rounded-2xl bg-background/50 border border-outline-variant flex flex-col gap-2.5">
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                         <div className="flex items-center gap-2">
@@ -682,6 +722,7 @@ export default function AbonneSpaceView({
                               onClick={() => {
                                 if (onConfirmReception) {
                                   onConfirmReception(sig.id);
+                                  alert("✅ Confirmation enregistrée et transmise au support avec succès ! Le ramassage est désormais validé.");
                                 }
                               }}
                               className="text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-xl font-extrabold transition-all cursor-pointer flex items-center gap-1 shadow-sm active:scale-95"
