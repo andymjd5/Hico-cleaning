@@ -31,11 +31,16 @@ import {
   Package,
   AlertCircle,
   HelpCircle,
-  FileText
+  FileText,
+  Navigation,
+  Volume2,
+  Truck,
+  BellRing
 } from 'lucide-react';
 import { initiateMobileMoneyPayment, checkFlexPayStatus, detectOperatorFromPhone } from '../lib/flexpay';
 import { MPesaLogo, OrangeMoneyLogo, AirtelMoneyLogo, AfrimoneyLogo } from './OperatorLogos';
 import { CartRouteTrackingMap } from './CartRouteTrackingMap';
+import { getDistanceMeters, calculateCartETA, advancePositionTowardsTarget } from '../lib/geoUtils';
 
 interface AbonneSpaceViewProps {
   currentAbonne: Abonne;
@@ -54,7 +59,7 @@ interface AbonneSpaceViewProps {
   onSendMessage: (sender: string, content: string) => void;
   onRecordOnlinePayment?: (amount: number, provider: 'mpesa' | 'orange' | 'airtel' | 'afrimoney', phone: string) => void;
   onLogout?: () => void;
-  activeTab?: 'signalement' | 'redevance' | 'inbox';
+  activeTab?: 'signalement' | 'redevance' | 'carte' | 'inbox';
 }
 
 export default function AbonneSpaceView({
@@ -77,13 +82,52 @@ export default function AbonneSpaceView({
   activeTab: activeTabProp = 'signalement'
 }: AbonneSpaceViewProps) {
   // Navigation active tab for Subscriber interface
-  const [internalTab, setInternalTab] = useState<'signalement' | 'redevance' | 'inbox'>(activeTabProp);
+  const [internalTab, setInternalTab] = useState<'signalement' | 'redevance' | 'carte' | 'inbox'>(activeTabProp);
 
   // Photo Proof & Dispute Modals
   const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null);
   const [disputeModalSignalId, setDisputeModalSignalId] = useState<string | null>(null);
   const [disputeReasonText, setDisputeReasonText] = useState('');
   const [showConfirmedHistory, setShowConfirmedHistory] = useState(false);
+
+  // Live Map Simulation & Arrival Audio Alert States
+  const [simulatedPos, setSimulatedPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [arrivalAlertTriggered, setArrivalAlertTriggered] = useState(false);
+  const [hasPlayedSound, setHasPlayedSound] = useState(false);
+
+  // Web Audio Synthesizer for Collector Arrival Chime Alert
+  const playArrivalAlertSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+
+      const notes = [
+        { freq: 523.25, time: 0, duration: 0.3 },   // C5
+        { freq: 659.25, time: 0.2, duration: 0.3 }, // E5
+        { freq: 783.99, time: 0.4, duration: 0.4 }, // G5
+        { freq: 1046.50, time: 0.65, duration: 0.6 } // C6
+      ];
+
+      notes.forEach(({ freq, time, duration }) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + time);
+
+        gain.gain.setValueAtTime(0.4, ctx.currentTime + time);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + time + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(ctx.currentTime + time);
+        osc.stop(ctx.currentTime + time + duration + 0.05);
+      });
+    } catch (err) {
+      console.warn("Could not play arrival chime:", err);
+    }
+  };
 
   useEffect(() => {
     if (activeTabProp) {
@@ -106,6 +150,19 @@ export default function AbonneSpaceView({
   const nonBioSignal = useMemo(() => {
     return activeSignals.find(s => s.parcelle_id === currentParcelle.id && s.type_poubelle === 'non_biodegradable' && s.status !== 'completed');
   }, [activeSignals, currentParcelle]);
+
+  // Active Signal & Assigned Collector for Subscriber parcel
+  const activeSubscriberSignal = useMemo(() => {
+    return activeSignals.find(s => s.parcelle_id === currentParcelle.id && s.status !== 'completed');
+  }, [activeSignals, currentParcelle]);
+
+  const assignedCollectorObj = useMemo(() => {
+    if (!activeSubscriberSignal) return null;
+    if (activeSubscriberSignal.assigned_eboueur_id) {
+      return eboueurs.find(e => e.id === activeSubscriberSignal.assigned_eboueur_id) || null;
+    }
+    return null;
+  }, [activeSubscriberSignal, eboueurs]);
 
   // Households paid validation state
   // Stores household indexes (0-based) that are validated
@@ -306,6 +363,65 @@ export default function AbonneSpaceView({
           </div>
         </div>
       </header>
+
+      {/* Internal Subtab Selector Bar */}
+      <div className="flex items-center gap-1.5 p-1.5 bg-surface border border-outline-variant/60 rounded-2xl overflow-x-auto shadow-sm">
+        <button
+          onClick={() => setInternalTab('signalement')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+            activeTab === 'signalement'
+              ? 'bg-primary text-on-primary shadow-sm font-extrabold'
+              : 'text-on-surface-variant hover:bg-background/80 hover:text-on-surface'
+          }`}
+        >
+          <Trash2 size={15} />
+          <span>Signalement</span>
+        </button>
+
+        <button
+          onClick={() => setInternalTab('redevance')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+            activeTab === 'redevance'
+              ? 'bg-primary text-on-primary shadow-sm font-extrabold'
+              : 'text-on-surface-variant hover:bg-background/80 hover:text-on-surface'
+          }`}
+        >
+          <CreditCard size={15} />
+          <span>Redevance</span>
+        </button>
+
+        <button
+          onClick={() => setInternalTab('carte')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+            activeTab === 'carte'
+              ? 'bg-primary text-on-primary shadow-sm font-extrabold'
+              : 'text-on-surface-variant hover:bg-background/80 hover:text-on-surface'
+          }`}
+        >
+          <Navigation size={15} className="rotate-45" />
+          <span>Carte & Suivi</span>
+          {activeSubscriberSignal && (
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setInternalTab('inbox')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer relative ${
+            activeTab === 'inbox'
+              ? 'bg-primary text-on-primary shadow-sm font-extrabold'
+              : 'text-on-surface-variant hover:bg-background/80 hover:text-on-surface'
+          }`}
+        >
+          <Mail size={15} />
+          <span>Messages</span>
+          {unreadCount > 0 && (
+            <span className="px-1.5 py-0.5 text-[9px] font-extrabold bg-rose-500 text-white rounded-full">
+              {unreadCount}
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* TAB 1: SIGNALEMENT POUBELLES */}
       {activeTab === 'signalement' && (
@@ -906,6 +1022,169 @@ export default function AbonneSpaceView({
               <span>Payer l'abonnement ({totalAmountDue} {currencySymbol})</span>
             </button>
           </div>
+        </section>
+      )}
+
+      {/* TAB CARTE & SUIVI EBOUEUR */}
+      {activeTab === 'carte' && (
+        <section className="bg-surface border border-outline-variant rounded-2xl p-4 sm:p-6 shadow-md flex flex-col gap-5 animate-fade-in">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant/40 pb-4">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-base font-extrabold text-on-surface flex items-center gap-2">
+                <Navigation className="text-primary rotate-45" size={20} />
+                <span>Carte & Suivi du Déplacement de l'Éboueur en Direct</span>
+              </h3>
+              <p className="text-xs text-on-surface-variant font-medium">
+                Visualisez la position en temps réel de l'éboueur et l'itinéraire tracé en bleu vers votre parcelle (N° {currentParcelle.numero_parcelle}, Av. {avenue.nom}).
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                playArrivalAlertSound();
+                alert("🔔 Test du signal sonore d'arrivée effectué avec succès !");
+              }}
+              className="px-3.5 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer shrink-0 self-start sm:self-auto shadow-sm active:scale-95"
+            >
+              <Volume2 size={16} className="animate-pulse text-amber-400" />
+              <span>🔔 Tester l'Alerte Sonore</span>
+            </button>
+          </div>
+
+          {/* Collector Tracking Card & Map */}
+          {(() => {
+            const hasActiveMission = Boolean(activeSubscriberSignal);
+            const ebName = assignedCollectorObj?.nom || (activeSubscriberSignal ? "Éboueur de Zone Assigné" : "Éboueur de Zone");
+            
+            const targetLat = currentParcelle.latitude ?? -4.3316;
+            const targetLng = currentParcelle.longitude ?? 15.3139;
+
+            const baseEbLat = assignedCollectorObj?.latitude ?? (targetLat + 0.0035);
+            const baseEbLng = assignedCollectorObj?.longitude ?? (targetLng - 0.0025);
+
+            const ebLat = simulatedPos?.lat ?? baseEbLat;
+            const ebLng = simulatedPos?.lng ?? baseEbLng;
+
+            const currentDistM = getDistanceMeters(ebLat, ebLng, targetLat, targetLng);
+            const eta = calculateCartETA(currentDistM, 3.0);
+            const isArrivedOrNear = currentDistM <= 50 || arrivalAlertTriggered;
+
+            const handleAdvance = () => {
+              const res = advancePositionTowardsTarget(ebLat, ebLng, targetLat, targetLng, 12.0);
+              setSimulatedPos({ lat: res.latitude, lng: res.longitude });
+
+              if (res.remainingDistance <= 50 || res.arrived) {
+                setArrivalAlertTriggered(true);
+                if (!hasPlayedSound) {
+                  playArrivalAlertSound();
+                  setHasPlayedSound(true);
+                }
+              }
+            };
+
+            return (
+              <div className="flex flex-col gap-4">
+                {/* Arrival Sound Notification Banner if collector is nearby */}
+                {isArrivedOrNear && (
+                  <div className="bg-gradient-to-r from-amber-500/20 via-emerald-500/20 to-amber-500/20 border-2 border-amber-400 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg animate-pulse">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-amber-400 text-slate-950 rounded-full font-black text-lg shrink-0">
+                        🔔
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-black text-sm text-amber-300 uppercase tracking-wider">
+                          L'Éboueur arrive devant votre parcelle !
+                        </span>
+                        <span className="text-xs text-slate-200 font-medium">
+                          Signal sonore d'arrivée déclenché. Le chariot est à moins de 50 mètres de votre porte ({currentDistM}m). Veuillez préparer vos sachets.
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => playArrivalAlertSound()}
+                      className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl font-extrabold text-xs shadow cursor-pointer shrink-0 transition-all active:scale-95"
+                    >
+                      🔊 Rejouer le Son
+                    </button>
+                  </div>
+                )}
+
+                {/* Info Bar */}
+                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30 shrink-0">
+                      <Truck size={22} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-extrabold text-blue-400 flex items-center gap-2">
+                        <span>Éboueur : {ebName}</span>
+                        {hasActiveMission ? (
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-mono px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
+                            En Route
+                          </span>
+                        ) : (
+                          <span className="text-[10px] bg-slate-800 text-slate-400 font-mono px-2 py-0.5 rounded-full border border-slate-700">
+                            Mode démonstration
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs text-slate-300 font-medium mt-0.5">
+                        Destination : Parcelle N° {currentParcelle.numero_parcelle}, Av. {avenue.nom}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 bg-slate-950/80 px-4 py-2.5 rounded-xl border border-slate-800 shrink-0">
+                    <div className="flex flex-col items-end">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Distance</span>
+                      <span className="text-xs font-mono font-black text-amber-400">{currentDistM} m</span>
+                    </div>
+                    <div className="h-6 w-px bg-slate-800" />
+                    <div className="flex flex-col items-end">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Arrivée estimée</span>
+                      <span className="text-xs font-mono font-black text-emerald-400">{eta.formatted}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Leaflet Cart Route Map Component */}
+                <CartRouteTrackingMap
+                  collectorLat={ebLat}
+                  collectorLng={ebLng}
+                  collectorName={ebName}
+                  targetLat={targetLat}
+                  targetLng={targetLng}
+                  targetLabel={`Parcelle N° ${currentParcelle.numero_parcelle}`}
+                  height="420px"
+                  showSimulateButton={true}
+                  hasMission={true}
+                  onAdvanceStep={handleAdvance}
+                />
+
+                {/* Footer Controls & Instructions */}
+                <div className="bg-background/60 border border-outline-variant/60 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-on-surface-variant font-medium">
+                    <Info size={16} className="text-secondary shrink-0" />
+                    <span>
+                      Lorsque le chariot atteint moins de 50 mètres de votre parcelle, un signal sonore d'arrivée se déclenche automatiquement.
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAdvance}
+                    className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-extrabold text-xs shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 shrink-0"
+                  >
+                    <span>🚶‍♂️ Simuler Avancée Chariot (+12m)</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </section>
       )}
 

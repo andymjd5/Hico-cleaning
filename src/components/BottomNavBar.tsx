@@ -7,8 +7,8 @@ interface BottomNavBarProps {
   userRole?: 'admin' | 'agent' | 'abonne' | 'eboueur';
   hasNewSignals?: boolean;
   unreadMessagesCount?: number;
-  abonneSubTab?: 'signalement' | 'redevance' | 'inbox';
-  onAbonneSubTabChange?: (subTab: 'signalement' | 'redevance' | 'inbox') => void;
+  abonneSubTab?: 'signalement' | 'redevance' | 'carte' | 'inbox';
+  onAbonneSubTabChange?: (subTab: 'signalement' | 'redevance' | 'carte' | 'inbox') => void;
   eboueurSubTab?: 'missions' | 'carte' | 'historique';
   onEboueurSubTabChange?: (subTab: 'missions' | 'carte' | 'historique') => void;
   onOpenMobileMenu?: () => void;
@@ -32,6 +32,7 @@ export default function BottomNavBar({
       return [
         { id: 'abonne_signalement', label: 'Signalement', icon: Trash2, subTab: 'signalement' as const },
         { id: 'abonne_redevance', label: 'Redevance', icon: CreditCard, subTab: 'redevance' as const },
+        { id: 'abonne_carte', label: 'Carte', icon: Navigation, subTab: 'carte' as const },
         { id: 'abonne_inbox', label: 'Messages', icon: Mail, subTab: 'inbox' as const },
         { id: 'profil' as Screen, label: 'Profil', icon: User },
       ];

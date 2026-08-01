@@ -29,7 +29,7 @@ import FinanceManagementView from './components/FinanceManagementView';
 import SupportView from './components/SupportView';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info, Menu, CreditCard, Mail, Headphones } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info, Menu, CreditCard, Mail, Headphones, Navigation } from 'lucide-react';
 
 interface ToastItem {
   id: string;
@@ -173,7 +173,7 @@ export default function App() {
   // 3. Drill-down Context states
   const [selectedCommuneId, setSelectedCommuneId] = useState<string | null>(null);
   const [selectedAvenueObj, setSelectedAvenueObj] = useState<Avenue | null>(null);
-  const [abonneSubTab, setAbonneSubTab] = useState<'signalement' | 'redevance' | 'inbox'>('signalement');
+  const [abonneSubTab, setAbonneSubTab] = useState<'signalement' | 'redevance' | 'carte' | 'inbox'>('signalement');
   const [eboueurSubTab, setEboueurSubTab] = useState<'missions' | 'carte' | 'historique' | 'profil'>('missions');
 
   // 4. local DB states with automatic migration to clean production state
@@ -3738,6 +3738,18 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   </button>
 
                   <button 
+                    onClick={() => { setAbonneSubTab('carte'); setCurrentScreen('abonne_space'); }}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                      currentScreen === 'abonne_space' && abonneSubTab === 'carte'
+                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                    }`}
+                  >
+                    <Navigation size={18} />
+                    <span>Carte & Suivi Éboueur</span>
+                  </button>
+
+                  <button 
                     onClick={() => { setAbonneSubTab('inbox'); setCurrentScreen('abonne_space'); }}
                     className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
                       currentScreen === 'abonne_space' && abonneSubTab === 'inbox'
@@ -4501,6 +4513,16 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                       >
                         <CreditCard size={18} />
                         <span>Redevance de Salubrité</span>
+                      </button>
+
+                      <button 
+                        onClick={() => { setAbonneSubTab('carte'); setCurrentScreen('abonne_space'); setIsMobileMenuOpen(false); }}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                          currentScreen === 'abonne_space' && abonneSubTab === 'carte' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                        }`}
+                      >
+                        <Navigation size={18} />
+                        <span>Carte & Suivi Éboueur</span>
                       </button>
 
                       <button 
