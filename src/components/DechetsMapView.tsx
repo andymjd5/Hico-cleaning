@@ -1707,10 +1707,17 @@ export default function DechetsMapView({
                       onClick={() => {
                         setSelectedSignalId(sig.id);
                         setSelectedEboueurId(null);
+                        if (mapRef.current) {
+                          const coords = getSignalCoords(sig);
+                          mapRef.current.flyTo([coords.lat, coords.lng], 16, {
+                            animate: true,
+                            duration: 1.2
+                          });
+                        }
                       }}
                       className={`w-full p-2.5 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
                         selectedSignalId === sig.id 
-                          ? 'bg-secondary/10 border-secondary' 
+                          ? 'bg-secondary/15 border-secondary ring-1 ring-secondary/50 shadow-md' 
                           : 'bg-background/35 border-outline-variant/40 hover:bg-background/80'
                       }`}
                     >
@@ -1733,13 +1740,19 @@ export default function DechetsMapView({
                             {sig.reported_at.substring(11, 16)}
                           </span>
                         </div>
-                        <p className="text-[10px] text-on-surface-variant truncate">
-                          Bailleur : {sig.bailleur_nom} • {sig.commune_nom}
-                        </p>
                         
-                        <div className="mt-1 flex items-center justify-between text-[8px] font-extrabold uppercase">
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="text-[9px] px-1.5 py-0.5 bg-primary/15 text-primary border border-primary/25 font-extrabold rounded-md flex items-center gap-0.5">
+                            📍 {sig.commune_nom || 'Kinshasa'}
+                          </span>
+                          <span className="text-[10px] text-on-surface-variant truncate">
+                            Bailleur : <strong className="text-on-surface">{sig.bailleur_nom}</strong>
+                          </span>
+                        </div>
+                        
+                        <div className="mt-1.5 flex items-center justify-between text-[8px] font-extrabold uppercase">
                           <span className={`${isPending ? 'text-error' : isAssigned ? 'text-yellow-500' : 'text-[#10b981]'}`}>
-                            {isPending ? 'En attente' : isAssigned ? 'Assigné' : 'Terminé'}
+                            {isPending ? '🔴 En attente' : isAssigned ? '🟡 Assigné' : '🟢 Terminé'}
                           </span>
                           {isAssigned && (
                             <span className="text-on-surface-variant font-mono">
