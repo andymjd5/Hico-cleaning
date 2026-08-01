@@ -672,7 +672,16 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   reported_at: item.reported_at || item.created_at || new Date().toISOString(),
                   completed_at: item.completed_at || item.resolved_at || null,
                   type_poubelle: item.type_poubelle || 'biodegradable',
-                  is_hors_delai: item.is_hors_delai !== undefined ? item.is_hors_delai : (new Date(item.reported_at || item.created_at || new Date()).getHours() >= 13)
+                  is_hors_delai: item.is_hors_delai !== undefined ? item.is_hors_delai : (new Date(item.reported_at || item.created_at || new Date()).getHours() >= 13),
+                  confirmation_abonne: item.confirmation_abonne || 'en_attente',
+                  confirmation_date: item.confirmation_date || null,
+                  litige_abonne: Boolean(item.litige_abonne),
+                  litige_raison: item.litige_raison || null,
+                  litige_date: item.litige_date || null,
+                  photo_preuve_url: item.photo_preuve_url || null,
+                  gps_validation: item.gps_validation || null,
+                  sachets_remis_bio: item.sachets_remis_bio ?? null,
+                  sachets_remis_non_bio: item.sachets_remis_non_bio ?? null
                 };
 
                 updated = [formatted, ...updated];
@@ -682,14 +691,33 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   newestSig = formatted;
                 }
               } else {
-                // Keep local assignment and completion status intact
+                // Keep local assignment and completion status intact while syncing confirmation & proof data
                 const existingSig = updated[existsIndex];
+                const confAbonne = (item.confirmation_abonne && item.confirmation_abonne !== 'en_attente') ? item.confirmation_abonne : existingSig.confirmation_abonne;
+                const confDate = item.confirmation_date || existingSig.confirmation_date || null;
+                const isLitige = item.litige_abonne !== undefined ? Boolean(item.litige_abonne) : existingSig.litige_abonne;
+                const litigeRaison = item.litige_raison || existingSig.litige_raison || null;
+                const litigeDate = item.litige_date || existingSig.litige_date || null;
+                const photoUrl = item.photo_preuve_url || existingSig.photo_preuve_url || null;
+                const gpsVal = item.gps_validation || existingSig.gps_validation || null;
+                const sBio = item.sachets_remis_bio ?? existingSig.sachets_remis_bio ?? null;
+                const sNonBio = item.sachets_remis_non_bio ?? existingSig.sachets_remis_non_bio ?? null;
+
                 if (existingSig.status === 'completed') {
                   if (mappedStatus === 'completed') {
                     updated[existsIndex] = {
                       ...existingSig,
                       status: 'completed',
-                      completed_at: item.completed_at || item.resolved_at || existingSig.completed_at
+                      completed_at: item.completed_at || item.resolved_at || existingSig.completed_at,
+                      confirmation_abonne: confAbonne,
+                      confirmation_date: confDate,
+                      litige_abonne: isLitige,
+                      litige_raison: litigeRaison,
+                      litige_date: litigeDate,
+                      photo_preuve_url: photoUrl,
+                      gps_validation: gpsVal,
+                      sachets_remis_bio: sBio,
+                      sachets_remis_non_bio: sNonBio
                     };
                   } else {
                     // Auto-heal Supabase database record if remote statut is out of sync
@@ -700,7 +728,16 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                     updated[existsIndex] = {
                       ...existingSig,
                       status: 'completed',
-                      completed_at: item.completed_at || item.resolved_at || new Date().toISOString()
+                      completed_at: item.completed_at || item.resolved_at || new Date().toISOString(),
+                      confirmation_abonne: confAbonne,
+                      confirmation_date: confDate,
+                      litige_abonne: isLitige,
+                      litige_raison: litigeRaison,
+                      litige_date: litigeDate,
+                      photo_preuve_url: photoUrl,
+                      gps_validation: gpsVal,
+                      sachets_remis_bio: sBio,
+                      sachets_remis_non_bio: sNonBio
                     };
                   } else {
                     updated[existsIndex] = {
@@ -708,7 +745,16 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                       status: 'assigned',
                       assigned_eboueur_id: assignedEbId || existingSig.assigned_eboueur_id,
                       estimated_arrival_minutes: item.estimated_arrival_minutes || existingSig.estimated_arrival_minutes,
-                      eta_appointment_time: item.eta_appointment_time || existingSig.eta_appointment_time
+                      eta_appointment_time: item.eta_appointment_time || existingSig.eta_appointment_time,
+                      confirmation_abonne: confAbonne,
+                      confirmation_date: confDate,
+                      litige_abonne: isLitige,
+                      litige_raison: litigeRaison,
+                      litige_date: litigeDate,
+                      photo_preuve_url: photoUrl,
+                      gps_validation: gpsVal,
+                      sachets_remis_bio: sBio,
+                      sachets_remis_non_bio: sNonBio
                     };
                   }
                 } else {
@@ -717,7 +763,16 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                     status: mappedStatus,
                     assigned_eboueur_id: assignedEbId || existingSig.assigned_eboueur_id,
                     estimated_arrival_minutes: item.estimated_arrival_minutes || existingSig.estimated_arrival_minutes,
-                    eta_appointment_time: item.eta_appointment_time || existingSig.eta_appointment_time
+                    eta_appointment_time: item.eta_appointment_time || existingSig.eta_appointment_time,
+                    confirmation_abonne: confAbonne,
+                    confirmation_date: confDate,
+                    litige_abonne: isLitige,
+                    litige_raison: litigeRaison,
+                    litige_date: litigeDate,
+                    photo_preuve_url: photoUrl,
+                    gps_validation: gpsVal,
+                    sachets_remis_bio: sBio,
+                    sachets_remis_non_bio: sNonBio
                   };
                 }
               }
@@ -781,7 +836,16 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                 assigned_eboueur_id: newSig.assigned_eboueur_id || newSig.eboueur_assigne_id || null,
                 reported_at: newSig.reported_at || newSig.created_at || new Date().toISOString(),
                 completed_at: newSig.completed_at || newSig.resolved_at || null,
-                type_poubelle: newSig.type_poubelle || 'biodegradable'
+                type_poubelle: newSig.type_poubelle || 'biodegradable',
+                confirmation_abonne: newSig.confirmation_abonne || 'en_attente',
+                confirmation_date: newSig.confirmation_date || null,
+                litige_abonne: Boolean(newSig.litige_abonne),
+                litige_raison: newSig.litige_raison || null,
+                litige_date: newSig.litige_date || null,
+                photo_preuve_url: newSig.photo_preuve_url || null,
+                gps_validation: newSig.gps_validation || null,
+                sachets_remis_bio: newSig.sachets_remis_bio ?? null,
+                sachets_remis_non_bio: newSig.sachets_remis_non_bio ?? null
               };
 
               setActiveNotification(formattedSig);
@@ -812,7 +876,16 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                 assigned_eboueur_id: assignedEboueurId,
                 reported_at: reportedAt,
                 completed_at: completedAt,
-                type_poubelle: updatedSig.type_poubelle || s.type_poubelle || 'biodegradable'
+                type_poubelle: updatedSig.type_poubelle || s.type_poubelle || 'biodegradable',
+                confirmation_abonne: (updatedSig.confirmation_abonne && updatedSig.confirmation_abonne !== 'en_attente') ? updatedSig.confirmation_abonne : (s.confirmation_abonne || 'en_attente'),
+                confirmation_date: updatedSig.confirmation_date || s.confirmation_date || null,
+                litige_abonne: updatedSig.litige_abonne !== undefined ? Boolean(updatedSig.litige_abonne) : (s.litige_abonne || false),
+                litige_raison: updatedSig.litige_raison || s.litige_raison || null,
+                litige_date: updatedSig.litige_date || s.litige_date || null,
+                photo_preuve_url: updatedSig.photo_preuve_url || s.photo_preuve_url || null,
+                gps_validation: updatedSig.gps_validation || s.gps_validation || null,
+                sachets_remis_bio: updatedSig.sachets_remis_bio ?? s.sachets_remis_bio ?? null,
+                sachets_remis_non_bio: updatedSig.sachets_remis_non_bio ?? s.sachets_remis_non_bio ?? null
               };
             }));
           } else if (payload.eventType === 'DELETE') {
@@ -1447,7 +1520,16 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
               reported_at: s.reported_at || s.created_at || new Date().toISOString(),
               completed_at: s.completed_at || s.resolved_at || null,
               type_poubelle: s.type_poubelle || 'biodegradable',
-              is_hors_delai: s.is_hors_delai !== undefined ? s.is_hors_delai : (new Date(s.reported_at || s.created_at || new Date()).getHours() >= 13)
+              is_hors_delai: s.is_hors_delai !== undefined ? s.is_hors_delai : (new Date(s.reported_at || s.created_at || new Date()).getHours() >= 13),
+              confirmation_abonne: s.confirmation_abonne || 'en_attente',
+              confirmation_date: s.confirmation_date || null,
+              litige_abonne: Boolean(s.litige_abonne),
+              litige_raison: s.litige_raison || null,
+              litige_date: s.litige_date || null,
+              photo_preuve_url: s.photo_preuve_url || null,
+              gps_validation: s.gps_validation || null,
+              sachets_remis_bio: s.sachets_remis_bio ?? null,
+              sachets_remis_non_bio: s.sachets_remis_non_bio ?? null
             };
           });
 
@@ -1455,13 +1537,20 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           formatted.sort((a, b) => new Date(b.reported_at).getTime() - new Date(a.reported_at).getTime());
           
           setPoubelleSignals(prev => {
-            // Merge remote signals with local state to preserve assignments if remote sync was delayed
+            // Merge remote signals with local state to preserve assignments and confirmations if remote sync was delayed
             const remoteMap = new Map(formatted.map(f => [f.id, f]));
             const localIds = new Set(prev.map(p => p.id));
 
             const mergedPrev = prev.map(p => {
               const remote = remoteMap.get(p.id);
               if (!remote) return p;
+
+              const confAbonne = (p.confirmation_abonne && p.confirmation_abonne !== 'en_attente') ? p.confirmation_abonne : (remote.confirmation_abonne || 'en_attente');
+              const confDate = p.confirmation_date || remote.confirmation_date || null;
+              const isLitige = p.litige_abonne || remote.litige_abonne || false;
+              const litigeRaison = p.litige_raison || remote.litige_raison || null;
+              const litigeDate = p.litige_date || remote.litige_date || null;
+
               // If local status is completed, retain completed and sync Supabase if remote was out of sync
               if (p.status === 'completed') {
                 if (remote.status !== 'completed') {
@@ -1470,7 +1559,16 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                 return {
                   ...remote,
                   status: 'completed',
-                  completed_at: p.completed_at || remote.completed_at || new Date().toISOString()
+                  completed_at: p.completed_at || remote.completed_at || new Date().toISOString(),
+                  confirmation_abonne: confAbonne,
+                  confirmation_date: confDate,
+                  litige_abonne: isLitige,
+                  litige_raison: litigeRaison,
+                  litige_date: litigeDate,
+                  photo_preuve_url: p.photo_preuve_url || remote.photo_preuve_url || null,
+                  gps_validation: p.gps_validation || remote.gps_validation || null,
+                  sachets_remis_bio: p.sachets_remis_bio ?? remote.sachets_remis_bio ?? null,
+                  sachets_remis_non_bio: p.sachets_remis_non_bio ?? remote.sachets_remis_non_bio ?? null
                 };
               }
               // If local status is assigned and remote returned pending, retain local assigned status
@@ -1480,10 +1578,22 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   status: 'assigned',
                   assigned_eboueur_id: p.assigned_eboueur_id || remote.assigned_eboueur_id,
                   estimated_arrival_minutes: p.estimated_arrival_minutes || remote.estimated_arrival_minutes,
-                  eta_appointment_time: p.eta_appointment_time || remote.eta_appointment_time
+                  eta_appointment_time: p.eta_appointment_time || remote.eta_appointment_time,
+                  confirmation_abonne: confAbonne,
+                  confirmation_date: confDate,
+                  litige_abonne: isLitige,
+                  litige_raison: litigeRaison,
+                  litige_date: litigeDate
                 };
               }
-              return remote;
+              return {
+                ...remote,
+                confirmation_abonne: confAbonne,
+                confirmation_date: confDate,
+                litige_abonne: isLitige,
+                litige_raison: litigeRaison,
+                litige_date: litigeDate
+              };
             });
 
             const brandNewRemote = formatted.filter(f => !localIds.has(f.id));

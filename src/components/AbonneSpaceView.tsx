@@ -616,7 +616,33 @@ export default function AbonneSpaceView({
             </div>
 
             {(() => {
-              const completedSignals = activeSignals.filter(s => s.parcelle_id === currentParcelle.id && s.status === 'completed');
+              const rawFiltered = activeSignals.filter(s => 
+                s.status === 'completed' && 
+                (s.parcelle_id === currentParcelle.id || (currentAbonne?.telephone_principal && s.bailleur_telephone && s.bailleur_telephone.replace(/\s+/g, '') === currentAbonne.telephone_principal.replace(/\s+/g, '')))
+              );
+
+              // Deduplicate by signal ID to eliminate redundancy
+              const uniqueSignalsMap = new Map<string, PoubelleSignal>();
+              rawFiltered.forEach(s => {
+                const existing = uniqueSignalsMap.get(s.id);
+                if (!existing) {
+                  uniqueSignalsMap.set(s.id, s);
+                } else {
+                  uniqueSignalsMap.set(s.id, {
+                    ...existing,
+                    ...s,
+                    confirmation_abonne: (s.confirmation_abonne && s.confirmation_abonne !== 'en_attente') ? s.confirmation_abonne : existing.confirmation_abonne,
+                    litige_abonne: s.litige_abonne || existing.litige_abonne,
+                    photo_preuve_url: s.photo_preuve_url || existing.photo_preuve_url
+                  });
+                }
+              });
+
+              const completedSignals = Array.from(uniqueSignalsMap.values()).sort((a, b) => {
+                const timeA = new Date(a.completed_at || a.reported_at).getTime();
+                const timeB = new Date(b.completed_at || b.reported_at).getTime();
+                return timeB - timeA;
+              });
               
               if (completedSignals.length === 0) {
                 return (
