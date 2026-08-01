@@ -364,65 +364,6 @@ export default function AbonneSpaceView({
         </div>
       </header>
 
-      {/* Internal Subtab Selector Bar */}
-      <div className="flex items-center gap-1.5 p-1.5 bg-surface border border-outline-variant/60 rounded-2xl overflow-x-auto shadow-sm">
-        <button
-          onClick={() => setInternalTab('signalement')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-            activeTab === 'signalement'
-              ? 'bg-primary text-on-primary shadow-sm font-extrabold'
-              : 'text-on-surface-variant hover:bg-background/80 hover:text-on-surface'
-          }`}
-        >
-          <Trash2 size={15} />
-          <span>Signalement</span>
-        </button>
-
-        <button
-          onClick={() => setInternalTab('redevance')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-            activeTab === 'redevance'
-              ? 'bg-primary text-on-primary shadow-sm font-extrabold'
-              : 'text-on-surface-variant hover:bg-background/80 hover:text-on-surface'
-          }`}
-        >
-          <CreditCard size={15} />
-          <span>Redevance</span>
-        </button>
-
-        <button
-          onClick={() => setInternalTab('carte')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-            activeTab === 'carte'
-              ? 'bg-primary text-on-primary shadow-sm font-extrabold'
-              : 'text-on-surface-variant hover:bg-background/80 hover:text-on-surface'
-          }`}
-        >
-          <Navigation size={15} className="rotate-45" />
-          <span>Carte & Suivi</span>
-          {activeSubscriberSignal && (
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setInternalTab('inbox')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer relative ${
-            activeTab === 'inbox'
-              ? 'bg-primary text-on-primary shadow-sm font-extrabold'
-              : 'text-on-surface-variant hover:bg-background/80 hover:text-on-surface'
-          }`}
-        >
-          <Mail size={15} />
-          <span>Messages</span>
-          {unreadCount > 0 && (
-            <span className="px-1.5 py-0.5 text-[9px] font-extrabold bg-rose-500 text-white rounded-full">
-              {unreadCount}
-            </span>
-          )}
-        </button>
-      </div>
-
       {/* TAB 1: SIGNALEMENT POUBELLES */}
       {activeTab === 'signalement' && (
         <section className="bg-surface border border-outline-variant rounded-2xl p-5 md:p-6 shadow-md flex flex-col gap-6 animate-fade-in">
