@@ -119,19 +119,51 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
 
     const group = layerGroupRef.current;
 
+    // Helper to calculate dynamic sizing based on zoom level so elements fit within street width
+    const getZoomScaleParams = (zoom: number) => {
+      if (zoom >= 18) {
+        return {
+          iconPx: 20,
+          fontSizePx: 10,
+          pingSize: 'h-5 w-5',
+          strokeWeight: 3,
+          dashArray: '4, 4'
+        };
+      } else if (zoom === 17) {
+        return {
+          iconPx: 24,
+          fontSizePx: 12,
+          pingSize: 'h-6 w-6',
+          strokeWeight: 4,
+          dashArray: '6, 6'
+        };
+      } else {
+        return {
+          iconPx: 32,
+          fontSizePx: 14,
+          pingSize: 'h-8 w-8',
+          strokeWeight: 5,
+          dashArray: '8, 8'
+        };
+      }
+    };
+
+    const currentZoom = map.getZoom() || 15;
+    const scale = getZoomScaleParams(currentZoom);
+
     // 1. Collector Marker 🚚
     const collectorIcon = window.L.divIcon({
       className: 'custom-leaflet-marker',
       html: `
         <div class="relative flex items-center justify-center">
-          <span class="absolute inline-flex h-8 w-8 rounded-full bg-blue-500/40 animate-ping"></span>
-          <div class="relative p-2 rounded-full bg-blue-600 text-white border-2 border-white shadow-lg flex items-center justify-center font-bold" style="width: 32px; height: 32px; font-size: 14px;">
+          <span class="absolute inline-flex ${scale.pingSize} rounded-full bg-blue-500/40 animate-ping"></span>
+          <div class="relative rounded-full bg-blue-600 text-white border-2 border-white shadow-lg flex items-center justify-center font-bold" style="width: ${scale.iconPx}px; height: ${scale.iconPx}px; font-size: ${scale.fontSizePx}px;">
             🚚
           </div>
         </div>
       `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
+      iconSize: [scale.iconPx, scale.iconPx],
+      iconAnchor: [scale.iconPx / 2, scale.iconPx / 2]
     });
 
     const collectorMarker = window.L.marker([collectorLat, collectorLng], { icon: collectorIcon });
@@ -153,13 +185,13 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
       className: 'custom-leaflet-marker',
       html: `
         <div class="relative flex items-center justify-center">
-          <div class="p-2 rounded-full bg-amber-500 text-white border-2 border-white shadow-lg flex items-center justify-center font-bold" style="width: 32px; height: 32px; font-size: 14px;">
+          <div class="rounded-full bg-amber-500 text-white border-2 border-white shadow-lg flex items-center justify-center font-bold" style="width: ${scale.iconPx}px; height: ${scale.iconPx}px; font-size: ${scale.fontSizePx}px;">
             🏠
           </div>
         </div>
       `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
+      iconSize: [scale.iconPx, scale.iconPx],
+      iconAnchor: [scale.iconPx / 2, scale.iconPx / 2]
     });
 
     const houseMarker = window.L.marker([targetLat, targetLng], { icon: houseIcon });
@@ -171,16 +203,58 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
       ? routePath 
       : [[collectorLat, collectorLng], [collectorLat, targetLng], [targetLat, targetLng]];
 
-    window.L.polyline(
+    const routePolyline = window.L.polyline(
       lineCoords,
       {
         color: '#2563eb', // Vivid Blue
-        weight: 5,
+        weight: scale.strokeWeight,
         opacity: 0.9,
-        dashArray: '8, 8',
+        dashArray: scale.dashArray,
         lineCap: 'round'
       }
     ).addTo(group);
+
+    // Attach zoomend listener to dynamically resize elements when zooming in or out
+    const handleZoomChange = () => {
+      const newZoom = map.getZoom();
+      const newScale = getZoomScaleParams(newZoom);
+
+      routePolyline.setStyle({
+        weight: newScale.strokeWeight,
+        dashArray: newScale.dashArray
+      });
+
+      const updatedCollectorIcon = window.L.divIcon({
+        className: 'custom-leaflet-marker',
+        html: `
+          <div class="relative flex items-center justify-center">
+            <span class="absolute inline-flex ${newScale.pingSize} rounded-full bg-blue-500/40 animate-ping"></span>
+            <div class="relative rounded-full bg-blue-600 text-white border-2 border-white shadow-lg flex items-center justify-center font-bold" style="width: ${newScale.iconPx}px; height: ${newScale.iconPx}px; font-size: ${newScale.fontSizePx}px;">
+              🚚
+            </div>
+          </div>
+        `,
+        iconSize: [newScale.iconPx, newScale.iconPx],
+        iconAnchor: [newScale.iconPx / 2, newScale.iconPx / 2]
+      });
+      collectorMarker.setIcon(updatedCollectorIcon);
+
+      const updatedHouseIcon = window.L.divIcon({
+        className: 'custom-leaflet-marker',
+        html: `
+          <div class="relative flex items-center justify-center">
+            <div class="rounded-full bg-amber-500 text-white border-2 border-white shadow-lg flex items-center justify-center font-bold" style="width: ${newScale.iconPx}px; height: ${newScale.iconPx}px; font-size: ${newScale.fontSizePx}px;">
+              🏠
+            </div>
+          </div>
+        `,
+        iconSize: [newScale.iconPx, newScale.iconPx],
+        iconAnchor: [newScale.iconPx / 2, newScale.iconPx / 2]
+      });
+      houseMarker.setIcon(updatedHouseIcon);
+    };
+
+    map.on('zoomend', handleZoomChange);
 
     // Midpoint Tooltip
     const midIndex = Math.floor(lineCoords.length / 2);
@@ -217,6 +291,9 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
       map.setMinZoom(calculatedMinZoom);
     } catch (_) {}
 
+    return () => {
+      map.off('zoomend', handleZoomChange);
+    };
   }, [isReady, collectorLat, collectorLng, targetLat, targetLng, collectorName, targetLabel, distanceMeters, eta.formatted, routePath, hasMission]);
 
   return (
