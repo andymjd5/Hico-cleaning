@@ -18,6 +18,7 @@ interface CartRouteTrackingMapProps {
   height?: string;
   onAdvanceStep?: () => void;
   showSimulateButton?: boolean;
+  hasMission?: boolean;
 }
 
 export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
@@ -29,7 +30,8 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
   targetLabel,
   height = "240px",
   onAdvanceStep,
-  showSimulateButton = false
+  showSimulateButton = false,
+  hasMission = true
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -44,6 +46,7 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
 
   // Fetch real road route geometry following real street avenues
   useEffect(() => {
+    if (!hasMission) return;
     let isMounted = true;
     fetchStreetRoute(collectorLat, collectorLng, targetLat, targetLng).then((coords) => {
       if (isMounted) {
@@ -51,7 +54,7 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
       }
     });
     return () => { isMounted = false; };
-  }, [collectorLat, collectorLng, targetLat, targetLng]);
+  }, [collectorLat, collectorLng, targetLat, targetLng, hasMission]);
 
   // Initialize Leaflet Map
   useEffect(() => {
@@ -62,13 +65,14 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
       if (mapRef.current) return true;
 
       try {
-        const midLat = (collectorLat + targetLat) / 2;
-        const midLng = (collectorLng + targetLng) / 2;
+        const centerLat = hasMission ? (collectorLat + targetLat) / 2 : (collectorLat || -4.3250);
+        const centerLng = hasMission ? (collectorLng + targetLng) / 2 : (collectorLng || 15.3100);
+        const initialZoom = hasMission ? 15 : 12;
 
         const map = window.L.map(mapContainerRef.current, {
-          center: [midLat, midLng],
-          zoom: 15,
-          zoomControl: false,
+          center: [centerLat, centerLng],
+          zoom: initialZoom,
+          zoomControl: true,
           attributionControl: false
         });
 
@@ -134,6 +138,16 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
     collectorMarker.bindPopup(`<b>Éboueur: ${collectorName}</b><br/>Position en temps réel`);
     collectorMarker.addTo(group);
 
+    if (!hasMission) {
+      // General view without mission restriction
+      try {
+        map.setMaxBounds(null);
+        map.setMinZoom(1);
+        map.setView([collectorLat || -4.3250, collectorLng || 15.3100], 12);
+      } catch (_) {}
+      return;
+    }
+
     // 2. Target House Marker 🏠
     const houseIcon = window.L.divIcon({
       className: 'custom-leaflet-marker',
@@ -157,7 +171,7 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
       ? routePath 
       : [[collectorLat, collectorLng], [collectorLat, targetLng], [targetLat, targetLng]];
 
-    const polyline = window.L.polyline(
+    window.L.polyline(
       lineCoords,
       {
         color: '#2563eb', // Vivid Blue
@@ -203,7 +217,7 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
       map.setMinZoom(calculatedMinZoom);
     } catch (_) {}
 
-  }, [isReady, collectorLat, collectorLng, targetLat, targetLng, collectorName, targetLabel, distanceMeters, eta.formatted, routePath]);
+  }, [isReady, collectorLat, collectorLng, targetLat, targetLng, collectorName, targetLabel, distanceMeters, eta.formatted, routePath, hasMission]);
 
   return (
     <div className="flex flex-col gap-2 rounded-2xl overflow-hidden border border-blue-500/30 bg-slate-950 text-white shadow-xl relative">
@@ -215,33 +229,41 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
           </div>
           <div className="flex flex-col">
             <span className="font-extrabold text-blue-400 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-              <span>Tracé Bleu & Suivi GPS en direct</span>
-              <span className="text-[9px] bg-indigo-500/20 text-indigo-300 font-mono px-2 py-0.5 rounded-full border border-indigo-500/30 font-bold flex items-center gap-1">
-                🔒 Zone Restreinte Calibrée
-              </span>
+              <span>{hasMission ? "Tracé Bleu & Suivi GPS en direct" : "Carte Générale Kinshasa - Toutes Communes"}</span>
+              {hasMission && (
+                <span className="text-[9px] bg-indigo-500/20 text-indigo-300 font-mono px-2 py-0.5 rounded-full border border-indigo-500/30 font-bold flex items-center gap-1">
+                  🔒 Zone Restreinte Calibrée
+                </span>
+              )}
             </span>
             <span className="text-[10px] text-slate-300">
-              Vitesse calculée à pied (chariot lourd) : <strong>3.0 km/h</strong>
+              {hasMission ? (
+                <>Vitesse calculée à pied (chariot lourd) : <strong>3.0 km/h</strong></>
+              ) : (
+                <>Vue d'ensemble de la ville sans restriction de zoom</>
+              )}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] text-slate-400 font-medium">Distance</span>
-            <span className="text-xs font-mono font-extrabold text-amber-400">{distanceMeters} m</span>
+        {hasMission ? (
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] text-slate-400 font-medium">Distance</span>
+              <span className="text-xs font-mono font-extrabold text-amber-400">{distanceMeters} m</span>
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] text-slate-400 font-medium">Temps d'arrivée</span>
+              <span className="text-xs font-mono font-extrabold text-emerald-400">{eta.formatted}</span>
+            </div>
           </div>
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] text-slate-400 font-medium">Temps d'arrivée</span>
-            <span className="text-xs font-mono font-extrabold text-emerald-400">{eta.formatted}</span>
+        ) : (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs font-bold font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+              En attente de mission
+            </span>
           </div>
-        </div>
-      </div>
-
-      {/* Floating Mission Calibration Overlay Badge */}
-      <div className="absolute top-14 left-3 z-[1000] bg-slate-950/85 backdrop-blur-md text-slate-200 text-[10px] font-mono px-2.5 py-1 rounded-lg border border-blue-500/30 shadow-md flex items-center gap-1.5 pointer-events-none">
-        <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span>
-        <span>Carte Dédiée : Vue Fixée & Calibrée sur la Mission</span>
+        )}
       </div>
 
       {/* Map Element */}
@@ -250,7 +272,7 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
       </div>
 
       {/* Bottom Control Bar if applicable */}
-      {showSimulateButton && onAdvanceStep && (
+      {hasMission && showSimulateButton && onAdvanceStep && (
         <div className="bg-slate-900/90 px-3.5 py-2 border-t border-slate-800 flex items-center justify-between gap-2">
           <span className="text-[11px] text-slate-300 font-medium flex items-center gap-1">
             <Clock size={13} className="text-amber-400 shrink-0" />

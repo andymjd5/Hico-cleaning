@@ -647,6 +647,7 @@ export default function EboueurSpaceView({
                       targetLabel={`N° ${activeMission.numero_parcelle} Av. ${activeMission.avenue_nom}`}
                       height="480px"
                       showSimulateButton={true}
+                      hasMission={true}
                       onAdvanceStep={() => {
                         const result = advancePositionTowardsTarget(
                           ebLat,
@@ -667,16 +668,12 @@ export default function EboueurSpaceView({
               (() => {
                 const ebLat = currentEboueur.latitude ?? -4.3250;
                 const ebLng = currentEboueur.longitude ?? 15.3100;
-                const fallbackSignal = allRawSignals.find(s => s.status === 'pending' && s.latitude && s.longitude);
-                const targetLat = fallbackSignal?.latitude ?? ebLat - 0.002;
-                const targetLng = fallbackSignal?.longitude ?? ebLng + 0.003;
-                const targetLabel = fallbackSignal ? `Parcelle N° ${fallbackSignal.numero_parcelle}, Av. ${fallbackSignal.avenue_nom}` : 'Zone d\'intervention Kinshasa';
 
                 return (
                   <div className="flex flex-col gap-4">
                     <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 text-xs sm:text-sm text-slate-300 flex items-center justify-between flex-wrap gap-2">
                       <span className="text-slate-400 italic">
-                        Aucune mission actuellement assignée. La carte ci-dessous affiche votre position actuelle et la zone d'intervention.
+                        Aucune mission actuellement assignée. Carte générale de Kinshasa (toutes communes, zoom libre).
                       </span>
                       <span className="text-emerald-400 font-bold font-mono">En attente de mission</span>
                     </div>
@@ -685,11 +682,12 @@ export default function EboueurSpaceView({
                       collectorLat={ebLat}
                       collectorLng={ebLng}
                       collectorName={currentEboueur.nom}
-                      targetLat={targetLat}
-                      targetLng={targetLng}
-                      targetLabel={targetLabel}
-                      height="450px"
+                      targetLat={ebLat}
+                      targetLng={ebLng}
+                      targetLabel="Vue Générale Kinshasa"
+                      height="480px"
                       showSimulateButton={false}
+                      hasMission={false}
                     />
                   </div>
                 );
