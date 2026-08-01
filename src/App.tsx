@@ -4227,16 +4227,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   return false;
                 };
 
-                let myAssignedMissions = poubelleSignals.filter(s => isMissionAssignedToMe(s, 'assigned'));
-                let myCompletedMissions = poubelleSignals.filter(s => isMissionAssignedToMe(s, 'completed'));
-
-                // Safety fallback: if filtering produces 0 assigned missions, but there ARE assigned signals in system
-                if (myAssignedMissions.length === 0) {
-                  myAssignedMissions = poubelleSignals.filter(s => s.status === 'assigned');
-                }
-                if (myCompletedMissions.length === 0) {
-                  myCompletedMissions = poubelleSignals.filter(s => s.status === 'completed');
-                }
+                const myAssignedMissions = poubelleSignals.filter(s => isMissionAssignedToMe(s, 'assigned'));
+                const myCompletedMissions = poubelleSignals.filter(s => isMissionAssignedToMe(s, 'completed'));
 
                 return (
                   <EboueurSpaceView 
