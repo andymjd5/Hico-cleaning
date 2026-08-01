@@ -3525,6 +3525,14 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     }
   };
 
+  const handleMarkMessageAsRead = (messageId: string) => {
+    setInboxMessages(prev => prev.map(m => m.id === messageId ? { ...m, read: true } : m));
+  };
+
+  const handleMarkAllMessagesAsRead = () => {
+    setInboxMessages(prev => prev.map(m => ({ ...m, read: true })));
+  };
+
   const handleSimulateSignal = async (parcelleId: string, typePoubelle?: 'biodegradable' | 'non_biodegradable') => {
     const parc = parcelles.find(p => p.id === parcelleId);
     if (!parc) return;
@@ -4243,6 +4251,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                     onReportDispute={handleReportDispute}
                     messages={inboxMessages}
                     onSendMessage={handleSendInboxMessage}
+                    onMarkMessageAsRead={handleMarkMessageAsRead}
+                    onMarkAllMessagesAsRead={handleMarkAllMessagesAsRead}
                     onRecordOnlinePayment={async (amount, provider, phone) => {
                       // Add payment directly to receipts registry
                       const pay: SubscriptionPayment = {

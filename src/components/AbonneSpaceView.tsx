@@ -57,6 +57,8 @@ interface AbonneSpaceViewProps {
   onReportDispute?: (signalId: string, raison: string) => void;
   messages: InboxMessage[];
   onSendMessage: (sender: string, content: string) => void;
+  onMarkMessageAsRead?: (messageId: string) => void;
+  onMarkAllMessagesAsRead?: () => void;
   onRecordOnlinePayment?: (amount: number, provider: 'mpesa' | 'orange' | 'airtel' | 'afrimoney', phone: string) => void;
   onLogout?: () => void;
   activeTab?: 'signalement' | 'redevance' | 'carte' | 'inbox';
@@ -77,12 +79,17 @@ export default function AbonneSpaceView({
   onReportDispute,
   messages,
   onSendMessage,
+  onMarkMessageAsRead,
+  onMarkAllMessagesAsRead,
   onRecordOnlinePayment,
   onLogout,
   activeTab: activeTabProp = 'signalement'
 }: AbonneSpaceViewProps) {
   // Navigation active tab for Subscriber interface
   const [internalTab, setInternalTab] = useState<'signalement' | 'redevance' | 'carte' | 'inbox'>(activeTabProp);
+
+  // Inbox filter state ('all' | 'unread' | 'read')
+  const [inboxFilter, setInboxFilter] = useState<'all' | 'unread' | 'read'>('all');
 
   // Photo Proof & Dispute Modals
   const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null);
@@ -137,9 +144,13 @@ export default function AbonneSpaceView({
 
   const activeTab = activeTabProp || internalTab;
 
-  // Unread messages count for badge indicator
+  // Unread & Read messages count for badge indicator
   const unreadCount = useMemo(() => {
     return messages.filter(m => !m.read).length;
+  }, [messages]);
+
+  const readCount = useMemo(() => {
+    return messages.filter(m => m.read).length;
   }, [messages]);
 
   // Check if there's an active alert for biodegradable or non-biodegradable trash
@@ -977,7 +988,7 @@ export default function AbonneSpaceView({
                 <span>Carte & Suivi du Déplacement de l'Éboueur en Direct</span>
               </h3>
               <p className="text-xs text-on-surface-variant font-medium">
-                Visualisez la position en temps réel de l'éboueur et l'itinéraire tracé en bleu vers votre parcelle (N° {currentParcelle.numero_parcelle}, Av. {avenue.nom}).
+                Suivi GPS en temps réel du chariot d'évacuation assigné à votre parcelle (N° {currentParcelle.numero_parcelle}, Av. {avenue.nom}).
               </p>
             </div>
 
@@ -994,192 +1005,283 @@ export default function AbonneSpaceView({
             </button>
           </div>
 
-          {/* Collector Tracking Card & Map */}
-          {(() => {
-            const hasActiveMission = Boolean(activeSubscriberSignal);
-            const ebName = assignedCollectorObj?.nom || (activeSubscriberSignal ? "Éboueur de Zone Assigné" : "Éboueur de Zone");
-            
-            const targetLat = currentParcelle.latitude ?? -4.3316;
-            const targetLng = currentParcelle.longitude ?? 15.3139;
+          {!activeSubscriberSignal ? (
+            <div className="bg-surface/80 border border-outline-variant/60 rounded-2xl p-8 sm:p-12 flex flex-col items-center text-center gap-4 my-2 shadow-inner">
+              <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center border border-primary/20 shadow-sm">
+                <Trash2 size={32} />
+              </div>
 
-            const baseEbLat = assignedCollectorObj?.latitude ?? (targetLat + 0.0035);
-            const baseEbLng = assignedCollectorObj?.longitude ?? (targetLng - 0.0025);
+              <div className="flex flex-col gap-1.5 max-w-md">
+                <h4 className="text-base font-black text-on-surface">Aucun Signalement Actif</h4>
+                <p className="text-xs text-on-surface-variant font-medium leading-relaxed">
+                  Vous n'avez actuellement aucun signalement de poubelle en cours pour votre parcelle. Pour suivre la position exacte et l'itinéraire de l'éboueur en temps réel sur la carte, effectuez d'abord un signalement de poubelle pleine.
+                </p>
+              </div>
 
-            const ebLat = simulatedPos?.lat ?? baseEbLat;
-            const ebLng = simulatedPos?.lng ?? baseEbLng;
+              <button
+                type="button"
+                onClick={() => setInternalTab('signalement')}
+                className="mt-3 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md hover:opacity-90 transition-all cursor-pointer active:scale-95"
+              >
+                <Trash2 size={16} />
+                <span>Signaler une Poubelle Pleine</span>
+              </button>
+            </div>
+          ) : (
+            (() => {
+              const ebName = assignedCollectorObj?.nom || "Éboueur de Zone Assigné";
+              
+              const targetLat = currentParcelle.latitude ?? -4.3316;
+              const targetLng = currentParcelle.longitude ?? 15.3139;
 
-            const currentDistM = getDistanceMeters(ebLat, ebLng, targetLat, targetLng);
-            const eta = calculateCartETA(currentDistM, 3.0);
-            const isArrivedOrNear = currentDistM <= 50 || arrivalAlertTriggered;
+              const ebLat = assignedCollectorObj?.latitude ?? activeSubscriberSignal.latitude ?? (targetLat + 0.002);
+              const ebLng = assignedCollectorObj?.longitude ?? activeSubscriberSignal.longitude ?? (targetLng - 0.002);
 
-            const handleAdvance = () => {
-              const res = advancePositionTowardsTarget(ebLat, ebLng, targetLat, targetLng, 12.0);
-              setSimulatedPos({ lat: res.latitude, lng: res.longitude });
+              const currentDistM = getDistanceMeters(ebLat, ebLng, targetLat, targetLng);
+              const eta = calculateCartETA(currentDistM, 3.0);
+              const isArrivedOrNear = currentDistM <= 50 || arrivalAlertTriggered;
 
-              if (res.remainingDistance <= 50 || res.arrived) {
-                setArrivalAlertTriggered(true);
-                if (!hasPlayedSound) {
-                  playArrivalAlertSound();
-                  setHasPlayedSound(true);
-                }
-              }
-            };
+              return (
+                <div className="flex flex-col gap-4">
+                  {/* Arrival Sound Notification Banner if collector is nearby */}
+                  {isArrivedOrNear && (
+                    <div className="bg-gradient-to-r from-amber-500/20 via-emerald-500/20 to-amber-500/20 border-2 border-amber-400 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg animate-pulse">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-amber-400 text-slate-950 rounded-full font-black text-lg shrink-0">
+                          🔔
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-black text-sm text-amber-300 uppercase tracking-wider">
+                            L'Éboueur arrive devant votre parcelle !
+                          </span>
+                          <span className="text-xs text-slate-200 font-medium">
+                            Signal sonore d'arrivée déclenché. Le chariot est à moins de 50 mètres de votre porte ({currentDistM}m). Veuillez préparer vos sachets.
+                          </span>
+                        </div>
+                      </div>
 
-            return (
-              <div className="flex flex-col gap-4">
-                {/* Arrival Sound Notification Banner if collector is nearby */}
-                {isArrivedOrNear && (
-                  <div className="bg-gradient-to-r from-amber-500/20 via-emerald-500/20 to-amber-500/20 border-2 border-amber-400 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg animate-pulse">
+                      <button
+                        type="button"
+                        onClick={() => playArrivalAlertSound()}
+                        className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl font-extrabold text-xs shadow cursor-pointer shrink-0 transition-all active:scale-95"
+                      >
+                        🔊 Rejouer le Son
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Info Bar */}
+                  <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-sm">
                     <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-amber-400 text-slate-950 rounded-full font-black text-lg shrink-0">
-                        🔔
+                      <div className="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30 shrink-0">
+                        <Truck size={22} />
                       </div>
                       <div className="flex flex-col">
-                        <span className="font-black text-sm text-amber-300 uppercase tracking-wider">
-                          L'Éboueur arrive devant votre parcelle !
+                        <span className="font-extrabold text-blue-400 flex items-center gap-2">
+                          <span>Éboueur : {ebName}</span>
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-mono px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
+                            🟢 Course Active (En Route)
+                          </span>
                         </span>
-                        <span className="text-xs text-slate-200 font-medium">
-                          Signal sonore d'arrivée déclenché. Le chariot est à moins de 50 mètres de votre porte ({currentDistM}m). Veuillez préparer vos sachets.
+                        <span className="text-xs text-slate-300 font-medium mt-0.5">
+                          Destination : Parcelle N° {currentParcelle.numero_parcelle}, Av. {avenue.nom}
                         </span>
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => playArrivalAlertSound()}
-                      className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl font-extrabold text-xs shadow cursor-pointer shrink-0 transition-all active:scale-95"
-                    >
-                      🔊 Rejouer le Son
-                    </button>
-                  </div>
-                )}
-
-                {/* Info Bar */}
-                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30 shrink-0">
-                      <Truck size={22} />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="font-extrabold text-blue-400 flex items-center gap-2">
-                        <span>Éboueur : {ebName}</span>
-                        {hasActiveMission ? (
-                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-mono px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
-                            En Route
-                          </span>
-                        ) : (
-                          <span className="text-[10px] bg-slate-800 text-slate-400 font-mono px-2 py-0.5 rounded-full border border-slate-700">
-                            Mode démonstration
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-xs text-slate-300 font-medium mt-0.5">
-                        Destination : Parcelle N° {currentParcelle.numero_parcelle}, Av. {avenue.nom}
-                      </span>
+                    <div className="flex items-center gap-4 bg-slate-950/80 px-4 py-2.5 rounded-xl border border-slate-800 shrink-0">
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] text-slate-400 uppercase font-bold">Distance</span>
+                        <span className="text-xs font-mono font-black text-amber-400">{currentDistM} m</span>
+                      </div>
+                      <div className="h-6 w-px bg-slate-800" />
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] text-slate-400 uppercase font-bold">Arrivée estimée</span>
+                        <span className="text-xs font-mono font-black text-emerald-400">{eta.formatted}</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 bg-slate-950/80 px-4 py-2.5 rounded-xl border border-slate-800 shrink-0">
-                    <div className="flex flex-col items-end">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Distance</span>
-                      <span className="text-xs font-mono font-black text-amber-400">{currentDistM} m</span>
-                    </div>
-                    <div className="h-6 w-px bg-slate-800" />
-                    <div className="flex flex-col items-end">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Arrivée estimée</span>
-                      <span className="text-xs font-mono font-black text-emerald-400">{eta.formatted}</span>
-                    </div>
-                  </div>
+                  {/* Leaflet Cart Route Map Component */}
+                  <CartRouteTrackingMap
+                    collectorLat={ebLat}
+                    collectorLng={ebLng}
+                    collectorName={ebName}
+                    targetLat={targetLat}
+                    targetLng={targetLng}
+                    targetLabel={`Parcelle N° ${currentParcelle.numero_parcelle}`}
+                    height="420px"
+                    showSimulateButton={false}
+                    hasMission={true}
+                  />
                 </div>
-
-                {/* Leaflet Cart Route Map Component */}
-                <CartRouteTrackingMap
-                  collectorLat={ebLat}
-                  collectorLng={ebLng}
-                  collectorName={ebName}
-                  targetLat={targetLat}
-                  targetLng={targetLng}
-                  targetLabel={`Parcelle N° ${currentParcelle.numero_parcelle}`}
-                  height="420px"
-                  showSimulateButton={true}
-                  hasMission={true}
-                  onAdvanceStep={handleAdvance}
-                />
-
-                {/* Footer Controls & Instructions */}
-                <div className="bg-background/60 border border-outline-variant/60 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2 text-on-surface-variant font-medium">
-                    <Info size={16} className="text-secondary shrink-0" />
-                    <span>
-                      Lorsque le chariot atteint moins de 50 mètres de votre parcelle, un signal sonore d'arrivée se déclenche automatiquement.
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleAdvance}
-                    className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-extrabold text-xs shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 shrink-0"
-                  >
-                    <span>🚶‍♂️ Simuler Avancée Chariot (+12m)</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
+              );
+            })()
+          )}
         </section>
       )}
 
       {/* TAB 3: BOÎTE DE RÉCEPTION */}
       {activeTab === 'inbox' && (
-        <section className="bg-surface border border-outline-variant rounded-2xl p-5 md:p-6 shadow-md flex flex-col gap-4 animate-fade-in">
-          <div className="flex items-center justify-between border-b border-outline-variant/30 pb-3">
-            <div className="flex items-center gap-2">
-              <Mail className="text-secondary" size={20} />
-              <h3 className="text-base font-extrabold text-on-surface">
-                Boîte de Réception & Directives Urbaines
-              </h3>
+        <section className="bg-surface border border-outline-variant rounded-2xl p-5 md:p-6 shadow-md flex flex-col gap-5 animate-fade-in">
+          {/* Header with counters */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant/30 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-secondary/15 text-secondary rounded-xl border border-secondary/20 shrink-0">
+                <Mail size={22} />
+              </div>
+              <div className="flex flex-col">
+                <h3 className="text-base font-extrabold text-on-surface">
+                  Boîte de Réception & Communications
+                </h3>
+                <p className="text-xs text-on-surface-variant font-medium">
+                  Consultez vos messages reçus des autorités urbaines et de la société Hico-Cleaning.
+                </p>
+              </div>
             </div>
-            <span className="text-[10px] bg-secondary/15 text-secondary px-2.5 py-0.5 rounded-full font-extrabold border border-secondary/20">
-              {unreadCount} Non lus
-            </span>
+
+            {/* Counter breakdown & Mark All as Read */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 bg-background border border-outline-variant/50 px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs">
+                <span className="text-rose-500 font-mono font-extrabold">{unreadCount}</span>
+                <span className="text-on-surface-variant font-medium">Non lu(s)</span>
+                <span className="text-outline-variant">|</span>
+                <span className="text-emerald-500 font-mono font-extrabold">{readCount}</span>
+                <span className="text-on-surface-variant font-medium">Lu(s)</span>
+              </div>
+
+              {unreadCount > 0 && onMarkAllMessagesAsRead && (
+                <button
+                  type="button"
+                  onClick={onMarkAllMessagesAsRead}
+                  className="px-3 py-1.5 bg-secondary/15 hover:bg-secondary/25 text-secondary border border-secondary/30 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95"
+                >
+                  Tout marquer comme lu
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Filter Tabs (Tous, Non lus, Lus) */}
+          <div className="flex items-center gap-2 border-b border-outline-variant/30 pb-2">
+            <button
+              type="button"
+              onClick={() => setInboxFilter('all')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                inboxFilter === 'all'
+                  ? 'bg-primary text-on-primary shadow-sm'
+                  : 'text-on-surface-variant hover:bg-background/80 hover:text-on-surface'
+              }`}
+            >
+              Tous ({messages.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setInboxFilter('unread')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
+                inboxFilter === 'unread'
+                  ? 'bg-rose-500 text-white shadow-sm'
+                  : 'text-rose-400 hover:bg-rose-500/10'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
+              <span>Non lus ({unreadCount})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setInboxFilter('read')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
+                inboxFilter === 'read'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-emerald-400 hover:bg-emerald-500/10'
+              }`}
+            >
+              <CheckCircle2 size={13} />
+              <span>Lus ({readCount})</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* List of Messages inside inbox */}
-            <div className="lg:col-span-2 flex flex-col gap-2 max-h-[360px] overflow-y-auto pr-1">
-              {messages.length === 0 ? (
-                <p className="text-xs text-on-surface-variant italic text-center py-8">Aucun message pour le moment.</p>
-              ) : (
-                messages.map((msg) => {
+            <div className="lg:col-span-2 flex flex-col gap-3 max-h-[420px] overflow-y-auto pr-1">
+              {(() => {
+                const filteredMessages = messages.filter(m => {
+                  if (inboxFilter === 'unread') return !m.read;
+                  if (inboxFilter === 'read') return m.read;
+                  return true;
+                });
+
+                if (filteredMessages.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-xs text-on-surface-variant italic bg-background/40 border border-outline-variant/40 rounded-2xl">
+                      {inboxFilter === 'unread' ? 'Aucun message non lu.' : inboxFilter === 'read' ? 'Aucun message lu.' : 'Aucun message dans votre boîte de réception.'}
+                    </div>
+                  );
+                }
+
+                return filteredMessages.map((msg) => {
                   const isAuthority = msg.sender === 'Autorités Urbaines';
+                  const isUnread = !msg.read;
+
                   return (
                     <div 
                       key={msg.id}
-                      className={`p-4 border rounded-xl flex flex-col gap-1.5 text-xs transition-colors bg-background/35 border-outline-variant/50 relative`}
+                      className={`p-4 border rounded-2xl flex flex-col gap-2 text-xs transition-all relative ${
+                        isUnread 
+                          ? 'bg-amber-500/10 border-2 border-amber-500/50 shadow-md text-on-surface' 
+                          : 'bg-surface/50 border-outline-variant/40 text-on-surface-variant opacity-80'
+                      }`}
                     >
-                      <div className="flex justify-between items-center gap-2">
-                        <span className={`font-black uppercase tracking-wider text-[9px] px-2 py-0.5 rounded ${
-                          isAuthority ? 'bg-error/15 text-error border border-error/25' : 'bg-secondary/15 text-secondary border border-secondary/25'
-                        }`}>
-                          {msg.sender}
-                        </span>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
-                          {!msg.read && (
-                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" title="Non lu" />
+                          <span className={`font-black uppercase tracking-wider text-[9px] px-2.5 py-1 rounded-lg ${
+                            isAuthority ? 'bg-error/20 text-error border border-error/30' : 'bg-secondary/20 text-secondary border border-secondary/30'
+                          }`}>
+                            {msg.sender}
+                          </span>
+
+                          {/* Demarcation status badge */}
+                          {isUnread ? (
+                            <span className="text-[10px] bg-rose-500 text-white font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                              <span>NOUVEAU - NON LU</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <CheckCircle2 size={11} />
+                              <span>MESSAGE LU</span>
+                            </span>
                           )}
-                          <span className="text-[9px] text-on-surface-variant font-mono">
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] text-on-surface-variant font-mono">
                             {msg.sent_at}
                           </span>
+
+                          {isUnread && onMarkMessageAsRead && (
+                            <button
+                              type="button"
+                              onClick={() => onMarkMessageAsRead(msg.id)}
+                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-lg text-[10px] shadow transition-all cursor-pointer active:scale-95"
+                              title="Marquer ce message comme lu"
+                            >
+                              Marquer lu
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <p className="text-on-surface font-medium leading-relaxed mt-1">
+
+                      <p className={`leading-relaxed mt-1 ${isUnread ? 'font-bold text-on-surface text-sm' : 'font-medium text-on-surface-variant'}`}>
                         {msg.content}
                       </p>
                     </div>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
 
             {/* Form to message Hico-Cleaning */}
