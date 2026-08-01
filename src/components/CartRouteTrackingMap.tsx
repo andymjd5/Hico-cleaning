@@ -256,26 +256,6 @@ export const CartRouteTrackingMap: React.FC<CartRouteTrackingMapProps> = ({
 
     map.on('zoomend', handleZoomChange);
 
-    // Midpoint Tooltip
-    const midIndex = Math.floor(lineCoords.length / 2);
-    const tooltipPos = lineCoords[midIndex] || [(collectorLat + targetLat) / 2, (collectorLng + targetLng) / 2];
-
-    const tooltip = window.L.tooltip({
-      permanent: true,
-      direction: 'center',
-      className: 'route-eta-badge'
-    })
-      .setContent(`
-        <div style="background: #0f172a; color: #ffffff; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 800; border: 1.5px solid #3b82f6; box-shadow: 0 4px 12px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 6px; white-space: nowrap;">
-          <span style="color: #60a5fa;">📍 ${distanceMeters}m</span>
-          <span style="color: #64748b;">•</span>
-          <span style="color: #fbbf24;">⏱️ ${eta.formatted}</span>
-        </div>
-      `)
-      .setLatLng(tooltipPos as [number, number]);
-
-    group.addLayer(tooltip);
-
     // Fit map bounds smoothly and apply strict bounded mission zone calibration
     try {
       const bounds = window.L.latLngBounds(lineCoords);
