@@ -174,6 +174,7 @@ export default function App() {
   const [selectedCommuneId, setSelectedCommuneId] = useState<string | null>(null);
   const [selectedAvenueObj, setSelectedAvenueObj] = useState<Avenue | null>(null);
   const [abonneSubTab, setAbonneSubTab] = useState<'signalement' | 'redevance' | 'inbox'>('signalement');
+  const [eboueurSubTab, setEboueurSubTab] = useState<'missions' | 'carte' | 'historique' | 'profil'>('missions');
 
   // 4. local DB states with automatic migration to clean production state
   const [communes, setCommunes] = useState<Commune[]>(() => {
@@ -3632,7 +3633,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
               {/* === EBOUEUR EXCLUSIVE MENU === */}
               {currentUser?.role === 'eboueur' && (
                 <button 
-                  onClick={() => setCurrentScreen('eboueur_space')}
+                  onClick={() => { setEboueurSubTab('missions'); setCurrentScreen('eboueur_space'); }}
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
                     currentScreen === 'eboueur_space'
                       ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
@@ -4251,6 +4252,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                     currentUser={currentUser}
                     allRawSignals={poubelleSignals}
                     allAgents={agents}
+                    activeTab={eboueurSubTab}
+                    onTabChange={setEboueurSubTab}
                   />
                 );
               })()}
@@ -4310,6 +4313,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
             unreadMessagesCount={inboxMessages.filter(m => !m.read).length}
             abonneSubTab={abonneSubTab}
             onAbonneSubTabChange={setAbonneSubTab}
+            eboueurSubTab={eboueurSubTab}
+            onEboueurSubTabChange={setEboueurSubTab}
             onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
             onScreenChange={(screenId) => {
               // Clear temporary selection indices when moving randomly through footer
@@ -4400,7 +4405,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   {/* === EBOUEUR EXCLUSIVE MENU === */}
                   {currentUser?.role === 'eboueur' && (
                     <button 
-                      onClick={() => { setCurrentScreen('eboueur_space'); setIsMobileMenuOpen(false); }}
+                      onClick={() => { setEboueurSubTab('missions'); setCurrentScreen('eboueur_space'); setIsMobileMenuOpen(false); }}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
                         currentScreen === 'eboueur_space' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
                       }`}
