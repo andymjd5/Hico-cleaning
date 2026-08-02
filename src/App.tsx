@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Agent, Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur, InboxMessage, SachetStock, SachetDistribution, SubscriptionPayment, StaffPayment, MaterialExpense, DisputeSignal, AgentDotation, AgentDotationLog } from './types';
+import { Agent, Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur, InboxMessage, SachetStock, SachetDistribution, SubscriptionPayment, StaffPayment, MaterialExpense, DisputeSignal, AgentDotation, AgentDotationLog, SupportTicket } from './types';
 import { 
   INITIAL_AGENTS, 
   INITIAL_COMMUNES, 
@@ -3272,6 +3272,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
   };
 
   const handleReportDispute = async (signalId: string, raison: string) => {
+    const targetSig = poubelleSignals.find(s => s.id === signalId);
+
     setPoubelleSignals(prev => prev.map(sig => {
       if (sig.id === signalId) {
         return {
@@ -3289,6 +3291,35 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       'Service Contrôle Qualité (Hico)',
       `[CONTESTATION DE SERVICE] Votre réclamation ("${raison}") pour la collecte du ${new Date().toLocaleDateString('fr-FR')} a été prise en compte. Notre inspecteur vérifie la traçabilité du chauffeur.`
     );
+
+    // Create a real support ticket for SupportView
+    try {
+      const newTicket: SupportTicket = {
+        id: 'TICK-' + Math.floor(1000 + Math.random() * 9000),
+        sujet: `Contestation Ramassage: ${raison.substring(0, 50)}`,
+        categorie: 'ramassage',
+        priorite: 'haute',
+        status: 'nouveau',
+        auteur_nom: currentUser?.nom || targetSig?.bailleur_nom || 'Abonné',
+        auteur_telephone: currentUser?.telephone || 'N/A',
+        auteur_role: 'abonne',
+        commune_nom: targetSig?.commune_id ? (communes.find(c => c.id === targetSig.commune_id)?.nom || 'Kinshasa') : 'Kinshasa',
+        message: raison,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const savedRaw = localStorage.getItem('hico_support_tickets');
+      const currentTickets: SupportTicket[] = savedRaw ? JSON.parse(savedRaw).filter((t: any) => !['TICK-001', 'TICK-002', 'TICK-003'].includes(t.id)) : [];
+      localStorage.setItem('hico_support_tickets', JSON.stringify([newTicket, ...currentTickets]));
+      window.dispatchEvent(new Event('hico_ticket_created'));
+
+      if (isSupabaseConfigured && dbStatus === 'connected') {
+        supabase.from('support_tickets').insert([newTicket]).then();
+      }
+    } catch (e) {
+      console.warn("Failed to create support ticket from dispute:", e);
+    }
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
       try {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Headphones, 
   Plus, 
@@ -19,69 +19,73 @@ import {
 } from 'lucide-react';
 import { Agent, SupportTicket } from '../types';
 import { sanitizeText, validatePhoneNumber, rateLimiter } from '../lib/security';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface SupportViewProps {
   currentUser: Agent | null;
 }
 
 export default function SupportView({ currentUser }: SupportViewProps) {
-  // Mock / Initial Support Tickets
+  // Real Support Tickets from localStorage & Supabase (no mock/hardcoded items)
   const [tickets, setTickets] = useState<SupportTicket[]>(() => {
     const saved = localStorage.getItem('hico_support_tickets');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((t: SupportTicket) => !['TICK-001', 'TICK-002', 'TICK-003'].includes(t.id));
+        }
       } catch (e) {
         console.error("Error reading tickets", e);
       }
     }
-    return [
-      {
-        id: 'TICK-001',
-        sujet: 'Sachets non livrés après paiement',
-        categorie: 'sachets',
-        priorite: 'haute',
-        status: 'en_cours',
-        auteur_nom: 'Major Diev',
-        auteur_telephone: '0899774965',
-        auteur_role: 'abonne',
-        commune_nom: 'Bandalungwa',
-        message: "J'ai effectué mon paiement Mobile Money ce matin mais mon lot de 10 sachets n'a pas encore été déposé par l'éboueur.",
-        reponse_support: "Bonjour Major, un agent éboueur de la zone Bandalungwa est en route pour vous remettre vos sachets.",
-        created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-        updated_at: new Date(Date.now() - 3600000 * 2).toISOString()
-      },
-      {
-        id: 'TICK-002',
-        sujet: 'Signalement de poubelle débordante non ramassée',
-        categorie: 'ramassage',
-        priorite: 'urgente',
-        status: 'nouveau',
-        auteur_nom: 'Maman Jeanne',
-        auteur_telephone: '0812345678',
-        auteur_role: 'abonne',
-        commune_nom: 'Kintambo',
-        message: "Notre parcelle compte 8 ménages et la poubelle est pleine depuis hier soir. Merci d'envoyer le camion.",
-        created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-        updated_at: new Date(Date.now() - 3600000 * 12).toISOString()
-      },
-      {
-        id: 'TICK-003',
-        sujet: 'Question sur le tarif mensuel par ménage',
-        categorie: 'facturation',
-        priorite: 'basse',
-        status: 'resolu',
-        auteur_nom: 'Papa Mukendi',
-        auteur_telephone: '0829988776',
-        auteur_role: 'abonne',
-        commune_nom: 'Gombe',
-        message: "Je souhaite savoir pourquoi le montant calculé varie en fonction du nombre de ménages.",
-        reponse_support: "Le tarif officiel Hico-Cleaning est de 1$ par ménage par mois conformément au barème de votre commune.",
-        created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
-        updated_at: new Date(Date.now() - 3600000 * 24).toISOString()
-      }
-    ];
+    return [];
   });
+
+  // Sync with Supabase on mount
+  useEffect(() => {
+    const loadRemoteTickets = async () => {
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (!error && data && Array.isArray(data)) {
+            const remoteTickets: SupportTicket[] = data.filter((t: any) => !['TICK-001', 'TICK-002', 'TICK-003'].includes(t.id));
+            setTickets(remoteTickets);
+            localStorage.setItem('hico_support_tickets', JSON.stringify(remoteTickets));
+          }
+        } catch (err) {
+          console.warn("Supabase support_tickets load warning:", err);
+        }
+      }
+    };
+
+    loadRemoteTickets();
+
+    const handleTicketCreated = () => {
+      const saved = localStorage.getItem('hico_support_tickets');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setTickets(parsed.filter((t: SupportTicket) => !['TICK-001', 'TICK-002', 'TICK-003'].includes(t.id)));
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleTicketCreated);
+    window.addEventListener('hico_ticket_created', handleTicketCreated);
+    return () => {
+      window.removeEventListener('storage', handleTicketCreated);
+      window.removeEventListener('hico_ticket_created', handleTicketCreated);
+    };
+  }, []);
 
   // Filters & State
   const [searchTerm, setSearchTerm] = useState('');
@@ -109,9 +113,10 @@ export default function SupportView({ currentUser }: SupportViewProps) {
   const saveTickets = (updated: SupportTicket[]) => {
     setTickets(updated);
     localStorage.setItem('hico_support_tickets', JSON.stringify(updated));
+    window.dispatchEvent(new Event('hico_ticket_created'));
   };
 
-  const handleCreateTicket = (e: React.FormEvent) => {
+  const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSujet.trim() || !newMessage.trim() || !newAuteurNom.trim() || !newAuteurPhone.trim()) {
       alert("Veuillez remplir tous les champs obligatoires.");
@@ -133,7 +138,7 @@ export default function SupportView({ currentUser }: SupportViewProps) {
     }
 
     const newTicket: SupportTicket = {
-      id: 'TICK-' + Math.floor(100 + Math.random() * 900),
+      id: 'TICK-' + Math.floor(1000 + Math.random() * 9000),
       sujet: sanitizeText(newSujet.trim(), 150),
       categorie: newCategory,
       priorite: newPriorite,
@@ -150,6 +155,14 @@ export default function SupportView({ currentUser }: SupportViewProps) {
     const updated = [newTicket, ...tickets];
     saveTickets(updated);
 
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('support_tickets').insert([newTicket]);
+      } catch (err) {
+        console.warn("Supabase support ticket insert warning:", err);
+      }
+    }
+
     // Reset Form
     setNewSujet('');
     setNewMessage('');
@@ -157,7 +170,7 @@ export default function SupportView({ currentUser }: SupportViewProps) {
     alert("Votre ticket de support a été transmis à l'équipe d'assistance Hico-Cleaning !");
   };
 
-  const handleUpdateTicketStatus = (ticketId: string, newStatus: 'nouveau' | 'en_cours' | 'resolu' | 'ferme', reponse?: string) => {
+  const handleUpdateTicketStatus = async (ticketId: string, newStatus: 'nouveau' | 'en_cours' | 'resolu' | 'ferme', reponse?: string) => {
     const updated = tickets.map(t => {
       if (t.id === ticketId) {
         return {
@@ -170,6 +183,19 @@ export default function SupportView({ currentUser }: SupportViewProps) {
       return t;
     });
     saveTickets(updated);
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('support_tickets').update({
+          status: newStatus,
+          reponse_support: reponse !== undefined ? reponse : undefined,
+          updated_at: new Date().toISOString()
+        }).eq('id', ticketId);
+      } catch (err) {
+        console.warn("Supabase ticket update warning:", err);
+      }
+    }
+
     if (selectedTicket && selectedTicket.id === ticketId) {
       setSelectedTicket(prev => prev ? {
         ...prev,
@@ -324,9 +350,25 @@ export default function SupportView({ currentUser }: SupportViewProps) {
 
         {/* Tickets Grid / List */}
         {filteredTickets.length === 0 ? (
-          <div className="p-8 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-white/10 rounded-2xl text-gray-400">
-            <HelpCircle size={32} className="text-gray-500" />
-            <p className="text-xs font-bold">Aucun ticket trouvé correspondant à vos critères.</p>
+          <div className="p-12 text-center flex flex-col items-center justify-center gap-3 border border-dashed border-white/10 rounded-2xl text-gray-400 bg-background/50">
+            <HelpCircle size={40} className="text-gray-500" />
+            <div className="flex flex-col gap-1 max-w-md">
+              <p className="text-xs font-extrabold text-white">Aucune réclamation ou ticket trouvé</p>
+              <p className="text-[11px] text-gray-400 leading-relaxed">
+                {tickets.length === 0 
+                  ? "Aucun ticket n'a encore été créé. Les réclamations réelles soumises par les abonnés ou les agents s'afficheront ici en temps réel."
+                  : "Aucun résultat ne correspond à vos filtres de recherche actuels."}
+              </p>
+            </div>
+            {tickets.length === 0 && (
+              <button
+                onClick={() => setShowNewTicketModal(true)}
+                className="mt-2 px-4 py-2 bg-primary/20 text-primary border border-primary/30 rounded-xl text-xs font-bold hover:bg-primary/30 transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <Plus size={14} />
+                <span>Créer une réclamation réelles</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
