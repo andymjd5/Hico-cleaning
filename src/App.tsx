@@ -27,6 +27,8 @@ import AdminSettingsView from './components/AdminSettingsView';
 import SachetsManagementView from './components/SachetsManagementView';
 import FinanceManagementView from './components/FinanceManagementView';
 import SupportView from './components/SupportView';
+import RealtimeAlertModal, { AlertData } from './components/RealtimeAlertModal';
+import VoiceCallModal, { CallTarget } from './components/VoiceCallModal';
 
 // Lucide Icons
 import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info, Menu, CreditCard, Mail, Headphones, Navigation } from 'lucide-react';
@@ -382,6 +384,13 @@ export default function App() {
   const initialPollDoneRef = React.useRef(false);
   const appLoadTimeRef = React.useRef<number>(Date.now());
   const [activeNotification, setActiveNotification] = useState<PoubelleSignal | null>(null);
+  const [realtimeAlert, setRealtimeAlert] = useState<AlertData | null>(null);
+  const [activeCallTarget, setActiveCallTarget] = useState<CallTarget | null>(null);
+
+  const triggerRealtimeAlert = (alertData: AlertData) => {
+    setRealtimeAlert(alertData);
+    playSignalAlertSound();
+  };
   const [arrivalNotification, setArrivalNotification] = useState<{
     signalId: string;
     eboueurNom: string;
@@ -862,7 +871,22 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
 
               setActiveNotification(formattedSig);
               setHasNewSignals(true);
-              playSignalAlertSound();
+              
+              const alertData: AlertData = {
+                id: formattedSig.id,
+                type: 'poubelle',
+                title: '🗑️ Signalement Poubelle Pleine !',
+                subtitle: `Poubelle ${formattedSig.type_poubelle === 'biodegradable' ? 'Biodégradable' : 'Non-Biodégradable'}`,
+                reporterName: formattedSig.bailleur_nom,
+                reporterPhone: formattedSig.bailleur_telephone,
+                parcelleNo: formattedSig.numero_parcelle,
+                avenueName: formattedSig.avenue_nom,
+                communeName: formattedSig.commune_nom,
+                timestamp: formattedSig.reported_at,
+                rawObject: formattedSig
+              };
+              triggerRealtimeAlert(alertData);
+
               return [formattedSig, ...prev];
             });
           } else if (payload.eventType === 'UPDATE') {
@@ -1048,6 +1072,61 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'support_tickets' },
+        (payload) => {
+          console.log("Realtime support_tickets change received:", payload);
+          if (payload.eventType === 'INSERT') {
+            const ticket = payload.new as any;
+            if (!ticket) return;
+            const alertData: AlertData = {
+              id: ticket.id || `TICK-${Date.now()}`,
+              type: 'support',
+              title: '🎧 Nouveau Ticket Support / Réclamation',
+              subtitle: ticket.sujet || ticket.subject || 'Réclamation client transmise',
+              reporterName: ticket.auteur_nom || ticket.nom_client || 'Abonné / Client',
+              reporterPhone: ticket.auteur_telephone || ticket.telephone || '',
+              reasonOrMessage: ticket.description || ticket.message || ticket.sujet,
+              timestamp: ticket.created_at || new Date().toISOString(),
+              rawObject: ticket
+            };
+            triggerRealtimeAlert(alertData);
+            window.dispatchEvent(new CustomEvent('hico_support_ticket_created', { detail: ticket }));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'dispute_signals' },
+        (payload) => {
+          console.log("Realtime dispute_signals change received:", payload);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const disp = payload.new as any;
+            if (!disp) return;
+            setDisputes(prev => {
+              const exists = prev.some(d => d.id === disp.id);
+              if (exists) return prev.map(d => d.id === disp.id ? { ...d, ...disp } : d);
+              return [disp, ...prev];
+            });
+            if (payload.eventType === 'INSERT') {
+              const alertData: AlertData = {
+                id: disp.id || `DISP-${Date.now()}`,
+                type: 'litige',
+                title: '⚠️ Contestation Sachet / Litige',
+                subtitle: `Litige concernant la parcelle N° ${disp.parcelle_id || 'N/A'}`,
+                reporterName: disp.abonne_nom || 'Abonné',
+                reporterPhone: disp.abonne_phone || '',
+                parcelleNo: disp.parcelle_id,
+                reasonOrMessage: disp.motif || disp.description || 'Sachet non remis par le chauffeur',
+                timestamp: disp.created_at || new Date().toISOString(),
+                rawObject: disp
+              };
+              triggerRealtimeAlert(alertData);
+            }
+          }
+        }
+      )
       .subscribe((status) => {
         console.log("Supabase Realtime subscription status:", status);
       });
@@ -1057,6 +1136,19 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       supabase.removeChannel(channel);
     };
   }, [isSupabaseConfigured, parcelles, avenues, communes, abonnes]);
+
+  // Custom Realtime Signal Event Listener (Local or Broadcast)
+  useEffect(() => {
+    const handleCustomSignal = (e: any) => {
+      if (e.detail) {
+        triggerRealtimeAlert(e.detail);
+      }
+    };
+    window.addEventListener('hico_realtime_signal', handleCustomSignal);
+    return () => {
+      window.removeEventListener('hico_realtime_signal', handleCustomSignal);
+    };
+  }, []);
 
   // Local Storage Synchronization for waste management
   useEffect(() => {
@@ -5044,6 +5136,37 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           {/*   MODALS OVERLAYS (Ajout commune/av) */}
           {/* ==================================== */}
 
+          {/* 🚨 REALTIME POP-UP ALERT MODAL (POUBELLES, TICKETS SUPPORT, LITIGES) */}
+          <RealtimeAlertModal
+            alert={realtimeAlert}
+            onClose={() => setRealtimeAlert(null)}
+            onPlaySound={playSignalAlertSound}
+            onCallReporter={(phone, name) => {
+              setActiveCallTarget({
+                name: name || 'Abonné / Signalant',
+                phone: phone,
+                role: 'Abonné / Client',
+                commune: 'Kinshasa'
+              });
+            }}
+            onNavigateToView={(alert) => {
+              if (alert.type === 'poubelle') {
+                setCurrentScreen('dechets_map');
+                if (alert.id) setMapSelectedSignalId(alert.id);
+              } else if (alert.type === 'support') {
+                setCurrentScreen('support');
+              } else if (alert.type === 'litige') {
+                setCurrentScreen('dashboard');
+              }
+            }}
+          />
+
+          {/* 📞 VOICE CALL MODAL */}
+          <VoiceCallModal
+            target={activeCallTarget}
+            onClose={() => setActiveCallTarget(null)}
+          />
+
           {/* LATE SIGNAL NOTICE MODAL (13h Limit) */}
           {showLateSignalModal && (
             <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in animate-duration-200" id="modal_late_signal_overlay">
@@ -5469,7 +5592,24 @@ CREATE TABLE IF NOT EXISTS dis_signals (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 16. Table de messagerie interne (Inbox)
+-- 16. Table des tickets de support / réclamations
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id TEXT PRIMARY KEY,
+  sujet TEXT NOT NULL,
+  categorie VARCHAR(50) DEFAULT 'reclamation',
+  priorite VARCHAR(20) DEFAULT 'moyenne',
+  status VARCHAR(20) DEFAULT 'nouveau',
+  auteur_nom TEXT NOT NULL,
+  auteur_telephone VARCHAR(30) NOT NULL,
+  auteur_role VARCHAR(30),
+  commune_nom TEXT,
+  message TEXT NOT NULL,
+  reponse_support TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 17. Table de messagerie interne (Inbox)
 CREATE TABLE IF NOT EXISTS inbox_messages (
   id TEXT PRIMARY KEY,
   sender VARCHAR(100) NOT NULL,
@@ -5479,7 +5619,7 @@ CREATE TABLE IF NOT EXISTS inbox_messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 17. Table des paramètres système (tarification, devises, permissions)
+-- 18. Table des paramètres système (tarification, devises, permissions)
 CREATE TABLE IF NOT EXISTS system_settings (
   id TEXT PRIMARY KEY,
   value JSONB NOT NULL,
@@ -5546,8 +5686,27 @@ ALTER TABLE staff_payments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE material_expenses DISABLE ROW LEVEL SECURITY;
 ALTER TABLE dispute_signals DISABLE ROW LEVEL SECURITY;
 ALTER TABLE dis_signals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE support_tickets DISABLE ROW LEVEL SECURITY;
 ALTER TABLE inbox_messages DISABLE ROW LEVEL SECURITY;
 ALTER TABLE system_settings DISABLE ROW LEVEL SECURITY;
+
+-- Activer le mode Temps Réel (Realtime) sur les tables (sécurisé, sans erreur 42710 si déjà membre)
+DO $$
+DECLARE
+  tbl TEXT;
+  tbls TEXT[] := ARRAY['signaux_poubelles', 'eboueurs_gps', 'support_tickets', 'dispute_signals', 'dis_signals', 'inbox_messages', 'messages_plateforme'];
+BEGIN
+  FOR tbl IN SELECT unnest(tbls) LOOP
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = tbl
+      ) THEN
+        EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %I', tbl);
+      END IF;
+    END IF;
+  END LOOP;
+END $$;
 `);
                           alert("Code SQL copié dans le presse-papiers !");
                         }}
@@ -5777,7 +5936,24 @@ CREATE TABLE IF NOT EXISTS dis_signals (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 16. Table de messagerie interne (Inbox)
+-- 16. Table des tickets de support / réclamations
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id TEXT PRIMARY KEY,
+  sujet TEXT NOT NULL,
+  categorie VARCHAR(50) DEFAULT 'reclamation',
+  priorite VARCHAR(20) DEFAULT 'moyenne',
+  status VARCHAR(20) DEFAULT 'nouveau',
+  auteur_nom TEXT NOT NULL,
+  auteur_telephone VARCHAR(30) NOT NULL,
+  auteur_role VARCHAR(30),
+  commune_nom TEXT,
+  message TEXT NOT NULL,
+  reponse_support TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 17. Table de messagerie interne (Inbox)
 CREATE TABLE IF NOT EXISTS inbox_messages (
   id TEXT PRIMARY KEY,
   sender VARCHAR(100) NOT NULL,
@@ -5787,7 +5963,7 @@ CREATE TABLE IF NOT EXISTS inbox_messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 17. Table des paramètres système (tarification, devises, permissions)
+-- 18. Table des paramètres système (tarification, devises, permissions)
 CREATE TABLE IF NOT EXISTS system_settings (
   id TEXT PRIMARY KEY,
   value JSONB NOT NULL,
@@ -5854,8 +6030,27 @@ ALTER TABLE staff_payments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE material_expenses DISABLE ROW LEVEL SECURITY;
 ALTER TABLE dispute_signals DISABLE ROW LEVEL SECURITY;
 ALTER TABLE dis_signals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE support_tickets DISABLE ROW LEVEL SECURITY;
 ALTER TABLE inbox_messages DISABLE ROW LEVEL SECURITY;
 ALTER TABLE system_settings DISABLE ROW LEVEL SECURITY;
+
+-- Activer le mode Temps Réel (Realtime) sur les tables (sécurisé, sans erreur 42710 si déjà membre)
+DO $$
+DECLARE
+  tbl TEXT;
+  tbls TEXT[] := ARRAY['signaux_poubelles', 'eboueurs_gps', 'support_tickets', 'dispute_signals', 'dis_signals', 'inbox_messages', 'messages_plateforme'];
+BEGIN
+  FOR tbl IN SELECT unnest(tbls) LOOP
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = tbl
+      ) THEN
+        EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %I', tbl);
+      END IF;
+    END IF;
+  END LOOP;
+END $$;
 `}
                     </pre>
                   </div>

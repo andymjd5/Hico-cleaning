@@ -82,6 +82,14 @@ export default function SupportView({ currentUser }: SupportViewProps) {
 
     window.addEventListener('storage', handleTicketCreated);
     window.addEventListener('hico_ticket_created', handleTicketCreated);
+    window.addEventListener('hico_support_ticket_created', (e: any) => {
+      if (e.detail) {
+        setTickets(prev => {
+          if (prev.some(t => t.id === e.detail.id)) return prev;
+          return [e.detail, ...prev];
+        });
+      }
+    });
     return () => {
       window.removeEventListener('storage', handleTicketCreated);
       window.removeEventListener('hico_ticket_created', handleTicketCreated);
@@ -158,6 +166,21 @@ export default function SupportView({ currentUser }: SupportViewProps) {
 
     const updated = [newTicket, ...tickets];
     saveTickets(updated);
+
+    // Broadcast local signal for instant pop-up
+    window.dispatchEvent(new CustomEvent('hico_realtime_signal', {
+      detail: {
+        id: newTicket.id,
+        type: 'support',
+        title: '🎧 Nouveau Ticket Support / Réclamation',
+        subtitle: newTicket.sujet,
+        reporterName: newTicket.auteur_nom,
+        reporterPhone: newTicket.auteur_telephone,
+        reasonOrMessage: newTicket.message,
+        timestamp: newTicket.created_at,
+        rawObject: newTicket
+      }
+    }));
 
     if (isSupabaseConfigured) {
       try {

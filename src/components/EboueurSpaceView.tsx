@@ -282,31 +282,51 @@ export default function EboueurSpaceView({
                         </div>
                       </div>
 
-                      {/* Landlord metadata */}
-                      <div className="border-t border-b border-outline-variant/30 py-3.5 flex flex-col gap-2 text-xs sm:text-sm">
-                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
-                          Informations de l'Abonné (Bailleur)
-                        </span>
-                        <span className="font-extrabold text-on-surface text-sm sm:text-base">
-                          {mission.bailleur_nom}
-                        </span>
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-1">
+                      {/* Landlord metadata & Dual Call Actions */}
+                      <div className="border-t border-b border-outline-variant/30 py-3.5 flex flex-col gap-2.5 text-xs sm:text-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+                              Informations de l'Abonné (Bailleur)
+                            </span>
+                            <span className="font-extrabold text-on-surface text-sm sm:text-base">
+                              {mission.bailleur_nom}
+                            </span>
+                          </div>
+                          <span className="text-[10px] sm:text-xs font-semibold text-emerald-400 bg-emerald-950/30 px-2.5 py-1 rounded-lg border border-emerald-900/40 w-max">
+                            ➜ Sac {mission.type_poubelle === 'biodegradable' ? 'biodégradable' : 'non-dégradable'} prêt pour échange
+                          </span>
+                        </div>
+
+                        {/* Direct Call Buttons: 1) Abonné/Bailleur  2) Admin Affectateur */}
+                        <div className="flex flex-wrap items-center gap-2 mt-1 bg-background/60 p-2.5 rounded-xl border border-outline-variant/50">
                           <button 
                             type="button"
                             onClick={() => setActiveCallTarget({
                               name: mission.bailleur_nom || 'Bailleur / Abonné',
-                              phone: mission.bailleur_telephone || '+243 00 000 0000',
+                              phone: mission.bailleur_telephone || '+243 89 000 0000',
                               role: 'Bailleur / Parcelle Abonné',
                               commune: mission.commune_id || 'Kinshasa'
                             })}
-                            className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 rounded-xl font-bold font-mono text-xs transition-all cursor-pointer w-max border border-emerald-500/30 active:scale-95 shadow-sm"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 rounded-xl font-bold font-mono text-xs transition-all cursor-pointer border border-emerald-500/30 active:scale-95 shadow-sm"
                           >
-                            <Phone size={14} className="text-emerald-400" />
-                            <span>Appeler {mission.bailleur_telephone || 'Inconnu'}</span>
+                            <Phone size={14} className="text-emerald-400 shrink-0" />
+                            <span>📞 Appeler Abonné ({mission.bailleur_telephone || 'Inconnu'})</span>
                           </button>
-                          <span className="text-[10px] sm:text-xs font-semibold text-emerald-400 bg-emerald-950/30 px-2.5 py-1 rounded-lg border border-emerald-900/40 w-max">
-                            ➜ Sac de rechange {mission.type_poubelle === 'biodegradable' ? 'biodégradable' : 'non-dégradable'} prêt pour échange
-                          </span>
+
+                          <button 
+                            type="button"
+                            onClick={() => setActiveCallTarget({
+                              name: 'Admin Dispatching HICO',
+                              phone: '+243 81 000 9999',
+                              role: 'Admin Affectateur de Mission',
+                              commune: 'Bureau Central'
+                            })}
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 rounded-xl font-bold font-mono text-xs transition-all cursor-pointer border border-indigo-500/30 active:scale-95 shadow-sm"
+                          >
+                            <Phone size={14} className="text-indigo-400 shrink-0" />
+                            <span>👔 Appeler Admin (Affectateur)</span>
+                          </button>
                         </div>
                       </div>
 

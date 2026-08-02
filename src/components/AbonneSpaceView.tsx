@@ -485,7 +485,7 @@ export default function AbonneSpaceView({
                         )}
                       </div>
                     ) : (
-                      <div className="bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-xl flex flex-col gap-1.5 text-xs">
+                      <div className="bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-xl flex flex-col gap-2 text-xs">
                         <div className="flex justify-between items-center text-emerald-400 font-extrabold">
                           <span>Heure de passage estimée :</span>
                           <span className="text-sm bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/30 font-mono">
@@ -495,6 +495,38 @@ export default function AbonneSpaceView({
                         <p className="text-[10.5px] text-emerald-200/90 leading-snug">
                           Éboueur en charge : <strong className="text-white">{assignedEb?.nom || 'Éboueur Hico'}</strong> ({assignedEb?.telephone || 'Contacté'})
                         </p>
+
+                        {/* Call Actions: Éboueur vs Admin Affectateur */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-emerald-500/20">
+                          <button
+                            type="button"
+                            onClick={() => setActiveCallTarget({
+                              name: assignedEb?.nom || 'Éboueur de Zone',
+                              phone: assignedEb?.telephone || '+243 89 000 0000',
+                              role: 'Éboueur en Charge de Collecte',
+                              commune: commune.nom
+                            })}
+                            className="px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-[10.5px] font-extrabold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+                          >
+                            <PhoneCall size={12} className="text-emerald-400 shrink-0" />
+                            <span>📞 Appeler l'Éboueur</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setActiveCallTarget({
+                              name: 'Admin Dispatching HICO',
+                              phone: '+243 81 000 9999',
+                              role: 'Admin Affectateur de Mission',
+                              commune: 'Bureau Central'
+                            })}
+                            className="px-2.5 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 rounded-xl text-[10.5px] font-extrabold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+                          >
+                            <PhoneCall size={12} className="text-indigo-400 shrink-0" />
+                            <span>👔 Appeler Admin (Affectateur)</span>
+                          </button>
+                        </div>
+
                         {bioSignal.is_partiel && (
                           <div className="mt-1 p-2 bg-amber-500/15 border border-amber-500/30 rounded-lg text-[10px] text-amber-300 font-bold flex items-start gap-1.5">
                             <AlertTriangle size={13} className="shrink-0 mt-0.5" />
@@ -586,7 +618,7 @@ export default function AbonneSpaceView({
                         )}
                       </div>
                     ) : (
-                      <div className="bg-indigo-950/40 border border-indigo-500/30 p-3 rounded-xl flex flex-col gap-1.5 text-xs">
+                      <div className="bg-indigo-950/40 border border-indigo-500/30 p-3 rounded-xl flex flex-col gap-2 text-xs">
                         <div className="flex justify-between items-center text-indigo-400 font-extrabold">
                           <span>Heure de passage estimée :</span>
                           <span className="text-sm bg-indigo-500/20 px-2 py-0.5 rounded-lg border border-indigo-500/30 font-mono">
@@ -596,6 +628,38 @@ export default function AbonneSpaceView({
                         <p className="text-[10.5px] text-indigo-200/90 leading-snug">
                           Éboueur en charge : <strong className="text-white">{assignedEb?.nom || 'Éboueur Hico'}</strong> ({assignedEb?.telephone || 'Contacté'})
                         </p>
+
+                        {/* Call Actions: Éboueur vs Admin Affectateur */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-indigo-500/20">
+                          <button
+                            type="button"
+                            onClick={() => setActiveCallTarget({
+                              name: assignedEb?.nom || 'Éboueur de Zone',
+                              phone: assignedEb?.telephone || '+243 89 000 0000',
+                              role: 'Éboueur en Charge de Collecte',
+                              commune: commune.nom
+                            })}
+                            className="px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-[10.5px] font-extrabold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+                          >
+                            <PhoneCall size={12} className="text-emerald-400 shrink-0" />
+                            <span>📞 Appeler l'Éboueur</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setActiveCallTarget({
+                              name: 'Admin Dispatching HICO',
+                              phone: '+243 81 000 9999',
+                              role: 'Admin Affectateur de Mission',
+                              commune: 'Bureau Central'
+                            })}
+                            className="px-2.5 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 rounded-xl text-[10.5px] font-extrabold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+                          >
+                            <PhoneCall size={12} className="text-indigo-400 shrink-0" />
+                            <span>👔 Appeler Admin (Affectateur)</span>
+                          </button>
+                        </div>
+
                         {nonBioSignal.is_partiel && (
                           <div className="mt-1 p-2 bg-amber-500/15 border border-amber-500/30 rounded-lg text-[10px] text-amber-300 font-bold flex items-start gap-1.5">
                             <AlertTriangle size={13} className="shrink-0 mt-0.5" />
@@ -675,6 +739,19 @@ export default function AbonneSpaceView({
                     >
                       <PhoneCall size={12} className="text-emerald-400" />
                       <span>Appeler l'éboueur</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveCallTarget({
+                        name: 'Admin Dispatching HICO',
+                        phone: '+243 81 000 9999',
+                        role: 'Admin Affectateur de Mission',
+                        commune: 'Bureau Central'
+                      })}
+                      className="px-2.5 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 rounded-xl text-[10px] font-extrabold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                    >
+                      <PhoneCall size={12} className="text-indigo-400" />
+                      <span>Appeler l'Admin (Affectateur)</span>
                     </button>
                     <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold px-2.5 py-0.5 rounded-full">
                       En route
@@ -1103,12 +1180,38 @@ export default function AbonneSpaceView({
                         <span className="font-extrabold text-blue-400 flex items-center gap-2">
                           <span>Éboueur : {ebName}</span>
                           <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-mono px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
-                            🟢 Course Active (En Route)
+                            🟢 Course Active
                           </span>
                         </span>
-                        <span className="text-xs text-slate-300 font-medium mt-0.5">
-                          Destination : Parcelle N° {currentParcelle.numero_parcelle}, Av. {avenue.nom}
-                        </span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button
+                            type="button"
+                            onClick={() => setActiveCallTarget({
+                              name: ebName,
+                              phone: assignedCollectorObj?.telephone || '+243 89 000 0000',
+                              role: 'Éboueur en Charge de Collecte',
+                              commune: commune.nom
+                            })}
+                            className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-[10px] font-extrabold flex items-center gap-1 cursor-pointer"
+                          >
+                            <PhoneCall size={11} />
+                            <span>Appeler Éboueur</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setActiveCallTarget({
+                              name: 'Admin Dispatching HICO',
+                              phone: '+243 81 000 9999',
+                              role: 'Admin Affectateur de Mission',
+                              commune: 'Bureau Central'
+                            })}
+                            className="px-2 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 rounded-lg text-[10px] font-extrabold flex items-center gap-1 cursor-pointer"
+                          >
+                            <PhoneCall size={11} />
+                            <span>Appeler Admin</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
 
