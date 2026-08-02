@@ -41,6 +41,7 @@ import { initiateMobileMoneyPayment, checkFlexPayStatus, detectOperatorFromPhone
 import { MPesaLogo, OrangeMoneyLogo, AirtelMoneyLogo, AfrimoneyLogo } from './OperatorLogos';
 import { CartRouteTrackingMap } from './CartRouteTrackingMap';
 import { getDistanceMeters, calculateCartETA, advancePositionTowardsTarget } from '../lib/geoUtils';
+import VoiceCallModal, { CallTarget } from './VoiceCallModal';
 
 interface AbonneSpaceViewProps {
   currentAbonne: Abonne;
@@ -200,6 +201,7 @@ export default function AbonneSpaceView({
   
   // Checkout Modal State
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [activeCallTarget, setActiveCallTarget] = useState<CallTarget | null>(null);
   const [paymentPhoneNumber, setPaymentPhoneNumber] = useState(currentAbonne.telephone_principal);
   const [selectedPaymentProvider, setSelectedPaymentProvider] = useState<'mpesa' | 'orange' | 'airtel' | 'afrimoney'>(() => {
     return detectOperatorFromPhone(currentAbonne.telephone_principal) || 'mpesa';
@@ -650,13 +652,28 @@ export default function AbonneSpaceView({
 
             return (
               <div className="flex flex-col gap-3 mt-1 border-t border-outline-variant/40 pt-4 animate-fade-in">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="text-xs font-black uppercase text-blue-400 tracking-wider flex items-center gap-2">
                     <span>🚚 Suivi GPS du Déplacement de l'Éboueur</span>
                   </h4>
-                  <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold px-2.5 py-0.5 rounded-full">
-                    En route vers votre parcelle
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCallTarget({
+                        name: assignedEb.nom || 'Éboueur de Zone',
+                        phone: assignedEb.telephone || '+243 89 000 0000',
+                        role: 'Éboueur de Zone',
+                        commune: commune.nom
+                      })}
+                      className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-[10px] font-extrabold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                    >
+                      <PhoneCall size={12} className="text-emerald-400" />
+                      <span>Appeler l'éboueur</span>
+                    </button>
+                    <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold px-2.5 py-0.5 rounded-full">
+                      En route
+                    </span>
+                  </div>
                 </div>
 
                 <CartRouteTrackingMap 
@@ -1702,6 +1719,12 @@ export default function AbonneSpaceView({
           </div>
         </div>
       )}
+
+      {/* 📞 VOICE CALL MODAL */}
+      <VoiceCallModal 
+        target={activeCallTarget} 
+        onClose={() => setActiveCallTarget(null)} 
+      />
 
     </div>
   );

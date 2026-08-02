@@ -6,6 +6,7 @@ import {
 } from '../types';
 import { CartRouteTrackingMap } from './CartRouteTrackingMap';
 import { advancePositionTowardsTarget } from '../lib/geoUtils';
+import VoiceCallModal, { CallTarget } from './VoiceCallModal';
 import { 
   Truck, 
   MapPin, 
@@ -109,6 +110,9 @@ export default function EboueurSpaceView({
   const [simulatedNearbyMap, setSimulatedNearbyMap] = useState<Record<string, boolean>>({});
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+
+  // Voice Call Modal State
+  const [activeCallTarget, setActiveCallTarget] = useState<CallTarget | null>(null);
 
   const hasActiveMission = assignedMissions.length > 0;
 
@@ -287,13 +291,19 @@ export default function EboueurSpaceView({
                           {mission.bailleur_nom}
                         </span>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-1">
-                          <a 
-                            href={`tel:${mission.bailleur_telephone}`}
-                            className="inline-flex items-center gap-2 px-3 py-2 bg-secondary/10 hover:bg-secondary/20 text-secondary rounded-xl font-bold font-mono text-xs transition-colors cursor-pointer w-max border border-secondary/20"
+                          <button 
+                            type="button"
+                            onClick={() => setActiveCallTarget({
+                              name: mission.bailleur_nom || 'Bailleur / Abonné',
+                              phone: mission.bailleur_telephone || '+243 00 000 0000',
+                              role: 'Bailleur / Parcelle Abonné',
+                              commune: mission.commune_id || 'Kinshasa'
+                            })}
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 rounded-xl font-bold font-mono text-xs transition-all cursor-pointer w-max border border-emerald-500/30 active:scale-95 shadow-sm"
                           >
-                            <Phone size={14} />
-                            <span>{mission.bailleur_telephone || 'Inconnu'}</span>
-                          </a>
+                            <Phone size={14} className="text-emerald-400" />
+                            <span>Appeler {mission.bailleur_telephone || 'Inconnu'}</span>
+                          </button>
                           <span className="text-[10px] sm:text-xs font-semibold text-emerald-400 bg-emerald-950/30 px-2.5 py-1 rounded-lg border border-emerald-900/40 w-max">
                             ➜ Sac de rechange {mission.type_poubelle === 'biodegradable' ? 'biodégradable' : 'non-dégradable'} prêt pour échange
                           </span>
@@ -874,6 +884,11 @@ export default function EboueurSpaceView({
 
 
 
+      {/* Voice Call Choice Modal */}
+      <VoiceCallModal
+        target={activeCallTarget}
+        onClose={() => setActiveCallTarget(null)}
+      />
     </div>
   );
 }

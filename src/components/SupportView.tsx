@@ -20,6 +20,7 @@ import {
 import { Agent, SupportTicket } from '../types';
 import { sanitizeText, validatePhoneNumber, rateLimiter } from '../lib/security';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import VoiceCallModal, { CallTarget } from './VoiceCallModal';
 
 interface SupportViewProps {
   currentUser: Agent | null;
@@ -105,6 +106,9 @@ export default function SupportView({ currentUser }: SupportViewProps) {
 
   // Support Response State
   const [reponseInput, setReponseInput] = useState('');
+
+  // Voice Call Modal Target
+  const [activeCallTarget, setActiveCallTarget] = useState<CallTarget | null>(null);
 
   // FAQ Accordion State
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
@@ -264,37 +268,76 @@ export default function SupportView({ currentUser }: SupportViewProps) {
 
       {/* Emergency Contact Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-surface border border-outline-variant rounded-2xl p-4 flex items-center gap-3.5 shadow-md">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-            <Phone size={18} />
+        <div 
+          onClick={() => setActiveCallTarget({
+            name: 'Hotline Hico Kinshasa',
+            phone: '+243 89 977 4965',
+            role: 'Support & Assistance General',
+            commune: 'Kinshasa HQ'
+          })}
+          className="bg-surface border border-outline-variant hover:border-emerald-500/50 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-md cursor-pointer group transition-all"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 group-hover:scale-105 transition-transform">
+              <Phone size={18} />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hotline Kinshasa</span>
+              <span className="text-sm font-extrabold text-white font-mono">+243 89 977 4965</span>
+              <span className="text-[10px] text-emerald-400 font-semibold">Disponible 7j/7 • 08h-18h</span>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hotline Kinshasa</span>
-            <span className="text-sm font-extrabold text-white font-mono">+243 89 977 4965</span>
-            <span className="text-[10px] text-emerald-400 font-semibold">Disponible 7j/7 • 08h-18h</span>
-          </div>
+          <span className="px-2 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-extrabold rounded-lg shrink-0">
+            Appeler
+          </span>
         </div>
 
-        <div className="bg-surface border border-outline-variant rounded-2xl p-4 flex items-center gap-3.5 shadow-md">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
-            <MessageSquare size={18} />
+        <div 
+          onClick={() => setActiveCallTarget({
+            name: 'Assistance WhatsApp Direct',
+            phone: '+243 81 234 5678',
+            role: 'Support WhatsApp & Visiophonie',
+            commune: 'Kinshasa'
+          })}
+          className="bg-surface border border-outline-variant hover:border-indigo-500/50 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-md cursor-pointer group transition-all"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0 group-hover:scale-105 transition-transform">
+              <MessageSquare size={18} />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">WhatsApp Direct</span>
+              <span className="text-sm font-extrabold text-white font-mono">+243 81 234 5678</span>
+              <span className="text-[10px] text-indigo-400 font-semibold">Réponse rapide via WhatsApp</span>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">WhatsApp Direct</span>
-            <span className="text-sm font-extrabold text-white font-mono">+243 81 234 5678</span>
-            <span className="text-[10px] text-indigo-400 font-semibold">Réponse rapide via WhatsApp</span>
-          </div>
+          <span className="px-2 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-extrabold rounded-lg shrink-0">
+            Appeler
+          </span>
         </div>
 
-        <div className="bg-surface border border-outline-variant rounded-2xl p-4 flex items-center gap-3.5 shadow-md">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-            <ShieldAlert size={18} />
+        <div 
+          onClick={() => setActiveCallTarget({
+            name: 'Dispatch Éboueurs Urgents',
+            phone: '+243 82 998 8776',
+            role: 'Superviseur Général Terrain',
+            commune: 'Kinshasa All'
+          })}
+          className="bg-surface border border-outline-variant hover:border-amber-500/50 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-md cursor-pointer group transition-all"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 group-hover:scale-105 transition-transform">
+              <ShieldAlert size={18} />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Dispatch Urgent Éboueurs</span>
+              <span className="text-sm font-extrabold text-white font-mono">+243 82 998 8776</span>
+              <span className="text-[10px] text-amber-400 font-semibold">Priorité Poubelle Débordante</span>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Dispatch Urgent Éboueurs</span>
-            <span className="text-sm font-extrabold text-white font-mono">Urgence Ramassage</span>
-            <span className="text-[10px] text-amber-400 font-semibold">Priorité Poubelle Débordante</span>
-          </div>
+          <span className="px-2 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-extrabold rounded-lg shrink-0">
+            Appeler
+          </span>
         </div>
       </div>
 
@@ -457,7 +500,23 @@ export default function SupportView({ currentUser }: SupportViewProps) {
                 <div>
                   <span className="text-[10px] text-gray-400 font-bold uppercase">Auteur / Abonné</span>
                   <p className="font-bold text-white">{selectedTicket.auteur_nom}</p>
-                  <p className="text-[11px] text-primary font-mono">{selectedTicket.auteur_telephone}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-[11px] text-primary font-mono">{selectedTicket.auteur_telephone}</p>
+                    {selectedTicket.auteur_telephone && selectedTicket.auteur_telephone !== 'N/A' && (
+                      <button
+                        onClick={() => setActiveCallTarget({
+                          name: selectedTicket.auteur_nom,
+                          phone: selectedTicket.auteur_telephone,
+                          role: 'Abonné / Auteur Ticket',
+                          commune: selectedTicket.commune_nom || 'Kinshasa'
+                        })}
+                        className="px-2 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Phone size={10} />
+                        <span>Appeler</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <span className="text-[10px] text-gray-400 font-bold uppercase">Catégorie & Commune</span>
@@ -669,6 +728,12 @@ export default function SupportView({ currentUser }: SupportViewProps) {
           ))}
         </div>
       </div>
+
+      {/* Voice Call Modal */}
+      <VoiceCallModal 
+        target={activeCallTarget} 
+        onClose={() => setActiveCallTarget(null)} 
+      />
     </div>
   );
 }
