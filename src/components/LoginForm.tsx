@@ -97,8 +97,14 @@ export default function LoginForm({
         return;
       }
 
-      // Check if this is first login or has an active temporary password
-      if (found.isTempPassword) {
+      // Check if this is first login or has an active temporary password ('12345' or starts with 'TEMP-')
+      const isTemporaryPassword = 
+        userPassword === '12345' || 
+        userPassword.startsWith('TEMP-') ||
+        found.isTempPassword === true || 
+        (found as any).is_temp_password === true;
+
+      if (isTemporaryPassword) {
         setPendingFirstLoginAgent(found);
         setNewPersonalPass('');
         setConfirmPersonalPass('');
@@ -126,10 +132,19 @@ export default function LoginForm({
         role: newAccountRole,
         created_at: new Date().toISOString(),
         password: password || '12345',
-        isTempPassword: false
+        isTempPassword: password === '12345'
       };
       
       onRegisterAgent(sessionAgent);
+
+      if (password === '12345') {
+        setPendingFirstLoginAgent(sessionAgent);
+        setNewPersonalPass('');
+        setConfirmPersonalPass('');
+        setFirstLoginError(null);
+        return;
+      }
+
       onLoginSuccess(sessionAgent);
     }
   };
@@ -140,19 +155,26 @@ export default function LoginForm({
 
     if (!pendingFirstLoginAgent) return;
 
-    if (newPersonalPass.length < 8) {
-      setFirstLoginError('Le mot de passe doit comporter au moins 8 caractères.');
+    const trimmedPass = newPersonalPass.trim();
+
+    if (trimmedPass.length < 4) {
+      setFirstLoginError('Le mot de passe doit comporter au moins 4 caractères.');
       return;
     }
 
-    if (newPersonalPass !== confirmPersonalPass) {
+    if (trimmedPass === '12345') {
+      setFirstLoginError('Le nouveau mot de passe ne peut pas être le mot de passe temporaire "12345". Veuillez en choisir un autre.');
+      return;
+    }
+
+    if (trimmedPass !== confirmPersonalPass.trim()) {
       setFirstLoginError('Les deux mots de passe ne correspondent pas.');
       return;
     }
 
     const updatedAgent: Agent = {
       ...pendingFirstLoginAgent,
-      password: newPersonalPass,
+      password: trimmedPass,
       isTempPassword: false
     };
 
@@ -378,14 +400,14 @@ export default function LoginForm({
             </div>
 
             <p className="text-xs text-gray-300 leading-relaxed font-sans bg-[#0D0D0D] p-3 rounded-xl border border-white/5">
-              C'est votre première connexion (ou votre mot de passe a été réinitialisé). Pour sécuriser l'accès à votre espace Abonné, veuillez définir un mot de passe personnel comportant au moins <strong className="text-white">8 caractères</strong>.
+              C'est votre première connexion (ou votre mot de passe temporaire "12345" est actif). Pour sécuriser l'accès à votre espace, veuillez définir un mot de passe personnel d'au moins <strong className="text-white">4 caractères</strong>.
             </p>
 
             <form onSubmit={handleCustomPasswordSubmit} className="flex flex-col gap-4">
               {/* New Password Input */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 font-sans">
-                  Nouveau mot de passe (min. 8 caractères)
+                  Nouveau mot de passe (min. 4 caractères)
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-500">
@@ -395,7 +417,7 @@ export default function LoginForm({
                     type={showNewPassToggle ? "text" : "password"}
                     value={newPersonalPass}
                     onChange={(e) => setNewPersonalPass(e.target.value)}
-                    placeholder="Au moins 8 caractères"
+                    placeholder="Saisissez votre nouveau mot de passe"
                     className="w-full h-11 pl-11 pr-10 bg-[#0D0D0D] border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-primary font-sans"
                     required
                   />
@@ -431,9 +453,9 @@ export default function LoginForm({
 
               {/* Password checks indicators */}
               <div className="flex flex-col gap-1.5 text-xs font-sans">
-                <div className={`flex items-center gap-1.5 ${newPersonalPass.length >= 8 ? 'text-[#10b981]' : 'text-gray-500'}`}>
+                <div className={`flex items-center gap-1.5 ${newPersonalPass.trim().length >= 4 && newPersonalPass.trim() !== '12345' ? 'text-[#10b981]' : 'text-gray-500'}`}>
                   <CheckCircle2 size={14} />
-                  <span>Au moins 8 caractères ({newPersonalPass.length}/8)</span>
+                  <span>Au moins 4 caractères et différent de "12345" ({newPersonalPass.length}/4)</span>
                 </div>
                 <div className={`flex items-center gap-1.5 ${newPersonalPass && newPersonalPass === confirmPersonalPass ? 'text-[#10b981]' : 'text-gray-500'}`}>
                   <CheckCircle2 size={14} />
@@ -450,7 +472,7 @@ export default function LoginForm({
 
               <button
                 type="submit"
-                disabled={newPersonalPass.length < 8 || newPersonalPass !== confirmPersonalPass}
+                disabled={newPersonalPass.trim().length < 4 || newPersonalPass.trim() === '12345' || newPersonalPass !== confirmPersonalPass}
                 className="w-full h-11 mt-2 bg-primary text-white font-bold text-sm rounded-xl hover:opacity-90 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer"
               >
                 <span>Valider et Accéder à mon Espace</span>

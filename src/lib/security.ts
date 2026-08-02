@@ -53,33 +53,34 @@ export interface PasswordStrengthResult {
 export function checkPasswordStrength(password: string): PasswordStrengthResult {
   const feedback: string[] = [];
   let score = 0;
+  const cleanPass = (password || '').trim();
 
-  if (!password || password.length < 8) {
-    feedback.push('Le mot de passe doit contenir au moins 8 caractères.');
+  if (!cleanPass || cleanPass.length < 4) {
+    feedback.push('Le mot de passe doit contenir au moins 4 caractères.');
   } else {
     score += 1;
   }
 
-  if (/[A-Z]/.test(password)) {
-    score += 1;
-  } else {
-    feedback.push('Inclure au moins une lettre majuscule.');
+  if (cleanPass === '12345') {
+    feedback.push('Veuillez choisir un mot de passe différent du mot de passe temporaire "12345".');
   }
 
-  if (/[0-9]/.test(password)) {
+  if (/[A-Z]/.test(cleanPass)) {
     score += 1;
-  } else {
-    feedback.push('Inclure au moins un chiffre.');
   }
 
-  if (/[^A-Za-z0-9]/.test(password)) {
+  if (/[0-9]/.test(cleanPass)) {
     score += 1;
-  } else {
-    feedback.push('Inclure au moins un caractère spécial (!@#$%^&*...).');
   }
+
+  if (/[^A-Za-z0-9]/.test(cleanPass)) {
+    score += 1;
+  }
+
+  const isValid = cleanPass.length >= 4 && cleanPass !== '12345';
 
   return {
-    isValid: password.length >= 8 && score >= 2,
+    isValid,
     score,
     feedback,
   };

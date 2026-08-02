@@ -1529,13 +1529,13 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
         if (!agsError && ags) {
           const rawMapped: Agent[] = ags.map((a: any) => {
             const pwd = a.password || '12345';
-            let isTemp = false;
-            if (a.is_temp_password !== undefined && a.is_temp_password !== null) {
-              isTemp = Boolean(a.is_temp_password);
-            } else if (a.isTempPassword !== undefined && a.isTempPassword !== null) {
-              isTemp = Boolean(a.isTempPassword);
-            } else {
-              isTemp = (pwd === '12345');
+            let isTemp = (pwd === '12345' || pwd.startsWith('TEMP-'));
+            if (!isTemp) {
+              if (a.is_temp_password !== undefined && a.is_temp_password !== null) {
+                isTemp = Boolean(a.is_temp_password);
+              } else if (a.isTempPassword !== undefined && a.isTempPassword !== null) {
+                isTemp = Boolean(a.isTempPassword);
+              }
             }
             return {
               id: a.id,
