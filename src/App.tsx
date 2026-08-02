@@ -359,15 +359,21 @@ export default function App() {
   });
 
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>(() => {
+    const savedReadRaw = localStorage.getItem('hico_read_message_ids');
+    const readIds = new Set<string>(savedReadRaw ? JSON.parse(savedReadRaw) : []);
+    
     const saved = localStorage.getItem('hico_inbox_messages');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed: InboxMessage[] = JSON.parse(saved);
+      return parsed.map(m => readIds.has(m.id) ? { ...m, read: true } : m);
+    }
     return [
       {
         id: 'msg-1',
         sender: 'Hico-Cleaning',
         content: 'Bienvenue sur votre espace de salubrité Hico-Cleaning ! Retrouvez ici vos factures, vos signalements de poubelles pleines et les alertes d\'assainissement.',
         sent_at: new Date().toISOString(),
-        read: false
+        read: readIds.has('msg-1')
       }
     ];
   });
@@ -1695,8 +1701,17 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           .from('inbox_messages')
           .select('*');
         if (!msgsError && msgs) {
+          const savedReadRaw = localStorage.getItem('hico_read_message_ids');
+          const readIds = new Set<string>(savedReadRaw ? JSON.parse(savedReadRaw) : []);
+
           msgs.sort((a: any, b: any) => new Date(b.sent_at || b.created_at || 0).getTime() - new Date(a.sent_at || a.created_at || 0).getTime());
-          setInboxMessages(msgs);
+          
+          const merged = msgs.map((m: any) => ({
+            ...m,
+            read: Boolean(m.read || readIds.has(m.id))
+          }));
+
+          setInboxMessages(merged);
         }
       } catch (e) {
         console.warn("Table 'inbox_messages' not accessible, using localStorage fallback.", e);
@@ -3525,12 +3540,58 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     }
   };
 
-  const handleMarkMessageAsRead = (messageId: string) => {
-    setInboxMessages(prev => prev.map(m => m.id === messageId ? { ...m, read: true } : m));
+  const handleMarkMessageAsRead = async (messageId: string) => {
+    setInboxMessages(prev => {
+      const updated = prev.map(m => m.id === messageId ? { ...m, read: true } : m);
+      localStorage.setItem('hico_inbox_messages', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      const savedReadRaw = localStorage.getItem('hico_read_message_ids');
+      const readIds = new Set<string>(savedReadRaw ? JSON.parse(savedReadRaw) : []);
+      readIds.add(messageId);
+      localStorage.setItem('hico_read_message_ids', JSON.stringify(Array.from(readIds)));
+    } catch (e) {
+      console.warn("Error saving read message ID:", e);
+    }
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('inbox_messages').update({ read: true }).eq('id', messageId);
+      } catch (err) {
+        console.warn("Supabase mark message read update failed:", err);
+      }
+    }
   };
 
-  const handleMarkAllMessagesAsRead = () => {
-    setInboxMessages(prev => prev.map(m => ({ ...m, read: true })));
+  const handleMarkAllMessagesAsRead = async () => {
+    let allIds: string[] = [];
+    setInboxMessages(prev => {
+      allIds = prev.map(m => m.id);
+      const updated = prev.map(m => ({ ...m, read: true }));
+      localStorage.setItem('hico_inbox_messages', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      const savedReadRaw = localStorage.getItem('hico_read_message_ids');
+      const readIds = new Set<string>(savedReadRaw ? JSON.parse(savedReadRaw) : []);
+      allIds.forEach(id => readIds.add(id));
+      localStorage.setItem('hico_read_message_ids', JSON.stringify(Array.from(readIds)));
+    } catch (e) {
+      console.warn("Error saving read message IDs:", e);
+    }
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        if (allIds.length > 0) {
+          await supabase.from('inbox_messages').update({ read: true }).in('id', allIds);
+        }
+      } catch (err) {
+        console.warn("Supabase mark all messages read update failed:", err);
+      }
+    }
   };
 
   const handleSimulateSignal = async (parcelleId: string, typePoubelle?: 'biodegradable' | 'non_biodegradable') => {

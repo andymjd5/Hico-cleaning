@@ -1229,9 +1229,14 @@ export default function AbonneSpaceView({
                   return (
                     <div 
                       key={msg.id}
+                      onClick={() => {
+                        if (isUnread && onMarkMessageAsRead) {
+                          onMarkMessageAsRead(msg.id);
+                        }
+                      }}
                       className={`p-4 border rounded-2xl flex flex-col gap-2 text-xs transition-all relative ${
                         isUnread 
-                          ? 'bg-amber-500/10 border-2 border-amber-500/50 shadow-md text-on-surface' 
+                          ? 'bg-amber-500/10 border-2 border-amber-500/50 shadow-md text-on-surface cursor-pointer hover:border-amber-400' 
                           : 'bg-surface/50 border-outline-variant/40 text-on-surface-variant opacity-80'
                       }`}
                     >
