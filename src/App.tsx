@@ -3723,6 +3723,22 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     }
   };
 
+  const handleDeleteMessage = async (messageId: string) => {
+    setInboxMessages(prev => {
+      const updated = prev.filter(m => m.id !== messageId);
+      localStorage.setItem('hico_inbox_messages', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('inbox_messages').delete().eq('id', messageId);
+      } catch (err) {
+        console.warn("Supabase inbox_messages delete failed:", err);
+      }
+    }
+  };
+
   const handleSimulateSignal = async (parcelleId: string, typePoubelle?: 'biodegradable' | 'non_biodegradable') => {
     const parc = parcelles.find(p => p.id === parcelleId);
     if (!parc) return;
@@ -4443,6 +4459,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                     onSendMessage={handleSendInboxMessage}
                     onMarkMessageAsRead={handleMarkMessageAsRead}
                     onMarkAllMessagesAsRead={handleMarkAllMessagesAsRead}
+                    onDeleteMessage={handleDeleteMessage}
                     onRecordOnlinePayment={async (amount, provider, phone) => {
                       // Add payment directly to receipts registry
                       const pay: SubscriptionPayment = {

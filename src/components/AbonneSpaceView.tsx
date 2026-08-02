@@ -60,6 +60,7 @@ interface AbonneSpaceViewProps {
   onSendMessage: (sender: string, content: string) => void;
   onMarkMessageAsRead?: (messageId: string) => void;
   onMarkAllMessagesAsRead?: () => void;
+  onDeleteMessage?: (messageId: string) => void;
   onRecordOnlinePayment?: (amount: number, provider: 'mpesa' | 'orange' | 'airtel' | 'afrimoney', phone: string) => void;
   onLogout?: () => void;
   activeTab?: 'signalement' | 'redevance' | 'carte' | 'inbox';
@@ -82,6 +83,7 @@ export default function AbonneSpaceView({
   onSendMessage,
   onMarkMessageAsRead,
   onMarkAllMessagesAsRead,
+  onDeleteMessage,
   onRecordOnlinePayment,
   onLogout,
   activeTab: activeTabProp = 'signalement'
@@ -1285,6 +1287,22 @@ export default function AbonneSpaceView({
                   Tout marquer comme lu
                 </button>
               )}
+
+              {onDeleteMessage && messages.some(m => m.read) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm("Voulez-vous vraiment supprimer tous les messages lus ?")) {
+                      messages.filter(m => m.read).forEach(m => onDeleteMessage(m.id));
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-error/10 hover:bg-error/20 text-error border border-error/30 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"
+                  title="Supprimer les messages lus de la boîte de réception"
+                >
+                  <Trash2 size={13} />
+                  <span>Effacer les lus</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1401,6 +1419,22 @@ export default function AbonneSpaceView({
                               title="Marquer ce message comme lu"
                             >
                               Marquer lu
+                            </button>
+                          )}
+
+                          {onDeleteMessage && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm("Voulez-vous vraiment supprimer ce message ?")) {
+                                  onDeleteMessage(msg.id);
+                                }
+                              }}
+                              className="p-1.5 text-on-surface-variant/60 hover:text-error hover:bg-error/15 rounded-lg border border-transparent hover:border-error/30 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                              title="Supprimer ce message"
+                            >
+                              <Trash2 size={13} />
                             </button>
                           )}
                         </div>
