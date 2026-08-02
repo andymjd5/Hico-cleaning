@@ -132,6 +132,12 @@ export default function AbonneSpaceView({
         osc.start(ctx.currentTime + time);
         osc.stop(ctx.currentTime + time + duration + 0.05);
       });
+
+      setTimeout(() => {
+        try {
+          if (ctx.state !== 'closed') ctx.close().catch(() => {});
+        } catch (_) {}
+      }, 1500);
     } catch (err) {
       console.warn("Could not play arrival chime:", err);
     }

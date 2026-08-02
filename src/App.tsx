@@ -484,6 +484,12 @@ export default function App() {
       gain3.connect(ctx.destination);
       osc3.start(now + 0.38);
       osc3.stop(now + 0.75);
+
+      setTimeout(() => {
+        try {
+          if (ctx.state !== 'closed') ctx.close().catch(() => {});
+        } catch (_) {}
+      }, 1000);
     } catch (err) {
       console.warn("Sonore alert failed to play:", err);
     }

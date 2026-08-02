@@ -41,6 +41,25 @@ export default function VoiceCallModal({ target, onClose }: VoiceCallModalProps)
   // Audio synthesis ref for realistic ringer and connection tones using Web Audio API
   const audioCtxRef = useRef<AudioContext | null>(null);
 
+  // Helper to safely close audio context
+  const closeAudioCtx = () => {
+    if (audioCtxRef.current) {
+      try {
+        if (audioCtxRef.current.state !== 'closed') {
+          audioCtxRef.current.close().catch(() => {});
+        }
+      } catch (_) {}
+      audioCtxRef.current = null;
+    }
+  };
+
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      closeAudioCtx();
+    };
+  }, []);
+
   // Timer effect for connected call
   useEffect(() => {
     let timer: any;
@@ -134,11 +153,7 @@ export default function VoiceCallModal({ target, onClose }: VoiceCallModalProps)
 
   const handleEndCall = () => {
     setCallStatus('ended');
-    if (audioCtxRef.current) {
-      try {
-        audioCtxRef.current.close();
-      } catch (e) {}
-    }
+    closeAudioCtx();
     setTimeout(() => {
       onClose();
     }, 600);
