@@ -181,11 +181,11 @@ export default function DechetsMapView({
   const [historySearch, setHistorySearch] = useState('');
   const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'pending' | 'assigned' | 'completed'>('all');
 
-  // Periodically update nowTick every 10 seconds to auto-remove completed markers > 5min
+  // Periodically update nowTick every 2 seconds to auto-remove completed markers > 1min
   useEffect(() => {
     const timer = setInterval(() => {
       setNowTick(Date.now());
-    }, 10000);
+    }, 2000);
     return () => clearInterval(timer);
   }, []);
 
@@ -193,10 +193,9 @@ export default function DechetsMapView({
   // Rules:
   // 1. Filter by selectedCommuneFilter if set
   // 2. Always show active alerts ('pending' or 'assigned')
-  // 3. If completed, ONLY show if completed within the last 5 minutes (300,000 ms)
-  // 4. Always show if explicitly selected (e.g. localized by admin or clicked in history)
+  // 3. If completed, ONLY show if completed within the last 1 minute (60,000 ms)
   const visibleSignalsOnMap = useMemo(() => {
-    const FIVE_MINUTES_MS = 5 * 60 * 1000;
+    const ONE_MINUTE_MS = 60 * 1000;
 
     return signals.filter((sig) => {
       if (selectedCommuneFilter) {
@@ -205,16 +204,15 @@ export default function DechetsMapView({
         if (!matchCommune && selectedSignalId !== sig.id) return false;
       }
 
-      if (selectedSignalId === sig.id) return true;
-
       if (sig.status === 'pending' || sig.status === 'assigned') return true;
 
       if (sig.status === 'completed') {
         if (!sig.completed_at) return false;
         const completedTime = new Date(sig.completed_at).getTime();
-        if (!isNaN(completedTime) && (nowTick - completedTime) <= FIVE_MINUTES_MS) {
+        if (!isNaN(completedTime) && (nowTick - completedTime) <= ONE_MINUTE_MS) {
           return true;
         }
+        return false;
       }
 
       return false;
@@ -498,8 +496,7 @@ export default function DechetsMapView({
       const marker = window.L.marker([coords.lat, coords.lng], { icon: customIcon });
       
       const completedAgoSec = sig.completed_at ? Math.max(0, Math.floor((nowTick - new Date(sig.completed_at).getTime()) / 1000)) : 0;
-      const remainingSec = Math.max(0, 300 - completedAgoSec);
-      const remainingMin = Math.ceil(remainingSec / 60);
+      const remainingSec = Math.max(0, 60 - completedAgoSec);
 
       marker.bindPopup(`
         <div class="text-xs p-1 leading-normal" style="color: #0b1c30; font-family: sans-serif;">
@@ -509,7 +506,7 @@ export default function DechetsMapView({
           <strong>Bailleur:</strong> ${sig.bailleur_nom}<br/>
           <strong>Signalé à:</strong> ${sig.reported_at.substring(11, 16)}<br/>
           <strong>Position GPS HD:</strong> <span style="font-family: monospace; font-size: 11px;">${coords.lat.toFixed(8)}, ${coords.lng.toFixed(8)}</span> <span style="color: #10b981; font-weight: bold;">(🎯 100% HD)</span><br/>
-          ${isCompleted ? `<div class="mt-1 font-bold text-[10px] text-emerald-700 bg-emerald-50 p-1 rounded border border-emerald-200">✅ Action validée — Masquage automatique dans ${remainingMin} min</div>` : ''}
+          ${isCompleted ? `<div class="mt-1 font-bold text-[10px] text-emerald-700 bg-emerald-50 p-1 rounded border border-emerald-200">✅ Action validée — Masquage automatique dans ${remainingSec}s</div>` : ''}
           <div class="mt-1.5 font-bold text-[10px] uppercase inline-block px-1.5 py-0.5 rounded ${isPending ? 'bg-red-100 text-red-700' : isAssigned ? 'bg-yellow-100 text-yellow-700' : 'bg-emerald-100 text-emerald-700'}">
             ${sig.status === 'pending' ? 'Poubelle Pleine 🚨' : sig.status === 'assigned' ? 'Assigné 🚚' : 'Vidé ✔'}
           </div>
