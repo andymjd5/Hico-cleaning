@@ -113,8 +113,12 @@ export interface PoubelleSignal {
   litige_abonne?: boolean;
   litige_raison?: string;
   litige_date?: string;
-  confirmation_abonne?: 'en_attente' | 'confirme' | 'conteste';
+  confirmation_abonne?: 'en_attente' | 'confirme' | 'conteste' | 'partiel';
   confirmation_date?: string;
+  statut_evacuation?: 'succes' | 'echec' | 'non_effectue' | 'en_attente';
+  statut_sachets?: 'recu' | 'non_recu' | 'en_attente';
+  evacuation_confirmee?: boolean;
+  sachets_confirmes?: boolean;
   // Appointment & Dispatch extensions
   estimated_arrival_minutes?: number;
   eta_appointment_time?: string;

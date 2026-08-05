@@ -241,7 +241,14 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          const seen = new Set<string>();
+          return parsed.filter(s => {
+            if (!s.id || seen.has(s.id)) return false;
+            seen.add(s.id);
+            return true;
+          });
+        }
       } catch (e) {
         console.error("Failed to parse saved poubelle signals", e);
       }
@@ -585,6 +592,12 @@ export default function App() {
         if (info) {
           setCompletionNotification(info);
           triggerWindowsCompletionDesktopNotification(info);
+        }
+      } else if (event.data && event.data.type === 'DISPUTE_ALERT') {
+        const disputeAlert = event.data.alert;
+        if (disputeAlert) {
+          triggerRealtimeAlert(disputeAlert);
+          playSignalAlertSound();
         }
       }
     };
@@ -3312,13 +3325,26 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     }
   };
 
-  const handleConfirmReception = async (signalId: string) => {
+  const handleConfirmReception = async (
+    signalId: string,
+    details?: {
+      statut_evacuation?: 'succes' | 'echec';
+      statut_sachets?: 'recu' | 'non_recu';
+    }
+  ) => {
+    const statEvac = details?.statut_evacuation || 'succes';
+    const statSach = details?.statut_sachets || 'recu';
+
     setPoubelleSignals(prev => prev.map(sig => {
       if (sig.id === signalId) {
         return {
           ...sig,
           confirmation_abonne: 'confirme',
           confirmation_date: new Date().toISOString(),
+          statut_evacuation: statEvac,
+          statut_sachets: statSach,
+          evacuation_confirmee: statEvac === 'succes',
+          sachets_confirmes: statSach === 'recu',
           litige_abonne: false
         };
       }
@@ -3327,7 +3353,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
 
     handleSendInboxMessage(
       'Service Contrôle Qualité (Hico)',
-      `[CONFIRMATION BÉNÉFICIAIRE] Merci ! Vous avez confirmé la bonne réception de vos sachets. Votre attestation de passage est enregistrée.`
+      `[CONFIRMATION BÉNÉFICIAIRE] Merci ! Vous avez validé l'évacuation de votre poubelle et la bonne réception de votre nouveau sachet. Votre attestation de passage est enregistrée.`
     );
 
     if (isSupabaseConfigured && dbStatus === 'connected') {
@@ -3335,6 +3361,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
         await supabase.from('signaux_poubelles').update({
           confirmation_abonne: 'confirme',
           confirmation_date: new Date().toISOString(),
+          statut_evacuation: statEvac,
+          statut_sachets: statSach,
           litige_abonne: false
         }).eq('id', signalId);
       } catch (err) {
@@ -3350,7 +3378,11 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           ...sig,
           litige_abonne: false,
           confirmation_abonne: 'confirme',
-          confirmation_date: new Date().toISOString()
+          confirmation_date: new Date().toISOString(),
+          statut_evacuation: 'succes',
+          statut_sachets: 'recu',
+          evacuation_confirmee: true,
+          sachets_confirmes: true
         };
       }
       return sig;
@@ -3361,7 +3393,9 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
         await supabase.from('signaux_poubelles').update({
           litige_abonne: false,
           confirmation_abonne: 'confirme',
-          confirmation_date: new Date().toISOString()
+          confirmation_date: new Date().toISOString(),
+          statut_evacuation: 'succes',
+          statut_sachets: 'recu'
         }).eq('id', signalId);
       } catch (err) {
         console.warn("Supabase handleResolveSignalDispute failed:", err);
@@ -3369,8 +3403,19 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     }
   };
 
-  const handleReportDispute = async (signalId: string, raison: string) => {
+  const handleReportDispute = async (
+    signalId: string, 
+    raison: string,
+    details?: {
+      statut_evacuation?: 'succes' | 'echec' | 'non_effectue';
+      statut_sachets?: 'recu' | 'non_recu';
+      confirmation_abonne?: 'conteste' | 'partiel';
+    }
+  ) => {
     const targetSig = poubelleSignals.find(s => s.id === signalId);
+    const confType = details?.confirmation_abonne || (details?.statut_evacuation === 'echec' ? 'conteste' : 'partiel');
+    const statEvac = details?.statut_evacuation || (raison.toLowerCase().includes('non évacuée') || raison.toLowerCase().includes('non vidé') || raison.toLowerCase().includes('pas venu') || raison.toLowerCase().includes('non desservi') ? 'echec' : 'succes');
+    const statSach = details?.statut_sachets || (raison.toLowerCase().includes('sachet') || raison.toLowerCase().includes('remis') ? 'non_recu' : 'recu');
 
     setPoubelleSignals(prev => prev.map(sig => {
       if (sig.id === signalId) {
@@ -3379,7 +3424,11 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           litige_abonne: true,
           litige_raison: raison,
           litige_date: new Date().toISOString(),
-          confirmation_abonne: 'conteste'
+          statut_evacuation: statEvac,
+          statut_sachets: statSach,
+          evacuation_confirmee: statEvac === 'succes',
+          sachets_confirmes: statSach === 'recu',
+          confirmation_abonne: confType
         };
       }
       return sig;
@@ -3387,21 +3436,61 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
 
     handleSendInboxMessage(
       'Service Contrôle Qualité (Hico)',
-      `[CONTESTATION DE SERVICE] Votre réclamation ("${raison}") pour la collecte du ${new Date().toLocaleDateString('fr-FR')} a été prise en compte. Notre inspecteur vérifie la traçabilité du chauffeur.`
+      `[CONTESTATION DE SERVICE] Votre réclamation ("${raison}") pour la collecte du ${new Date().toLocaleDateString('fr-FR')} a été transmise en direct et en haute priorité à l'administration Hico-Cleaning.`
     );
+
+    // 🚨 TRIGGER IMMEDIATE REALTIME ALERT MODAL FOR ADMIN WITH SOUND
+    const reporterName = currentUser?.nom || targetSig?.bailleur_nom || 'Abonné Hico';
+    const reporterPhone = currentUser?.telephone || targetSig?.bailleur_telephone || 'N/A';
+    const parcelleNo = targetSig?.numero_parcelle || 'N/A';
+    const avenueName = targetSig?.avenue_nom || 'N/A';
+    const communeName = targetSig?.commune_id ? (communes.find(c => c.id === targetSig.commune_id)?.nom || 'Kinshasa') : 'Kinshasa';
+
+    const isNonDesservi = statEvac === 'echec' || raison.toLowerCase().includes('non desservi') || raison.toLowerCase().includes('pas venu');
+    const disputeAlert: AlertData = {
+      id: 'LIT-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+      type: 'litige',
+      title: isNonDesservi ? '🚨 NON DESSERVI : BAILLEUR NON SERVI PAR ÉBOUEUR' : '⚠️ LITIGE SACHET : DOTATION NON REMISE',
+      subtitle: `Parcelle N° ${parcelleNo} (${avenueName}, ${communeName})`,
+      reporterName: reporterName,
+      reporterPhone: reporterPhone,
+      parcelleNo: parcelleNo,
+      avenueName: avenueName,
+      communeName: communeName,
+      reasonOrMessage: raison,
+      timestamp: new Date().toISOString(),
+      rawObject: targetSig
+    };
+
+    triggerRealtimeAlert(disputeAlert);
+    playSignalAlertSound();
+
+    // Broadcast dispute alert to all open browser tabs (Admin, Map, etc.)
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('hico_realtime_signals');
+        bc.postMessage({
+          type: 'DISPUTE_ALERT',
+          alert: disputeAlert
+        });
+        bc.close();
+      } catch (err) {
+        console.warn("BroadcastChannel dispute alert error:", err);
+      }
+    }
 
     // Create a real support ticket for SupportView
     try {
       const newTicket: SupportTicket = {
         id: 'TICK-' + Math.floor(1000 + Math.random() * 9000),
-        sujet: `Contestation Ramassage: ${raison.substring(0, 50)}`,
+        sujet: isNonDesservi ? `🚨 NON DESSERVI - Parcelle ${parcelleNo}` : `⚠️ Sachet non remis - Parcelle ${parcelleNo}`,
         categorie: 'ramassage',
         priorite: 'haute',
         status: 'nouveau',
-        auteur_nom: currentUser?.nom || targetSig?.bailleur_nom || 'Abonné',
-        auteur_telephone: currentUser?.telephone || 'N/A',
+        auteur_nom: reporterName,
+        auteur_telephone: reporterPhone,
         auteur_role: 'abonne',
-        commune_nom: targetSig?.commune_id ? (communes.find(c => c.id === targetSig.commune_id)?.nom || 'Kinshasa') : 'Kinshasa',
+        commune_nom: communeName,
         message: raison,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -3425,7 +3514,9 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           litige_abonne: true,
           litige_raison: raison,
           litige_date: new Date().toISOString(),
-          confirmation_abonne: 'conteste'
+          statut_evacuation: statEvac,
+          statut_sachets: statSach,
+          confirmation_abonne: confType
         }).eq('id', signalId);
       } catch (err) {
         console.warn("Supabase handleReportDispute failed:", err);
