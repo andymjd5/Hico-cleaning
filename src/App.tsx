@@ -4372,93 +4372,105 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
               {currentUser?.role !== 'abonne' && currentUser?.role !== 'eboueur' && (
                 <>
                   {/* Dashboard tab */}
-                  <button 
-                    onClick={() => setCurrentScreen('dashboard')}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                      currentScreen === 'dashboard'
-                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                    }`}
-                  >
-                    <LayoutDashboard size={18} />
-                    <span>Dashboard</span>
-                  </button>
+                  {isScreenAllowed('dashboard') && (
+                    <button 
+                      onClick={() => setCurrentScreen('dashboard')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'dashboard'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <LayoutDashboard size={18} />
+                      <span>Dashboard</span>
+                    </button>
+                  )}
 
                   {/* Recensement pathway (Communes / Avenues index) */}
-                  <button 
-                    onClick={() => setCurrentScreen('communes')}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                      currentScreen === 'communes' || currentScreen === 'avenues' || currentScreen === 'recensement_form'
-                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                    }`}
-                  >
-                    <FileText size={18} />
-                    <span>Recensement</span>
-                  </button>
+                  {(isScreenAllowed('communes') || isScreenAllowed('recensement_form')) && (
+                    <button 
+                      onClick={() => setCurrentScreen('communes')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'communes' || currentScreen === 'avenues' || currentScreen === 'recensement_form'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <FileText size={18} />
+                      <span>Recensement</span>
+                    </button>
+                  )}
 
                   {/* Abonnés tab */}
-                  <button 
-                    onClick={() => setCurrentScreen('abonne_list')}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                      currentScreen === 'abonne_list' || currentScreen === 'abonne_detail'
-                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                    }`}
-                  >
-                    <Users size={18} />
-                    <span>Abonnés</span>
-                  </button>
+                  {(isScreenAllowed('abonne_list') || isScreenAllowed('abonne_detail')) && (
+                    <button 
+                      onClick={() => setCurrentScreen('abonne_list')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'abonne_list' || currentScreen === 'abonne_detail'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <Users size={18} />
+                      <span>Abonnés</span>
+                    </button>
+                  )}
 
                   {/* Explorateur GPS tab */}
-                  <button 
-                    onClick={() => setCurrentScreen('commune_explorer')}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                      currentScreen === 'commune_explorer'
-                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                    }`}
-                  >
-                    <Compass size={18} />
-                    <span>Explorateur GPS</span>
-                  </button>
+                  {isScreenAllowed('commune_explorer') && (
+                    <button 
+                      onClick={() => setCurrentScreen('commune_explorer')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'commune_explorer'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <Compass size={18} />
+                      <span>Explorateur GPS</span>
+                    </button>
+                  )}
 
                   {/* Waste Signals Map View */}
-                  <button 
-                    onClick={() => {
-                      setCurrentScreen('dechets_map');
-                      setHasNewSignals(false);
-                    }}
-                    className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                      currentScreen === 'dechets_map'
-                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Trash2 size={18} />
-                      <span>Poubelles & Éboueurs</span>
-                    </div>
-                    {hasNewSignals && (
-                      <span className="relative flex h-2 w-2 shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-sm shadow-red-500/50"></span>
-                      </span>
-                    )}
-                  </button>
+                  {isScreenAllowed('dechets_map') && (
+                    <button 
+                      onClick={() => {
+                        setCurrentScreen('dechets_map');
+                        setHasNewSignals(false);
+                      }}
+                      className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'dechets_map'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Trash2 size={18} />
+                        <span>Poubelles & Éboueurs</span>
+                      </div>
+                      {hasNewSignals && (
+                        <span className="relative flex h-2 w-2 shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-sm shadow-red-500/50"></span>
+                        </span>
+                      )}
+                    </button>
+                  )}
 
                   {/* Rapports tab */}
-                  <button 
-                    onClick={() => setCurrentScreen('rapports')}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
-                      currentScreen === 'rapports'
-                        ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
-                        : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
-                    }`}
-                  >
-                    <BarChart3 size={18} />
-                    <span>Rapports</span>
-                  </button>
+                  {isScreenAllowed('rapports') && (
+                    <button 
+                      onClick={() => setCurrentScreen('rapports')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'rapports'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <BarChart3 size={18} />
+                      <span>Rapports</span>
+                    </button>
+                  )}
 
                   {/* Gestion Communale (Bourgmestre & Autorité Municipale) */}
                   {isScreenAllowed('gestion_communale') && (
@@ -5190,70 +5202,82 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   {/* === ADMIN & AGENT MENU === */}
                   {currentUser?.role !== 'abonne' && currentUser?.role !== 'eboueur' && (
                     <>
-                      <button 
-                        onClick={() => { setCurrentScreen('dashboard'); setIsMobileMenuOpen(false); }}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
-                          currentScreen === 'dashboard' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
-                        }`}
-                      >
-                        <LayoutDashboard size={18} />
-                        <span>Dashboard</span>
-                      </button>
+                      {isScreenAllowed('dashboard') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('dashboard'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'dashboard' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <LayoutDashboard size={18} />
+                          <span>Dashboard</span>
+                        </button>
+                      )}
 
-                      <button 
-                        onClick={() => { setCurrentScreen('communes'); setIsMobileMenuOpen(false); }}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
-                          currentScreen === 'communes' || currentScreen === 'avenues' || currentScreen === 'recensement_form' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
-                        }`}
-                      >
-                        <FileText size={18} />
-                        <span>Recensement</span>
-                      </button>
+                      {(isScreenAllowed('communes') || isScreenAllowed('recensement_form')) && (
+                        <button 
+                          onClick={() => { setCurrentScreen('communes'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'communes' || currentScreen === 'avenues' || currentScreen === 'recensement_form' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <FileText size={18} />
+                          <span>Recensement</span>
+                        </button>
+                      )}
 
-                      <button 
-                        onClick={() => { setCurrentScreen('abonne_list'); setIsMobileMenuOpen(false); }}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
-                          currentScreen === 'abonne_list' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
-                        }`}
-                      >
-                        <Users size={18} />
-                        <span>Abonnés</span>
-                      </button>
+                      {(isScreenAllowed('abonne_list') || isScreenAllowed('abonne_detail')) && (
+                        <button 
+                          onClick={() => { setCurrentScreen('abonne_list'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'abonne_list' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <Users size={18} />
+                          <span>Abonnés</span>
+                        </button>
+                      )}
 
-                      <button 
-                        onClick={() => { setCurrentScreen('commune_explorer'); setIsMobileMenuOpen(false); }}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
-                          currentScreen === 'commune_explorer' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
-                        }`}
-                      >
-                        <Compass size={18} />
-                        <span>Explorateur GPS</span>
-                      </button>
+                      {isScreenAllowed('commune_explorer') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('commune_explorer'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'commune_explorer' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <Compass size={18} />
+                          <span>Explorateur GPS</span>
+                        </button>
+                      )}
 
-                      <button 
-                        onClick={() => { setCurrentScreen('dechets_map'); setHasNewSignals(false); setIsMobileMenuOpen(false); }}
-                        className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
-                          currentScreen === 'dechets_map' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Trash2 size={18} />
-                          <span>Poubelles & Éboueurs</span>
-                        </div>
-                        {hasNewSignals && (
-                          <span className="inline-flex rounded-full h-2 w-2 bg-red-500 animate-pulse"></span>
-                        )}
-                      </button>
+                      {isScreenAllowed('dechets_map') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('dechets_map'); setHasNewSignals(false); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'dechets_map' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Trash2 size={18} />
+                            <span>Poubelles & Éboueurs</span>
+                          </div>
+                          {hasNewSignals && (
+                            <span className="inline-flex rounded-full h-2 w-2 bg-red-500 animate-pulse"></span>
+                          )}
+                        </button>
+                      )}
 
-                      <button 
-                        onClick={() => { setCurrentScreen('rapports'); setIsMobileMenuOpen(false); }}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
-                          currentScreen === 'rapports' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
-                        }`}
-                      >
-                        <BarChart3 size={18} />
-                        <span>Rapports</span>
-                      </button>
+                      {isScreenAllowed('rapports') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('rapports'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'rapports' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <BarChart3 size={18} />
+                          <span>Rapports</span>
+                        </button>
+                      )}
 
                       {isScreenAllowed('gestion_communale') && (
                         <button 

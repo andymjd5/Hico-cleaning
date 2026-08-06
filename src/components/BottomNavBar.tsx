@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Users, Trash2, Truck, User, Menu, CreditCard, Mail, Navigation, History, Landmark } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Trash2, Truck, User, Menu, CreditCard, Mail, Navigation, History, Landmark, BarChart3 } from 'lucide-react';
 import { Screen } from '../types';
 
 interface BottomNavBarProps {
@@ -18,7 +18,7 @@ export default function BottomNavBar({
   currentScreen, 
   onScreenChange, 
   userRole = 'agent', 
-  hasNewSignals = false,
+  hasNewSignals = false, 
   unreadMessagesCount = 0,
   abonneSubTab = 'signalement',
   onAbonneSubTabChange,
@@ -50,7 +50,7 @@ export default function BottomNavBar({
         { id: 'dashboard' as Screen, label: 'Dashboard', icon: LayoutDashboard },
         { id: 'gestion_communale' as Screen, label: 'Commune', icon: Landmark },
         { id: 'abonne_list' as Screen, label: 'Abonnés', icon: Users, altId: 'abonne_detail' as Screen },
-        { id: 'dechets_map' as Screen, label: 'Carte', icon: Trash2 },
+        { id: 'rapports' as Screen, label: 'Rapports', icon: BarChart3 },
       ];
     }
     return [

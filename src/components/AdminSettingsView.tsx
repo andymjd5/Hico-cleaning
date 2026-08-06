@@ -109,6 +109,20 @@ export default function AdminSettingsView({
             }
           });
         }
+
+        if (parsed.bourgmestre) {
+          const filtered = parsed.bourgmestre.filter(
+            (s: string) => !['dechets_map', 'sachets_management', 'finance_management', 'commune_explorer', 'communes', 'avenues', 'recensement_form'].includes(s)
+          );
+          if (filtered.length !== parsed.bourgmestre.length) {
+            parsed.bourgmestre = filtered;
+            updated = true;
+          }
+          if (!parsed.bourgmestre.includes('gestion_communale')) {
+            parsed.bourgmestre.push('gestion_communale');
+            updated = true;
+          }
+        }
         
         if (updated) {
           localStorage.setItem('hico_role_permissions', JSON.stringify(parsed));
@@ -120,7 +134,7 @@ export default function AdminSettingsView({
     }
     return {
       admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'gestion_communale', 'sachets_management', 'finance_management', 'support', 'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'],
-      bourgmestre: ['dashboard', 'gestion_communale', 'rapports', 'abonne_list', 'abonne_detail', 'dechets_map', 'commune_explorer', 'support'],
+      bourgmestre: ['dashboard', 'gestion_communale', 'rapports', 'abonne_list', 'abonne_detail', 'support'],
       agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'gestion_communale', 'sachets_management', 'finance_management', 'support'],
       finance_manager: ['dashboard', 'finance_management', 'rapports', 'support'],
       sachets_manager: ['dashboard', 'sachets_management', 'support'],
