@@ -14,6 +14,13 @@ export const INITIAL_AGENTS: Agent[] = [
     telephone: '0600000000',
     role: 'admin',
     created_at: new Date('2026-05-01').toISOString()
+  },
+  {
+    id: 'bourgmestre-1',
+    nom: 'Honoré Bourgmestre Gombe',
+    telephone: '0833333333',
+    role: 'bourgmestre',
+    created_at: new Date('2026-05-01').toISOString()
   }
 ];
 

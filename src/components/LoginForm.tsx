@@ -38,7 +38,7 @@ export default function LoginForm({
 
   const [isNewAccount, setIsNewAccount] = useState(false);
   const [newAccountNom, setNewAccountNom] = useState('');
-  const [newAccountRole, setNewAccountRole] = useState<'eboueur' | 'abonne' | 'agent' | 'admin'>('eboueur');
+  const [newAccountRole, setNewAccountRole] = useState<'eboueur' | 'abonne' | 'agent' | 'admin' | 'bourgmestre'>('eboueur');
 
   // Modal for First Login / Temporary Password customization
   const [pendingFirstLoginAgent, setPendingFirstLoginAgent] = useState<Agent | null>(null);
@@ -346,6 +346,7 @@ export default function LoginForm({
                       <option value="eboueur">Éboueur (Chauffeur de camion)</option>
                       <option value="abonne">Abonné (Bailleur / Propriétaire de parcelle)</option>
                       <option value="agent">Agent Recenseur (Staff terrain)</option>
+                      <option value="bourgmestre">Bourgmestre (Autorité Municipale)</option>
                       <option value="admin">Administrateur système</option>
                     </select>
                   </div>

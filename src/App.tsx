@@ -3930,6 +3930,106 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     }
   };
 
+  const handleDeleteAllMessages = async () => {
+    setInboxMessages([]);
+    localStorage.setItem('hico_inbox_messages', JSON.stringify([]));
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        await supabase.from('inbox_messages').delete().neq('id', '');
+      } catch (err) {
+        console.warn("Supabase delete all messages failed:", err);
+      }
+    }
+    addToast("Tous les messages de la boîte ont été supprimés", "info");
+  };
+
+  const handleAddIncident = (incidentData: Omit<IncivismeIncident, 'id' | 'date_incident' | 'statut'>) => {
+    const newIncident: IncivismeIncident = {
+      ...incidentData,
+      id: 'INC-' + Date.now().toString(36).toUpperCase(),
+      date_incident: new Date().toISOString(),
+      statut: 'nouveau'
+    };
+    setIncidents(prev => {
+      const updated = [newIncident, ...prev];
+      localStorage.setItem('hico_incivisme_incidents', JSON.stringify(updated));
+      return updated;
+    });
+    addToast("Incident d'incivisme / menace enregistré au registre communal", "success");
+  };
+
+  const handleUpdateIncidentStatus = (incidentId: string, statut: IncivismeIncident['statut'], decision?: string) => {
+    setIncidents(prev => {
+      const updated = prev.map(inc => {
+        if (inc.id === incidentId) {
+          return {
+            ...inc,
+            statut,
+            decision_bourgmestre: decision || inc.decision_bourgmestre
+          };
+        }
+        return inc;
+      });
+      localStorage.setItem('hico_incivisme_incidents', JSON.stringify(updated));
+      return updated;
+    });
+    addToast("Statut de l'incident mis à jour", "success");
+  };
+
+  const handleIssueConvocation = (convocationData: Omit<ConvocationCommunale, 'id' | 'date_emission' | 'statut'>) => {
+    const convId = 'CONV-' + Math.floor(1000 + Math.random() * 9000);
+    const newConv: ConvocationCommunale = {
+      ...convocationData,
+      id: convId,
+      date_emission: new Date().toISOString(),
+      statut: 'emise'
+    };
+
+    setConvocations(prev => {
+      const updated = [newConv, ...prev];
+      localStorage.setItem('hico_convocations', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (convocationData.incident_id) {
+      setIncidents(prev => {
+        const updated = prev.map(inc => {
+          if (inc.id === convocationData.incident_id) {
+            return {
+              ...inc,
+              statut: 'convocation_emise' as const,
+              numero_convocation: convId,
+              date_convocation: newConv.date_comparution
+            };
+          }
+          return inc;
+        });
+        localStorage.setItem('hico_incivisme_incidents', JSON.stringify(updated));
+        return updated;
+      });
+    }
+
+    addToast(`Convocation ${convId} émise avec succès pour le bailleur`, "success");
+  };
+
+  const handleUpdateConvocationStatus = (convocationId: string, statut: ConvocationCommunale['statut'], observations?: string) => {
+    setConvocations(prev => {
+      const updated = prev.map(c => {
+        if (c.id === convocationId) {
+          return {
+            ...c,
+            statut,
+            observations: observations !== undefined ? observations : c.observations
+          };
+        }
+        return c;
+      });
+      localStorage.setItem('hico_convocations', JSON.stringify(updated));
+      return updated;
+    });
+    addToast("Statut de la convocation mis à jour", "success");
+  };
+
   const handleSimulateSignal = async (parcelleId: string, typePoubelle?: 'biodegradable' | 'non_biodegradable') => {
     const parc = parcelles.find(p => p.id === parcelleId);
     if (!parc) return;
@@ -4282,6 +4382,21 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                     <span>Rapports</span>
                   </button>
 
+                  {/* Gestion Communale (Bourgmestre & Autorité Municipale) */}
+                  {isScreenAllowed('gestion_communale') && (
+                    <button 
+                      onClick={() => setCurrentScreen('gestion_communale')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold active:scale-[0.98] w-full text-left cursor-pointer ${
+                        currentScreen === 'gestion_communale'
+                          ? 'bg-primary text-on-primary shadow-md shadow-primary/10 border border-outline-variant'
+                          : 'text-on-surface-variant hover:bg-background hover:text-on-surface'
+                      }`}
+                    >
+                      <Landmark size={18} />
+                      <span>Gestion Communale</span>
+                    </button>
+                  )}
+
                   {/* Sachets management tab */}
                   {isScreenAllowed('sachets_management') && (
                     <button 
@@ -4531,6 +4646,30 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                 />
               )}
 
+              {currentScreen === 'gestion_communale' && (
+                <GestionCommunaleView 
+                  communes={communes}
+                  avenues={avenues}
+                  parcelles={parcelles}
+                  abonnes={abonnes}
+                  agents={agents}
+                  eboueurs={eboueurs}
+                  poubelleSignals={poubelleSignals}
+                  payments={payments}
+                  disputes={disputes}
+                  incidents={incidents}
+                  convocations={convocations}
+                  onAddIncident={handleAddIncident}
+                  onUpdateIncidentStatus={handleUpdateIncidentStatus}
+                  onIssueConvocation={handleIssueConvocation}
+                  onUpdateConvocationStatus={handleUpdateConvocationStatus}
+                  currentUser={currentUser}
+                  onCallPhone={(target) => {
+                    setActiveCallTarget(target);
+                  }}
+                />
+              )}
+
               {currentScreen === 'sachets_management' && (
                 <SachetsManagementView 
                   communes={communes}
@@ -4651,6 +4790,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                     onMarkMessageAsRead={handleMarkMessageAsRead}
                     onMarkAllMessagesAsRead={handleMarkAllMessagesAsRead}
                     onDeleteMessage={handleDeleteMessage}
+                    onDeleteAllMessages={handleDeleteAllMessages}
                     onRecordOnlinePayment={async (amount, provider, phone) => {
                       // Add payment directly to receipts registry
                       const pay: SubscriptionPayment = {
@@ -5032,6 +5172,18 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                         <BarChart3 size={18} />
                         <span>Rapports</span>
                       </button>
+
+                      {isScreenAllowed('gestion_communale') && (
+                        <button 
+                          onClick={() => { setCurrentScreen('gestion_communale'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-sans text-sm font-semibold w-full text-left cursor-pointer ${
+                            currentScreen === 'gestion_communale' ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-background'
+                          }`}
+                        >
+                          <Landmark size={18} />
+                          <span>Gestion Communale</span>
+                        </button>
+                      )}
 
                       {isScreenAllowed('sachets_management') && (
                         <button 

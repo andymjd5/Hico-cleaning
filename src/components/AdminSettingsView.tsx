@@ -119,8 +119,9 @@ export default function AdminSettingsView({
       }
     }
     return {
-      admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'support', 'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'],
-      agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'support'],
+      admin: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'rapports', 'commune_explorer', 'dechets_map', 'gestion_communale', 'sachets_management', 'finance_management', 'support', 'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'],
+      bourgmestre: ['dashboard', 'gestion_communale', 'rapports', 'abonne_list', 'abonne_detail', 'dechets_map', 'commune_explorer', 'support'],
+      agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'gestion_communale', 'sachets_management', 'finance_management', 'support'],
       finance_manager: ['dashboard', 'finance_management', 'rapports', 'support'],
       sachets_manager: ['dashboard', 'sachets_management', 'support'],
       poubelles_manager: ['dashboard', 'dechets_map', 'support'],
@@ -317,6 +318,7 @@ export default function AdminSettingsView({
     { id: 'communes', label: 'Recensement (Communes & Avenues)', rolesAllowed: ['admin', 'agent'] },
     { id: 'abonne_list', label: 'Gestion des Abonnés', rolesAllowed: ['admin', 'agent'] },
     { id: 'commune_explorer', label: 'Explorateur de position GPS', rolesAllowed: ['admin', 'agent'] },
+    { id: 'gestion_communale', label: 'Gestion Communale (Bourgmestre & Convocations)', rolesAllowed: ['admin', 'bourgmestre', 'agent'] },
     { id: 'dechets_map', label: 'Carte Poubelles & Éboueurs (Leaflet)', rolesAllowed: ['admin', 'agent', 'eboueur', 'poubelles_manager'] },
     { id: 'rapports', label: 'Rapports & Graphiques D3', rolesAllowed: ['admin', 'agent', 'finance_manager'] },
     { id: 'sachets_management', label: 'Gestion de Sachets Poubelles', rolesAllowed: ['admin', 'agent', 'sachets_manager'] },
@@ -422,6 +424,7 @@ export default function AdminSettingsView({
                 <tr className="bg-background border-b border-outline-variant text-on-surface-variant font-bold uppercase tracking-wider text-[11px]">
                   <th className="p-3.5 pl-4">Écran / Option de menu</th>
                   <th className="p-3 text-center">Admin 👑</th>
+                  <th className="p-3 text-center">Bourgmestre 🏛️</th>
                   <th className="p-3 text-center">Agent 📋</th>
                   <th className="p-3 text-center">Finance 💰</th>
                   <th className="p-3 text-center">Sachets 🛍️</th>
@@ -443,6 +446,14 @@ export default function AdminSettingsView({
                         type="checkbox"
                         checked={(rolePermissions['admin'] || []).includes(screen.id)}
                         onChange={() => togglePermission('admin', screen.id)}
+                        className="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary focus:ring-offset-0 cursor-pointer"
+                      />
+                    </td>
+                    <td className="p-3 text-center">
+                      <input 
+                        type="checkbox"
+                        checked={(rolePermissions['bourgmestre'] || []).includes(screen.id)}
+                        onChange={() => togglePermission('bourgmestre', screen.id)}
                         className="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary focus:ring-offset-0 cursor-pointer"
                       />
                     </td>
@@ -722,6 +733,7 @@ export default function AdminSettingsView({
                   <option value="sachets_manager">Responsable Gestion de Sachets 🛍️</option>
                   <option value="poubelles_manager">Responsable Poubelles & Éboueurs 🗑️</option>
                   <option value="support">Agent Support & Assistance 🎧</option>
+                  <option value="bourgmestre">Bourgmestre / Autorité Communale 🏛️</option>
                   <option value="abonne">Abonné (Bailleur) 👤</option>
                   <option value="admin">Administrateur Système 👑</option>
                 </select>

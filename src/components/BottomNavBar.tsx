@@ -1,10 +1,10 @@
-import { LayoutDashboard, FileText, Users, Trash2, Truck, User, Menu, CreditCard, Mail, Navigation, History } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Trash2, Truck, User, Menu, CreditCard, Mail, Navigation, History, Landmark } from 'lucide-react';
 import { Screen } from '../types';
 
 interface BottomNavBarProps {
   currentScreen: Screen;
   onScreenChange: (screen: Screen) => void;
-  userRole?: 'admin' | 'agent' | 'abonne' | 'eboueur';
+  userRole?: 'admin' | 'agent' | 'abonne' | 'eboueur' | 'bourgmestre' | 'finance_manager' | 'sachets_manager' | 'poubelles_manager' | 'support';
   hasNewSignals?: boolean;
   unreadMessagesCount?: number;
   abonneSubTab?: 'signalement' | 'redevance' | 'carte' | 'inbox';
@@ -43,6 +43,14 @@ export default function BottomNavBar({
         { id: 'eboueur_carte', label: 'Carte', icon: Navigation, eboueurSubTab: 'carte' as const },
         { id: 'eboueur_historique', label: 'Historique', icon: History, eboueurSubTab: 'historique' as const },
         { id: 'profil' as Screen, label: 'Profil', icon: User },
+      ];
+    }
+    if (userRole === 'bourgmestre') {
+      return [
+        { id: 'dashboard' as Screen, label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'gestion_communale' as Screen, label: 'Commune', icon: Landmark },
+        { id: 'abonne_list' as Screen, label: 'Abonnés', icon: Users, altId: 'abonne_detail' as Screen },
+        { id: 'dechets_map' as Screen, label: 'Carte', icon: Trash2 },
       ];
     }
     return [
