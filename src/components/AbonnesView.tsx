@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Users, MapPin, Phone, User, X, Landmark, FileSpreadsheet, ShieldAlert } from 'lucide-react';
+import { Search, Users, MapPin, Phone, User, X, Landmark, FileSpreadsheet, ShieldAlert, Plus, Minus, Save, CheckCircle2, ShieldCheck, Home, Package } from 'lucide-react';
 import { Abonne, Parcelle, Commune, Avenue } from '../types';
 
 interface AbonnesViewProps {
@@ -7,17 +7,22 @@ interface AbonnesViewProps {
   parcelles: Parcelle[];
   communes: Commune[];
   avenues: Avenue[];
+  onUpdateParcelleMenages?: (parcelleId: string, nouveauNombre: number) => void;
 }
 
 export default function AbonnesView({
   abonnes,
   parcelles,
   communes,
-  avenues
+  avenues,
+  onUpdateParcelleMenages
 }: AbonnesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [communeFilter, setCommuneFilter] = useState('');
   const [selectedAbonne, setSelectedAbonne] = useState<Abonne | null>(null);
+  const [modalMenageCount, setModalMenageCount] = useState<number>(1);
+  const [isSavingMenages, setIsSavingMenages] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState(false);
 
   // Filter subscribers list
   const filteredAbonnes = abonnes.filter((ab) => {
@@ -112,7 +117,11 @@ export default function AbonnesView({
             return (
               <div 
                 key={ab.id}
-                onClick={() => setSelectedAbonne(ab)}
+                onClick={() => {
+                  setSelectedAbonne(ab);
+                  setModalMenageCount(extra.nombreMenages || 1);
+                  setSaveSuccessMsg(false);
+                }}
                 className="bg-surface border border-outline-variant hover:bg-surface/60 hover:shadow-lg rounded-2xl p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3 cursor-pointer transition-all duration-150 group active:scale-[0.99]"
               >
                 <div className="flex items-start gap-3">
@@ -120,9 +129,15 @@ export default function AbonnesView({
                     <User size={18} />
                   </div>
                   <div className="flex flex-col">
-                    <h3 className="text-sm md:text-base font-bold text-on-surface group-hover:text-primary transition-colors font-sans">
-                      {ab.nom_complet}
-                    </h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm md:text-base font-bold text-on-surface group-hover:text-primary transition-colors font-sans">
+                        {ab.nom_complet}
+                      </h3>
+                      <span className="text-[10px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
+                        <Users size={10} />
+                        <span>{extra.nombreMenages} ménage{extra.nombreMenages > 1 ? 's' : ''}</span>
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-medium mt-1 font-sans">
                       <Phone size={12} className="text-[#10b981] shrink-0 font-mono" />
                       <span>{ab.telephone_principal}</span>
@@ -223,8 +238,9 @@ export default function AbonnesView({
 
                 {/* Linked plot details */}
                 <div className="flex flex-col gap-2.5 mt-1">
-                  <h4 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-outline-variant pb-1">
-                    🏠 Informations Parcelle Associée
+                  <h4 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-outline-variant pb-1 flex items-center justify-between">
+                    <span>🏠 Informations Parcelle Associée</span>
+                    <span className="text-[9px] font-mono text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">Option B RGPD</span>
                   </h4>
                   <div className="flex justify-between">
                     <span className="text-on-surface-variant">Numéro parcelle:</span>
@@ -248,23 +264,88 @@ export default function AbonnesView({
                       <span className="font-bold text-on-surface">{extra.locataires}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-xs">
-                    <span className="text-on-surface-variant">Nombre de ménages:</span>
-                    <span className="font-bold text-[#10b981]">{extra.nombreMenages} ménage(s)</span>
+
+                  {/* Quantitative household adjustment controls */}
+                  <div className="bg-background/80 border border-outline-variant rounded-xl p-3 flex flex-col gap-2 mt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                        <Users size={14} className="text-primary" />
+                        <span>Nombre de ménages résidant :</span>
+                      </span>
+                      <span className="text-xs font-black text-primary font-mono bg-primary/10 px-2 py-0.5 rounded-lg">
+                        {modalMenageCount} ménage{modalMenageCount > 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <div className="flex items-center bg-surface border border-outline-variant rounded-lg p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setModalMenageCount(prev => Math.max(1, prev - 1))}
+                          disabled={modalMenageCount <= 1}
+                          className="w-7 h-7 rounded bg-background hover:bg-surface-variant text-on-surface flex items-center justify-center font-bold text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          <Minus size={12} />
+                        </button>
+                        <span className="w-10 text-center font-black font-mono text-sm text-primary">
+                          {modalMenageCount}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setModalMenageCount(prev => Math.min(50, prev + 1))}
+                          disabled={modalMenageCount >= 50}
+                          className="w-7 h-7 rounded bg-background hover:bg-surface-variant text-on-surface flex items-center justify-center font-bold text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          <Plus size={12} />
+                        </button>
+                      </div>
+
+                      {onUpdateParcelleMenages && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const linkedParcelle = parcelles.find(p => p.id === selectedAbonne.parcelle_id);
+                            if (linkedParcelle) {
+                              setIsSavingMenages(true);
+                              await onUpdateParcelleMenages(linkedParcelle.id, modalMenageCount);
+                              setIsSavingMenages(false);
+                              setSaveSuccessMsg(true);
+                              setTimeout(() => setSaveSuccessMsg(false), 3000);
+                            }
+                          }}
+                          disabled={isSavingMenages || modalMenageCount === extra.nombreMenages}
+                          className={`h-8 px-3 rounded-lg font-bold text-[11px] flex items-center gap-1.5 transition-all cursor-pointer ${
+                            modalMenageCount !== extra.nombreMenages
+                              ? 'bg-primary text-on-primary hover:opacity-95 shadow-sm active:scale-95'
+                              : 'bg-outline-variant/30 text-on-surface-variant/50 cursor-default'
+                          }`}
+                        >
+                          <Save size={12} />
+                          <span>{isSavingMenages ? '...' : modalMenageCount !== extra.nombreMenages ? 'Sauvegarder' : 'À jour'}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {saveSuccessMsg && (
+                      <div className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 bg-emerald-500/10 p-1.5 rounded-lg border border-emerald-500/20">
+                        <CheckCircle2 size={12} />
+                        <span>Nombre de ménages synchronisé avec succès !</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Simulation Billing Area (future roadmap validation) */}
+                {/* Simulation Billing Area (Option B quantitative) */}
                 <div className="bg-background border border-outline-variant rounded-2xl p-4 flex flex-col gap-2">
                   <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider">
                     <span className="flex items-center gap-1.5 text-on-surface">
                       <Landmark size={14} className="text-primary" />
-                      Estimation Taxe de Salubrité
+                      Estimation & Quotas de Salubrité
                     </span>
-                    <span className="text-[#10b981] text-[10px] font-bold tracking-widest bg-[#10b981]/15 px-2 py-0.5 rounded-full">STABLE</span>
+                    <span className="text-[#10b981] text-[10px] font-bold tracking-widest bg-[#10b981]/15 px-2 py-0.5 rounded-full">CALIBRÉ</span>
                   </div>
                   <p className="text-xs text-on-surface-variant leading-relaxed font-sans mt-0.5">
-                    Sur base du type <span className="font-bold text-on-surface">{extra.typeLogement}</span> avec {extra.nombreMenages} ménage(s) :
+                    Sur base du type <span className="font-bold text-on-surface">{extra.typeLogement}</span> avec {modalMenageCount} ménage(s) :
                   </p>
 
                   <div className="flex flex-col gap-1.5 text-xs border-t border-b border-outline-variant/30 py-2 my-1">
@@ -272,24 +353,32 @@ export default function AbonnesView({
                       <span className="text-on-surface-variant">Ménage principal (Bailleur) :</span>
                       <span className="font-bold text-on-surface">15.00 $ / mois</span>
                     </div>
-                    {extra.nombreMenages > 1 && (
+                    {modalMenageCount > 1 && (
                       <div className="flex justify-between">
-                        <span className="text-on-surface-variant">Ménages locataires ({extra.nombreMenages - 1}) :</span>
-                        <span className="font-extrabold text-secondary">{((extra.nombreMenages - 1) * 15).toFixed(2)} $ / mois</span>
+                        <span className="text-on-surface-variant">Ménages locataires ({modalMenageCount - 1}) :</span>
+                        <span className="font-extrabold text-secondary">{((modalMenageCount - 1) * 15).toFixed(2)} $ / mois</span>
                       </div>
                     )}
+                    <div className="flex justify-between pt-1 border-t border-outline-variant/20">
+                      <span className="text-on-surface-variant flex items-center gap-1">
+                        <Package size={12} className="text-emerald-400" />
+                        <span>Dotation sachets recommandée :</span>
+                      </span>
+                      <span className="font-bold text-emerald-400 font-mono">{modalMenageCount * 8} sachets / mois</span>
+                    </div>
                   </div>
 
                   <div className="flex justify-between items-center pt-1">
-                    <span className="text-xs text-on-surface-variant">Projet de Facture Global:</span>
+                    <span className="text-xs text-on-surface-variant font-bold">Total Redevance Parcelle :</span>
                     <span className="text-base font-extrabold text-primary font-mono">
-                      {(randTaxe * extra.nombreMenages).toFixed(2)} $ / mois
+                      {(randTaxe * modalMenageCount).toFixed(2)} $ / mois
                     </span>
                   </div>
 
-                  {extra.nombreMenages > 1 && (
-                    <p className="text-[10px] text-amber-500 font-sans leading-normal font-medium mt-1 border-t border-outline-variant/20 pt-1.5">
-                      ℹ️ Note : Les ménages locataires supplémentaires sont bien rattachés aux comptes des locataires payeurs et non à la charge du bailleur seul.
+                  {modalMenageCount > 1 && (
+                    <p className="text-[10px] text-amber-400 font-sans leading-normal font-medium mt-1 border-t border-outline-variant/20 pt-1.5 flex items-start gap-1">
+                      <ShieldCheck size={12} className="text-[#10b981] shrink-0 mt-0.5" />
+                      <span>Option B : Aucun nom ou donnée sensible stockée pour les locataires. Gestion 100% numérique et conforme RGPD.</span>
                     </p>
                   )}
                 </div>

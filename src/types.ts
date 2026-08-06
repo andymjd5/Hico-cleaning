@@ -22,6 +22,7 @@ export interface Parcelle {
   created_by: string; // nom ou id de l'agent recenseur
   created_at: string;
   updated_at: string;
+  derniere_mise_a_jour_menages?: string;
   latitude?: number | null;
   longitude?: number | null;
 }
@@ -100,6 +101,7 @@ export interface PoubelleSignal {
   reported_at: string;
   completed_at?: string;
   type_poubelle?: 'biodegradable' | 'non_biodegradable';
+  nombre_menages?: number;
   latitude?: number | null;
   longitude?: number | null;
   // Verification & Traceability Extensions

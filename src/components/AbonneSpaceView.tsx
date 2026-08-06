@@ -35,7 +35,15 @@ import {
   Navigation,
   Volume2,
   Truck,
-  BellRing
+  BellRing,
+  Plus,
+  Minus,
+  Save,
+  Sparkles,
+  Scale,
+  Home,
+  Shield,
+  SlidersHorizontal
 } from 'lucide-react';
 import { initiateMobileMoneyPayment, checkFlexPayStatus, detectOperatorFromPhone } from '../lib/flexpay';
 import { MPesaLogo, OrangeMoneyLogo, AirtelMoneyLogo, AfrimoneyLogo } from './OperatorLogos';
@@ -63,6 +71,7 @@ interface AbonneSpaceViewProps {
   onDeleteMessage?: (messageId: string) => void;
   onDeleteAllMessages?: () => void;
   onRecordOnlinePayment?: (amount: number, provider: 'mpesa' | 'orange' | 'airtel' | 'afrimoney', phone: string) => void;
+  onUpdateParcelleMenages?: (parcelleId: string, nouveauNombre: number) => Promise<void> | void;
   onLogout?: () => void;
   activeTab?: 'signalement' | 'redevance' | 'carte' | 'inbox';
 }
@@ -87,6 +96,7 @@ export default function AbonneSpaceView({
   onDeleteMessage,
   onDeleteAllMessages,
   onRecordOnlinePayment,
+  onUpdateParcelleMenages,
   onLogout,
   activeTab: activeTabProp = 'signalement'
 }: AbonneSpaceViewProps) {
@@ -239,6 +249,34 @@ export default function AbonneSpaceView({
   });
 
   const householdCount = currentParcelle.nombre_menages;
+
+  // Household / Tenant quantitative management state (Option B)
+  const [householdEditCount, setHouseholdEditCount] = useState<number>(currentParcelle.nombre_menages || 1);
+  const [isSavingHousehold, setIsSavingHousehold] = useState(false);
+  const [householdSaveSuccess, setHouseholdSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    setHouseholdEditCount(currentParcelle.nombre_menages || 1);
+  }, [currentParcelle.nombre_menages]);
+
+  const isHouseholdCountDirty = householdEditCount !== (currentParcelle.nombre_menages || 1);
+
+  const handleSaveHouseholdCount = async () => {
+    if (householdEditCount < 1) return;
+    setIsSavingHousehold(true);
+    try {
+      if (onUpdateParcelleMenages) {
+        await onUpdateParcelleMenages(currentParcelle.id, householdEditCount);
+      }
+      setHouseholdSaveSuccess(true);
+      setTimeout(() => setHouseholdSaveSuccess(false), 4000);
+    } catch (e) {
+      console.error("Erreur lors de la mise à jour du nombre de ménages :", e);
+    } finally {
+      setIsSavingHousehold(false);
+    }
+  };
+
   const subscriptionPricePerHousehold = useMemo(() => {
     if (commune && commune.id) {
       const savedCommunePrices = localStorage.getItem('hico_commune_prices');
@@ -359,9 +397,15 @@ export default function AbonneSpaceView({
         
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 z-10 relative">
           <div className="flex flex-col gap-1.5 flex-grow">
-            <span className="text-[10px] bg-primary/20 text-indigo-400 font-extrabold uppercase px-2.5 py-1 rounded-full border border-primary/20 w-max tracking-wider">
-              Espace Abonné Actif 👤
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] bg-primary/20 text-indigo-400 font-extrabold uppercase px-2.5 py-1 rounded-full border border-primary/20 w-max tracking-wider">
+                Espace Abonné Actif 👤
+              </span>
+              <span className="text-[10px] bg-emerald-500/15 text-emerald-400 font-extrabold uppercase px-2.5 py-1 rounded-full border border-emerald-500/30 w-max tracking-wider flex items-center gap-1">
+                <Users size={11} />
+                <span>{currentParcelle.nombre_menages} Ménage{currentParcelle.nombre_menages > 1 ? 's' : ''} ({currentParcelle.presence_locataire === 'oui' || currentParcelle.nombre_menages > 1 ? `${Math.max(0, currentParcelle.nombre_menages - 1)} Locataire(s)` : 'Foyer unique'})</span>
+              </span>
+            </div>
             
             <h2 className="text-xl sm:text-2xl font-black text-on-surface tracking-tight mt-1">
               Bonjour, {currentAbonne.nom_complet}
@@ -1095,7 +1139,222 @@ export default function AbonneSpaceView({
               Redevance de Salubrité ({subscriptionPricePerHousehold}{currencySymbol}/ménage)
             </h3>
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              Le tarif réglementé est fixé à <strong>{subscriptionPricePerHousehold}{currencySymbol} par ménage</strong> par mois. Validez manuellement les ménages/locataires qui ont réglé leur part pour débloquer le bouton de paiement.
+              Le tarif réglementé est fixé à <strong>{subscriptionPricePerHousehold}{currencySymbol} par ménage</strong> par mois. Ajustez le nombre de ménages ci-dessous et validez manuellement les contributions perçues pour procéder au règlement.
+            </p>
+          </div>
+
+          {/* MODULE D'AJUSTEMENT QUANTITATIF DU FOYER (OPTION B) */}
+          <div className="bg-background/60 border border-outline-variant rounded-2xl p-4 sm:p-5 flex flex-col gap-4 shadow-sm">
+            {/* Header of Household adjustment */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant/40 pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
+                  <Home size={18} />
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm sm:text-base font-extrabold text-on-surface">
+                      Composition du Foyer & Nombre de Ménages
+                    </h4>
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 px-2 py-0.5 rounded-full">
+                      Option B • Données Anonymisées
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-on-surface-variant font-medium">
+                    Parcelle N° {currentParcelle.numero_parcelle}, Av. {avenue.nom} ({commune.nom}) • Logement : {currentParcelle.type_logement === 'appartement' ? 'Appartement' : 'Maison basse'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="flex items-center gap-1.5 self-start sm:self-auto shrink-0 bg-surface px-3 py-1.5 rounded-xl border border-outline-variant">
+                <Shield size={13} className="text-[#10b981]" />
+                <span className="text-[11px] font-bold text-on-surface">
+                  {currentParcelle.nombre_menages} Ménage{currentParcelle.nombre_menages > 1 ? 's' : ''} actif{currentParcelle.nombre_menages > 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+
+            {/* Stepper controls & Presets */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-surface/50 p-3.5 rounded-xl border border-outline-variant/60">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-extrabold text-on-surface flex items-center gap-1.5">
+                  <Users size={14} className="text-primary" />
+                  <span>Nombre total de ménages résidant sur la parcelle :</span>
+                </span>
+                <span className="text-[11px] text-on-surface-variant">
+                  {householdEditCount === 1 
+                    ? '1 Ménage principal (Bailleur uniquement / Sans locataires)' 
+                    : `1 Ménage principal (Bailleur) + ${householdEditCount - 1} Ménage(s) locataire(s)`}
+                </span>
+              </div>
+
+              {/* Stepper + Input */}
+              <div className="flex items-center gap-3 self-center lg:self-auto">
+                <div className="flex items-center bg-background border border-outline-variant rounded-xl overflow-hidden shadow-inner p-1">
+                  <button
+                    type="button"
+                    onClick={() => setHouseholdEditCount(prev => Math.max(1, prev - 1))}
+                    disabled={householdEditCount <= 1}
+                    className="w-8 h-8 rounded-lg bg-surface hover:bg-surface-variant text-on-surface flex items-center justify-center font-bold text-base transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95 border border-outline-variant/50"
+                    title="Diminuer le nombre de ménages"
+                  >
+                    <Minus size={14} />
+                  </button>
+
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={householdEditCount}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (!isNaN(val)) {
+                        setHouseholdEditCount(Math.max(1, Math.min(50, val)));
+                      }
+                    }}
+                    className="w-14 h-8 text-center font-black text-base font-mono bg-transparent border-none focus:outline-none text-primary"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setHouseholdEditCount(prev => Math.min(50, prev + 1))}
+                    disabled={householdEditCount >= 50}
+                    className="w-8 h-8 rounded-lg bg-surface hover:bg-surface-variant text-on-surface flex items-center justify-center font-bold text-base transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-95 border border-outline-variant/50"
+                    title="Augmenter le nombre de ménages"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+
+                {/* Save button if dirty */}
+                <button
+                  type="button"
+                  onClick={handleSaveHouseholdCount}
+                  disabled={!isHouseholdCountDirty || isSavingHousehold}
+                  className={`h-10 px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95 ${
+                    isHouseholdCountDirty
+                      ? 'bg-primary text-on-primary hover:opacity-95 ring-2 ring-primary/30 animate-pulse'
+                      : 'bg-outline-variant/30 text-on-surface-variant/50 cursor-default border border-outline-variant/20'
+                  }`}
+                >
+                  <Save size={14} className={isSavingHousehold ? "animate-spin" : ""} />
+                  <span>
+                    {isSavingHousehold 
+                      ? 'Enregistrement...' 
+                      : isHouseholdCountDirty 
+                        ? `Sauvegarder (${householdEditCount})` 
+                        : 'À jour ✔'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick preset selector buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mr-1">
+                Raccourcis rapides :
+              </span>
+              {[1, 2, 3, 4, 5, 6, 8, 10].map(num => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setHouseholdEditCount(num)}
+                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                    householdEditCount === num
+                      ? 'bg-primary text-on-primary border-primary shadow-sm'
+                      : 'bg-surface hover:bg-surface-variant text-on-surface-variant hover:text-on-surface border-outline-variant/60'
+                  }`}
+                >
+                  {num === 1 ? '1 Foyer' : `${num} Ménages`}
+                </button>
+              ))}
+            </div>
+
+            {/* Live Real-time Impact Simulator Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+              {/* 1. Population */}
+              <div className="bg-surface/80 border border-outline-variant/70 rounded-xl p-3 flex flex-col gap-1">
+                <span className="text-[9.5px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1">
+                  <Users size={12} className="text-indigo-400" />
+                  <span>Résidents Estimés</span>
+                </span>
+                <span className="text-base font-extrabold text-on-surface mt-0.5 font-mono">
+                  ~{householdEditCount * 6} hab.
+                </span>
+                <span className="text-[9.5px] text-on-surface-variant">
+                  (Base ~6 pers./ménage)
+                </span>
+              </div>
+
+              {/* 2. Quota Sachets */}
+              <div className="bg-surface/80 border border-outline-variant/70 rounded-xl p-3 flex flex-col gap-1">
+                <span className="text-[9.5px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1">
+                  <Package size={12} className="text-emerald-400" />
+                  <span>Quota Sachets</span>
+                </span>
+                <span className="text-base font-extrabold text-emerald-400 mt-0.5 font-mono">
+                  {householdEditCount * 8} / mois
+                </span>
+                <span className="text-[9.5px] text-on-surface-variant">
+                  {householdEditCount * 4} Bio + {householdEditCount * 4} Non-Bio
+                </span>
+              </div>
+
+              {/* 3. Redevance Simulée */}
+              <div className="bg-surface/80 border border-outline-variant/70 rounded-xl p-3 flex flex-col gap-1">
+                <span className="text-[9.5px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1">
+                  <DollarSign size={12} className="text-primary" />
+                  <span>Redevance Totale</span>
+                </span>
+                <span className="text-base font-extrabold text-primary mt-0.5 font-mono">
+                  {(householdEditCount * subscriptionPricePerHousehold).toFixed(2)} {currencySymbol}
+                </span>
+                <span className="text-[9.5px] text-on-surface-variant">
+                  {subscriptionPricePerHousehold}{currencySymbol} × {householdEditCount} ménage{householdEditCount > 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {/* 4. Production Déchets */}
+              <div className="bg-surface/80 border border-outline-variant/70 rounded-xl p-3 flex flex-col gap-1">
+                <span className="text-[9.5px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1">
+                  <Scale size={12} className="text-amber-400" />
+                  <span>Volume Déchets</span>
+                </span>
+                <span className="text-base font-extrabold text-amber-400 mt-0.5 font-mono">
+                  ~{householdEditCount * 45} kg / mois
+                </span>
+                <span className="text-[9.5px] text-on-surface-variant">
+                  ~{householdEditCount * 120} L / mois
+                </span>
+              </div>
+            </div>
+
+            {/* Success notification banner after saving */}
+            {householdSaveSuccess && (
+              <div className="bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 p-3 rounded-xl flex items-center justify-between gap-2 text-xs font-semibold animate-slide-in-down">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                  <span>
+                    Composition de la parcelle enregistrée : <strong>{currentParcelle.nombre_menages} ménage(s)</strong> validés. La grille de redevance et le quota de sachets sont synchronisés !
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHouseholdSaveSuccess(false)}
+                  className="text-[10px] uppercase font-bold text-emerald-200 px-2 py-0.5 bg-emerald-500/20 rounded hover:bg-emerald-500/30 cursor-pointer"
+                >
+                  Fermer
+                </button>
+              </div>
+            )}
+
+            {/* Privacy Legal Note */}
+            <p className="text-[10.5px] text-on-surface-variant leading-relaxed bg-surface/30 p-2.5 rounded-xl border border-outline-variant/30 flex items-start gap-2">
+              <ShieldCheck size={14} className="text-[#10b981] shrink-0 mt-0.5" />
+              <span>
+                <strong>Protection de la vie privée (Option B) :</strong> Aucun enregistrement de données nominatives ou sensibles sur les locataires tiers. Seul le nombre quantitatif de ménages est conservé pour le calibrage opérationnel de la salubrité publique.
+              </span>
             </p>
           </div>
 

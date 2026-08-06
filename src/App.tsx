@@ -2309,6 +2309,83 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     }
   };
 
+  const handleUpdateParcelleMenages = async (parcelleId: string, nouveauNombre: number) => {
+    const validCount = Math.max(1, Math.min(50, Math.floor(nouveauNombre)));
+    const hasLocataires: 'oui' | 'non' = validCount > 1 ? 'oui' : 'non';
+    const nowIso = new Date().toISOString();
+
+    // 1. Update local parcelles state
+    setParcelles(prev => prev.map(p => {
+      if (p.id === parcelleId) {
+        return {
+          ...p,
+          nombre_menages: validCount,
+          presence_locataire: hasLocataires,
+          updated_at: nowIso,
+          derniere_mise_a_jour_menages: nowIso
+        };
+      }
+      return p;
+    }));
+
+    // 2. Save in localStorage backup
+    try {
+      const stored = localStorage.getItem('hico_db_parcelles');
+      if (stored) {
+        const parsed = JSON.parse(stored) as Parcelle[];
+        const updated = parsed.map(p => p.id === parcelleId ? {
+          ...p,
+          nombre_menages: validCount,
+          presence_locataire: hasLocataires,
+          updated_at: nowIso,
+          derniere_mise_a_jour_menages: nowIso
+        } : p);
+        localStorage.setItem('hico_db_parcelles', JSON.stringify(updated));
+      }
+    } catch (e) {
+      console.warn("localStorage hico_db_parcelles update skipped:", e);
+    }
+
+    try {
+      const storedLegacy = localStorage.getItem('hico_parcelles');
+      if (storedLegacy) {
+        const parsedLegacy = JSON.parse(storedLegacy) as Parcelle[];
+        const updatedLegacy = parsedLegacy.map(p => p.id === parcelleId ? {
+          ...p,
+          nombre_menages: validCount,
+          presence_locataire: hasLocataires,
+          updated_at: nowIso,
+          derniere_mise_a_jour_menages: nowIso
+        } : p);
+        localStorage.setItem('hico_parcelles', JSON.stringify(updatedLegacy));
+      }
+    } catch (e) {
+      console.warn("localStorage hico_parcelles update skipped:", e);
+    }
+
+    // 3. Update Supabase in real time if connected
+    if (isSupabaseConfigured && dbStatus === 'connected') {
+      try {
+        const { error } = await supabase
+          .from('parcelles')
+          .update({
+            nombre_menages: validCount,
+            presence_locataire: hasLocataires,
+            updated_at: nowIso
+          })
+          .eq('id', parcelleId);
+        
+        if (error) {
+          console.warn("Supabase parcelles update warning:", error.message);
+        } else {
+          console.log(`Nombre de ménages pour la parcelle ${parcelleId} synchronisé sur Supabase : ${validCount}`);
+        }
+      } catch (err) {
+        console.warn("Erreur Supabase update nombre_menages:", err);
+      }
+    }
+  };
+
   const handleAddAgentSync = async (newAgent: Agent) => {
     setAgents(prev => {
       const cleanPhoneNew = (newAgent.telephone || '').replace(/\s+/g, '');
@@ -2914,6 +2991,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       status: 'pending',
       reported_at: new Date().toISOString(),
       type_poubelle: type_poubelle,
+      nombre_menages: parc.nombre_menages || 1,
       latitude: lat,
       longitude: lng,
       is_hors_delai: new Date().getHours() >= 13
@@ -4635,6 +4713,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                   parcelles={parcelles}
                   communes={communes}
                   avenues={avenues}
+                  onUpdateParcelleMenages={handleUpdateParcelleMenages}
                 />
               )}
 
@@ -4792,6 +4871,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                     onMarkAllMessagesAsRead={handleMarkAllMessagesAsRead}
                     onDeleteMessage={handleDeleteMessage}
                     onDeleteAllMessages={handleDeleteAllMessages}
+                    onUpdateParcelleMenages={handleUpdateParcelleMenages}
                     onRecordOnlinePayment={async (amount, provider, phone) => {
                       // Add payment directly to receipts registry
                       const pay: SubscriptionPayment = {

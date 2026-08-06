@@ -289,9 +289,16 @@ export default function EboueurSpaceView({
                             <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
                               Informations de l'Abonné (Bailleur)
                             </span>
-                            <span className="font-extrabold text-on-surface text-sm sm:text-base">
-                              {mission.bailleur_nom}
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-extrabold text-on-surface text-sm sm:text-base">
+                                {mission.bailleur_nom}
+                              </span>
+                              {mission.nombre_menages && mission.nombre_menages > 1 && (
+                                <span className="text-[10px] font-bold text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full border border-indigo-500/30">
+                                  {mission.nombre_menages} Ménages ({mission.nombre_menages - 1} Locataire{mission.nombre_menages > 2 ? 's' : ''})
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <span className="text-[10px] sm:text-xs font-semibold text-emerald-400 bg-emerald-950/30 px-2.5 py-1 rounded-lg border border-emerald-900/40 w-max">
                             ➜ Sac {mission.type_poubelle === 'biodegradable' ? 'biodégradable' : 'non-dégradable'} prêt pour échange
