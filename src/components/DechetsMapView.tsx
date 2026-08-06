@@ -1021,29 +1021,6 @@ export default function DechetsMapView({
                 style={{ zIndex: 1 }}
               />
 
-              {/* Calibration Active Badge on Map */}
-              {selectedCommuneFilter && (
-                <div className="absolute top-4 left-4 bg-background/95 border border-primary/40 px-3.5 py-2 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-2 text-xs font-extrabold text-primary backdrop-blur-md shadow-xl z-[500] animate-fade-in">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-2.5 w-2.5 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
-                    </span>
-                    <span>📍 Zone Exclusive : Commune de {communes.find(c => c.id === selectedCommuneFilter)?.nom || 'Sélectionnée'}</span>
-                  </div>
-                  <span className="text-[10px] font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-full border border-primary/20">
-                    🔒 Limites strictes verrouillées
-                  </span>
-                </div>
-              )}
-
-              {/* Compass Calibration Helper Graphic overlay */}
-
-              <div className="absolute bottom-4 right-4 bg-background/90 border border-outline-variant p-2.5 rounded-2xl flex items-center gap-2 text-[10px] font-mono font-bold text-on-surface-variant backdrop-blur-sm shadow-md z-[500]">
-                <Navigation size={14} className="text-secondary rotate-45 shrink-0" />
-                <span>Région Kinshasa (Données réelles OSM)</span>
-              </div>
-
               {/* Localisation Panel overlaying the map directly */}
               {isLocalisationModalOpen && (
                 <div className="absolute inset-0 bg-background/95 backdrop-blur-md flex flex-col z-[1001] p-4 overflow-y-auto animate-fade-in">
