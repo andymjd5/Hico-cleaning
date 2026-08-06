@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Agent, Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur, InboxMessage, SachetStock, SachetDistribution, SubscriptionPayment, StaffPayment, MaterialExpense, DisputeSignal, AgentDotation, AgentDotationLog, SupportTicket } from './types';
+import { Agent, Commune, Avenue, Parcelle, Abonne, Screen, PoubelleSignal, Eboueur, InboxMessage, SachetStock, SachetDistribution, SubscriptionPayment, StaffPayment, MaterialExpense, DisputeSignal, AgentDotation, AgentDotationLog, SupportTicket, IncivismeIncident, ConvocationCommunale } from './types';
 import { 
   INITIAL_AGENTS, 
   INITIAL_COMMUNES, 
@@ -23,6 +23,7 @@ import CommuneExplorer from './components/CommuneExplorer';
 import DechetsMapView from './components/DechetsMapView';
 import AbonneSpaceView from './components/AbonneSpaceView';
 import EboueurSpaceView from './components/EboueurSpaceView';
+import GestionCommunaleView from './components/GestionCommunaleView';
 import AdminSettingsView from './components/AdminSettingsView';
 import SachetsManagementView from './components/SachetsManagementView';
 import FinanceManagementView from './components/FinanceManagementView';
@@ -31,7 +32,7 @@ import RealtimeAlertModal, { AlertData } from './components/RealtimeAlertModal';
 import VoiceCallModal, { CallTarget } from './components/VoiceCallModal';
 
 // Lucide Icons
-import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info, Menu, CreditCard, Mail, Headphones, Navigation } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info, Menu, CreditCard, Mail, Headphones, Navigation, Landmark, Building2, Gavel } from 'lucide-react';
 
 interface ToastItem {
   id: string;
@@ -383,6 +384,89 @@ export default function App() {
         content: 'Bienvenue sur votre espace de salubrité Hico-Cleaning ! Retrouvez ici vos factures, vos signalements de poubelles pleines et les alertes d\'assainissement.',
         sent_at: new Date().toISOString(),
         read: readIds.has('msg-1')
+      }
+    ];
+  });
+
+  const [incidents, setIncidents] = useState<IncivismeIncident[]>(() => {
+    const saved = localStorage.getItem('hico_incivisme_incidents');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return [
+      {
+        id: 'INC-2025-01',
+        commune_id: 'c-gombe',
+        parcelle_id: 'p-gombe-1',
+        abonne_id: 'ab-gombe-1',
+        bailleur_nom: 'Mavula Jean-Pierre',
+        bailleur_telephone: '0812345678',
+        numero_parcelle: '12',
+        avenue_nom: 'Avenue de la Justice',
+        type_infraction: 'menace_agent',
+        gravite: 'haute',
+        agent_victime_nom: 'Patrick Mbaya',
+        agent_victime_role: 'Éboueur assainisseur',
+        description: 'Le bailleur a menacé verbalement l\'éboueur lors de la vérification des sachets conformes, affirmant refuser l\'accès au trottoir.',
+        date_incident: new Date(Date.now() - 86400000 * 3).toISOString(),
+        statut: 'convocation_emise',
+        numero_convocation: 'CONV-9021',
+        decision_bourgmestre: 'Convocation envoyée par la Police d\'Assainissement.'
+      },
+      {
+        id: 'INC-2025-02',
+        commune_id: 'c-limete',
+        parcelle_id: 'p-limete-1',
+        abonne_id: 'ab-limete-1',
+        bailleur_nom: 'Kabasele André',
+        bailleur_telephone: '0812345679',
+        numero_parcelle: '45',
+        avenue_nom: 'Avenue des Huileries',
+        type_infraction: 'refus_paiement_recidive',
+        gravite: 'moyenne',
+        agent_victime_nom: 'Jean Malonga',
+        agent_victime_role: 'Agent Recenseur',
+        description: 'Refus catégorique et réitéré d\'acquitter la redevance mensuelle tout en exigeant le ramassage quotidien.',
+        date_incident: new Date(Date.now() - 86400000 * 5).toISOString(),
+        statut: 'nouveau',
+        decision_bourgmestre: 'Dossier transmis au service des contentieux communaux.'
+      }
+    ];
+  });
+
+  const [convocations, setConvocations] = useState<ConvocationCommunale[]>(() => {
+    const saved = localStorage.getItem('hico_convocations');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return [
+      {
+        id: 'CONV-9021',
+        incident_id: 'INC-2025-01',
+        commune_id: 'c-gombe',
+        commune_nom: 'Gombe',
+        parcelle_id: 'p-gombe-1',
+        numero_parcelle: '12',
+        avenue_nom: 'Avenue de la Justice',
+        destinataire_nom: 'Mavula Jean-Pierre',
+        destinataire_telephone: '0812345678',
+        motif: 'Outrage et menaces sur agent de salubrité publique en exercice de ses fonctions',
+        date_emission: new Date(Date.now() - 86400000 * 2).toISOString(),
+        date_comparution: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+        heure_comparution: '10:30',
+        lieu_comparution: 'Maison Communale de la Gombe - Bureau Hygiène Publique',
+        statut: 'emise',
+        officier_traitant: 'Officier Municipal de Salubrité'
       }
     ];
   });
@@ -1354,10 +1438,20 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
     if (currentUser.role === 'admin') {
       const adminScreens = [
         'dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 
-        'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'support', 
+        'rapports', 'commune_explorer', 'dechets_map', 'gestion_communale', 'sachets_management', 'finance_management', 'support', 
         'admin_settings_screens', 'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
       ];
       if (adminScreens.includes(screenId)) {
+        return true;
+      }
+    }
+
+    if (currentUser.role === 'bourgmestre') {
+      const bourgmestreScreens = [
+        'dashboard', 'gestion_communale', 'rapports', 'abonne_list', 'abonne_detail', 
+        'commune_explorer', 'dechets_map', 'support'
+      ];
+      if (bourgmestreScreens.includes(screenId)) {
         return true;
       }
     }
@@ -1371,7 +1465,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
         
         if (perms.admin) {
           const requiredAdminScreens = [
-            'sachets_management', 'finance_management', 'support', 'admin_settings_screens', 
+            'gestion_communale', 'sachets_management', 'finance_management', 'support', 'admin_settings_screens', 
             'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
           ];
           requiredAdminScreens.forEach(s => {
@@ -1384,7 +1478,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
         
         if (perms.agent) {
           const requiredAgentScreens = [
-            'sachets_management', 'finance_management', 'support'
+            'gestion_communale', 'sachets_management', 'finance_management', 'support'
           ];
           requiredAgentScreens.forEach(s => {
             if (!perms.agent.includes(s)) {
@@ -1392,6 +1486,11 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
               updated = true;
             }
           });
+        }
+
+        if (!perms.bourgmestre) {
+          perms.bourgmestre = ['dashboard', 'gestion_communale', 'rapports', 'abonne_list', 'abonne_detail', 'dechets_map', 'commune_explorer', 'support'];
+          updated = true;
         }
         
         if (updated) {
@@ -1406,10 +1505,11 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
       perms = {
         admin: [
           'dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 
-          'rapports', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'support', 'admin_settings_screens', 
+          'rapports', 'commune_explorer', 'dechets_map', 'gestion_communale', 'sachets_management', 'finance_management', 'support', 'admin_settings_screens', 
           'admin_settings_pricing', 'admin_settings_accounts', 'admin_settings_passwords'
         ],
-        agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'sachets_management', 'finance_management', 'support'],
+        bourgmestre: ['dashboard', 'gestion_communale', 'rapports', 'abonne_list', 'abonne_detail', 'dechets_map', 'commune_explorer', 'support'],
+        agent: ['dashboard', 'communes', 'avenues', 'recensement_form', 'abonne_list', 'abonne_detail', 'commune_explorer', 'dechets_map', 'gestion_communale', 'sachets_management', 'finance_management', 'support'],
         finance_manager: ['dashboard', 'finance_management', 'rapports', 'support'],
         sachets_manager: ['dashboard', 'sachets_management', 'support'],
         poubelles_manager: ['dashboard', 'dechets_map', 'support'],

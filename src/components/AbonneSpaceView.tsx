@@ -61,6 +61,7 @@ interface AbonneSpaceViewProps {
   onMarkMessageAsRead?: (messageId: string) => void;
   onMarkAllMessagesAsRead?: () => void;
   onDeleteMessage?: (messageId: string) => void;
+  onDeleteAllMessages?: () => void;
   onRecordOnlinePayment?: (amount: number, provider: 'mpesa' | 'orange' | 'airtel' | 'afrimoney', phone: string) => void;
   onLogout?: () => void;
   activeTab?: 'signalement' | 'redevance' | 'carte' | 'inbox';
@@ -84,6 +85,7 @@ export default function AbonneSpaceView({
   onMarkMessageAsRead,
   onMarkAllMessagesAsRead,
   onDeleteMessage,
+  onDeleteAllMessages,
   onRecordOnlinePayment,
   onLogout,
   activeTab: activeTabProp = 'signalement'
@@ -1411,10 +1413,30 @@ export default function AbonneSpaceView({
                     }
                   }}
                   className="px-3 py-1.5 bg-error/10 hover:bg-error/20 text-error border border-error/30 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"
-                  title="Supprimer les messages lus de la boîte de réception"
+                  title="Supprimer uniquement les messages déjà lus"
                 >
                   <Trash2 size={13} />
                   <span>Effacer les lus</span>
+                </button>
+              )}
+
+              {messages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm("⚠️ Êtes-vous sûr de vouloir supprimer DÉFINITIVEMENT TOUS LES MESSAGES de votre boîte de réception ?")) {
+                      if (onDeleteAllMessages) {
+                        onDeleteAllMessages();
+                      } else if (onDeleteMessage) {
+                        messages.forEach(m => onDeleteMessage(m.id));
+                      }
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer active:scale-95 flex items-center gap-1.5 shadow-sm"
+                  title="Supprimer l'ensemble de tous les messages (lus et non lus)"
+                >
+                  <Trash2 size={13} />
+                  <span>Tout supprimer</span>
                 </button>
               )}
             </div>

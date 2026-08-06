@@ -44,7 +44,8 @@ export type AgentRole =
   | 'finance_manager' 
   | 'sachets_manager' 
   | 'poubelles_manager' 
-  | 'support';
+  | 'support'
+  | 'bourgmestre';
 
 export interface Agent {
   id: string;
@@ -57,6 +58,7 @@ export interface Agent {
   isTempPassword?: boolean;
   capacite_camion?: number; // Capacité max du camion en sachets (par défaut 6)
   charge_actuelle?: number;  // Nombre de sachets actuellement dans le camion
+  commune_id?: string; // For Bourgmestre or localized authority
 }
 
 export type Screen = 
@@ -73,6 +75,7 @@ export type Screen =
   | 'dechets_map'
   | 'abonne_space'
   | 'eboueur_space'
+  | 'gestion_communale'
   | 'admin_settings'
   | 'admin_settings_screens'
   | 'admin_settings_pricing'
@@ -259,4 +262,46 @@ export interface SupportTicket {
   created_at: string;
   updated_at: string;
 }
+
+export interface IncivismeIncident {
+  id: string;
+  commune_id: string;
+  parcelle_id: string;
+  abonne_id?: string;
+  bailleur_nom: string;
+  bailleur_telephone: string;
+  numero_parcelle: string;
+  avenue_nom: string;
+  type_infraction: 'menace_agent' | 'agression_physique' | 'refus_paiement_recidive' | 'obstruction_collecte' | 'depot_sauvage' | 'autre';
+  gravite: 'faible' | 'moyenne' | 'haute' | 'critique';
+  agent_victime_nom?: string;
+  agent_victime_role?: string;
+  description: string;
+  date_incident: string;
+  statut: 'nouveau' | 'convocation_emise' | 'auditionne' | 'sanctionne' | 'classe';
+  numero_convocation?: string;
+  date_convocation?: string;
+  decision_bourgmestre?: string;
+}
+
+export interface ConvocationCommunale {
+  id: string;
+  incident_id?: string;
+  commune_id: string;
+  commune_nom: string;
+  parcelle_id: string;
+  numero_parcelle: string;
+  avenue_nom: string;
+  destinataire_nom: string;
+  destinataire_telephone: string;
+  motif: string;
+  date_emission: string;
+  date_comparution: string;
+  heure_comparution: string;
+  lieu_comparution: string;
+  statut: 'emise' | 'remise' | 'present' | 'absent' | 'regule';
+  officier_traitant: string;
+  observations?: string;
+}
+
 
