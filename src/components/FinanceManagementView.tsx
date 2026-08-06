@@ -582,7 +582,7 @@ export default function FinanceManagementView({
   };
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in text-on-background">
+    <div className="flex flex-col gap-6 animate-fade-in text-on-background w-full max-w-full min-w-0 overflow-x-hidden">
       
       {/* Page Header and Commune Filter */}
       <header className="bg-surface border border-outline-variant rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">

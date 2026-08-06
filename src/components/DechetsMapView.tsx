@@ -890,7 +890,7 @@ export default function DechetsMapView({
   };
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in text-on-background">
+    <div className="flex flex-col gap-6 animate-fade-in text-on-background w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Header block */}
       <div className="flex flex-col gap-1.5 border-b border-outline-variant/40 pb-4">
         <div className="flex items-center gap-2">

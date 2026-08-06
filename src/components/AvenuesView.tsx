@@ -42,7 +42,7 @@ export default function AvenuesView({
   });
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in pb-12 text-on-background">
+    <div className="flex flex-col gap-6 animate-fade-in pb-12 text-on-background w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Top Header Block matching mockup */}
       <div className="flex items-center justify-between pb-3 border-b border-outline-variant">
         <div className="flex items-center gap-2">

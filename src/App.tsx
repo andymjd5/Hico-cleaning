@@ -4088,7 +4088,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-background text-on-background">
+    <div className="min-h-screen w-full max-w-full flex flex-col font-sans bg-background text-on-background overflow-x-hidden">
       
       {/* 1. Login View State */}
       {currentScreen === 'login' ? (
@@ -4101,7 +4101,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
         />
       ) : (
         /* 2. Logged User Layout Shell */
-        <div className="flex flex-col min-h-screen">
+        <div className="flex flex-col min-h-screen w-full max-w-full overflow-x-hidden">
           
           {/* Top Status Header styled exactly like Bento design */}
           <header className="fixed top-0 left-0 w-full bg-surface h-16 border-b border-outline-variant flex items-center justify-between px-3 md:px-8 z-40 shadow-lg">
@@ -4207,7 +4207,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           </header>
 
           {/* Desktop Sidebar Layout Wrapper */}
-          <div className="flex flex-grow pt-16">
+          <div className="flex flex-grow pt-16 w-full max-w-full min-w-0 overflow-x-hidden">
             
             {/* Desktop Left-Rail Navigation (visible on md+) */}
             <aside className="hidden md:flex fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 border-r border-outline-variant bg-surface flex-col py-6 px-4 gap-2 z-30 shadow-xl overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-outline-variant/50 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-primary/40">
@@ -4538,7 +4538,8 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
             </aside>
 
             {/* Main view container block tailored responsively for viewport sizes */}
-            <main className="flex-grow px-4 md:px-8 py-6 pb-28 md:pb-12 md:pl-[18rem] transition-all">
+            <main className="flex-1 w-full md:w-[calc(100%-16rem)] md:ml-64 max-w-full min-w-0 px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-12 overflow-x-hidden transition-all">
+              <div className="max-w-7xl mx-auto w-full min-w-0">
               
               {/* SCREEN SWITCHER */}
               {currentScreen === 'dashboard' && (
@@ -4982,6 +4983,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                 />
               )}
 
+              </div>
             </main>
           </div>
 

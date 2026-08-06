@@ -122,7 +122,7 @@ export default function EboueurSpaceView({
   const loadPercentage = Math.min(100, Math.round((currentLoad / maxCap) * 100));
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6 animate-fade-in text-on-background">
+    <div className="flex flex-col gap-4 sm:gap-6 animate-fade-in text-on-background w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Local Success Notification Banner */}
       {successBanner && (
         <div className="bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 p-4 rounded-2xl flex items-center justify-between gap-3 text-xs font-semibold animate-slide-in-down shadow-lg">

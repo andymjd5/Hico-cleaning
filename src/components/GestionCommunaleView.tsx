@@ -332,7 +332,7 @@ export default function GestionCommunaleView({
   };
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in pb-16">
+    <div className="flex flex-col gap-6 animate-fade-in pb-16 w-full max-w-full min-w-0 overflow-x-hidden">
       {/* 🏛️ TOP BANNER: BOURGMESTRE & GESTION COMMUNALE */}
       <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 p-6 shadow-2xl relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />

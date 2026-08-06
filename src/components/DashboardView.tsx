@@ -111,7 +111,7 @@ export default function DashboardView({
   });
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in text-on-background">
+    <div className="flex flex-col gap-6 animate-fade-in text-on-background w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Title block with Windows Notification trigger */}
       <div className="flex items-center justify-between gap-4 flex-wrap bg-surface/40 p-4 rounded-2xl border border-outline-variant/50">
         <div className="flex flex-col gap-1">

@@ -351,7 +351,7 @@ export default function AbonneSpaceView({
   };
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in text-on-background pb-20 sm:pb-6">
+    <div className="flex flex-col gap-6 animate-fade-in text-on-background pb-20 sm:pb-6 w-full max-w-full min-w-0 overflow-x-hidden">
       
       {/* Welcome & Info Bento Header */}
       <header className="bg-surface border border-outline-variant rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden group">

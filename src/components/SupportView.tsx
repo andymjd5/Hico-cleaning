@@ -267,7 +267,7 @@ export default function SupportView({ currentUser }: SupportViewProps) {
   ];
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in text-on-background pb-12">
+    <div className="flex flex-col gap-6 animate-fade-in text-on-background pb-12 w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Top Banner Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-outline-variant">
         <div className="flex items-center gap-3">

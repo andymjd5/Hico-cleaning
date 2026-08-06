@@ -333,7 +333,7 @@ export default function AdminSettingsView({
   ];
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in text-on-background pb-12" id="admin_settings_view">
+    <div className="flex flex-col gap-6 animate-fade-in text-on-background pb-12 w-full max-w-full min-w-0 overflow-x-hidden" id="admin_settings_view">
       {/* Title */}
       <div className="flex items-center justify-between pb-3 border-b border-outline-variant" id="settings_title_container">
         <div className="flex items-center gap-2" id="settings_title_left">

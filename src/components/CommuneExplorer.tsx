@@ -261,7 +261,7 @@ export default function CommuneExplorer({
   };
 
   return (
-    <div className="bg-surface rounded-2xl border border-outline-variant p-5 md:p-6 shadow-lg animate-fade-in text-on-surface">
+    <div className="bg-surface rounded-2xl border border-outline-variant p-4 sm:p-5 md:p-6 shadow-lg animate-fade-in text-on-surface w-full max-w-full min-w-0 overflow-x-hidden">
       
       {/* Title block */}
       <header className="flex flex-col gap-2 pb-5 mb-5 border-b border-outline-variant/40">

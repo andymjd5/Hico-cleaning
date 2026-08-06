@@ -363,7 +363,7 @@ export default function RecensementForm({
   };
 
   return (
-    <div className="bg-surface rounded-2xl border border-outline-variant p-5 md:p-6 shadow-lg animate-fade-in pb-12 text-on-surface">
+    <div className="bg-surface rounded-2xl border border-outline-variant p-4 sm:p-5 md:p-6 shadow-lg animate-fade-in pb-12 text-on-surface w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Context indicator */}
       <header className="flex flex-col gap-1 pb-4 mb-4 border-b border-outline-variant/40">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-secondary font-sans uppercase tracking-wider">
