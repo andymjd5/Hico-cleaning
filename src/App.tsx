@@ -31,6 +31,7 @@ import FinanceManagementView from './components/FinanceManagementView';
 import SupportView from './components/SupportView';
 import RealtimeAlertModal, { AlertData } from './components/RealtimeAlertModal';
 import VoiceCallModal, { CallTarget } from './components/VoiceCallModal';
+import IncomingCallModal from './components/IncomingCallModal';
 
 // Lucide Icons
 import { LayoutDashboard, FileText, Users, BarChart3, User, LogOut, ArrowLeft, Plus, X, RefreshCw, Database, Compass, Trash2, Truck, Settings, Shield, DollarSign, UserPlus, Key, Package, MapPin, CheckCircle2, XCircle, AlertTriangle, Info, Menu, CreditCard, Mail, Headphones, Navigation, Landmark, Building2, Gavel } from 'lucide-react';
@@ -5636,6 +5637,22 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
           <VoiceCallModal
             target={activeCallTarget}
             onClose={() => setActiveCallTarget(null)}
+          />
+
+          {/* 🔔 INCOMING WEBRTC CALL POPUP */}
+          <IncomingCallModal
+            onAccept={(caller) => {
+              setActiveCallTarget({
+                name: caller.name,
+                phone: caller.phone,
+                role: caller.role,
+                commune: caller.commune,
+                avatarUrl: caller.avatarUrl
+              });
+            }}
+            onDecline={() => {
+              setActiveCallTarget(null);
+            }}
           />
 
           {/* LATE SIGNAL NOTICE MODAL (13h Limit) */}
