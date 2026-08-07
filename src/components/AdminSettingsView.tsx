@@ -1040,7 +1040,7 @@ export default function AdminSettingsView({
                 <h3 className="text-base font-black text-on-surface tracking-tight">Script SQL d'Isolation & d'Autonomie par Commune (Supabase)</h3>
               </div>
               <p className="text-xs text-on-surface-variant leading-relaxed">
-                Ce script SQL ajoute les colonnes <code className="text-primary font-mono font-bold">commune_id</code> et <code className="text-primary font-mono font-bold">commune_nom</code> à toutes les tables, garantissant que chaque administrateur communal ou bourgmestre ne gère que sa commune avec des données 100% étanches.
+                Ce script SQL complet résout définitivement l'erreur <code className="text-amber-400 font-mono font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">42703 : la colonne « commune_id » n'existe pas</code> et ajoute automatiquement les colonnes <code className="text-primary font-mono font-bold">commune_id</code> et <code className="text-primary font-mono font-bold">commune_nom</code> à toutes les tables, garantissant que chaque administrateur communal ou bourgmestre ne gère que sa commune avec des données 100% étanches.
               </p>
             </div>
 

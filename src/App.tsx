@@ -5832,8 +5832,7 @@ const mapSignalStatus = (item: any): 'pending' | 'assigned' | 'completed' => {
                 
                 <div className="p-6 font-sans flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
                   <p className="text-xs text-on-surface-variant leading-relaxed">
-                    Votre application est configurée avec l'URL Supabase, mais les tables nécessaires ne semblent pas encore exister sur votre projet.
-                    Pour créer les tables et les liaisons, copiez le script SQL ci-dessous, puis collez-le dans le <strong className="text-primary">SQL Editor</strong> de votre tableau de bord Supabase, et cliquez sur <strong className="text-[#10b981]">Run</strong>.
+                    Votre application est connectée à Supabase. Si vous avez rencontré l'erreur <strong className="text-amber-400 font-mono font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">42703 : la colonne « commune_id » n'existe pas</strong>, le script ci-dessous effectue une migration universelle automatique pour ajouter les colonnes d'isolation <code className="text-primary font-mono font-bold">commune_id</code> et <code className="text-primary font-mono font-bold">commune_nom</code> à toutes les tables de la base de données.
                   </p>
 
                   <div className="flex flex-col gap-2">
