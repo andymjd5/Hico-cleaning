@@ -2246,48 +2246,39 @@ export default function AbonneSpaceView({
 
       {/* ⏰ MODAL SIGNALEMENT HORS-DÉLAI (>13H) */}
       {pendingLateSignalType && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-surface border-2 border-amber-500/60 rounded-3xl p-6 max-w-md w-full shadow-2xl flex flex-col gap-5 animate-scale-in">
-            <div className="flex items-center gap-3.5 text-amber-400">
-              <div className="p-3.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300">
-                <Clock size={30} className="animate-pulse shrink-0" />
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" id="modal_late_signal_abonne">
+          <div className="bg-surface border border-amber-500/40 rounded-2xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-3.5 animate-scale-in text-on-surface">
+            <div className="flex items-center gap-3 text-amber-400">
+              <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                <Clock size={22} className="shrink-0" />
               </div>
               <div>
-                <h3 className="text-base font-black text-on-surface">Signalement Hors-Délai (&gt;13h00)</h3>
-                <span className="text-xs text-amber-400 font-extrabold uppercase tracking-wide">Avertissement Limite Horaire</span>
+                <h3 className="text-sm font-black text-on-surface">Signalement après 13h00</h3>
+                <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Passage prioritaire ou matin suivant</span>
               </div>
             </div>
 
-            <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-4 text-xs leading-relaxed text-on-surface flex flex-col gap-2.5">
-              <p>
-                <strong className="text-amber-300 font-black">Attention :</strong> L'heure limite d'enregistrement des poubelles pour la tournée prioritaire du matin est fixée à <strong className="text-white underline">13h00</strong>.
-              </p>
-              <p>
-                Votre alerte pour le sachet <strong className="text-amber-300 uppercase">{pendingLateSignalType === 'biodegradable' ? 'Biodégradable (Vert)' : 'Non-Biodégradable (Gris)'}</strong> sera transmise au bureau avec la mention spéciale :
-              </p>
-              <div className="bg-black/30 p-2.5 rounded-xl border border-amber-500/30 flex items-center justify-center gap-2 text-amber-300 font-mono font-black text-sm">
-                <Clock size={16} /> <span>⏰ HORS DÉLAI (&gt;13h)</span>
-              </div>
-              <p className="text-[11px] text-amber-200/90 leading-snug italic">
-                L'équipe de dispatching tentera d'affecter un camion en tournée de rattrapage, sinon la collecte s'effectuera au tout premier passage de demain matin.
-              </p>
+            <div className="bg-surface-variant/40 border border-outline-variant/40 rounded-xl p-3 text-xs leading-relaxed text-on-surface">
+              Votre demande pour le sachet <strong className="text-primary">{pendingLateSignalType === 'biodegradable' ? 'Biodégradable' : 'Non-Biodégradable'}</strong> est enregistrée. L'éboueur passera en tournée de rattrapage ou demain matin.
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 pt-1">
               <button
+                type="button"
                 onClick={() => setPendingLateSignalType(null)}
-                className="flex-1 py-3 px-4 rounded-2xl border border-outline-variant text-xs font-extrabold text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30 transition-all cursor-pointer active:scale-95"
+                className="flex-1 py-2 px-3 rounded-xl border border-outline-variant/60 text-xs font-bold text-on-surface-variant hover:bg-surface-variant/30 transition-all cursor-pointer"
               >
                 Annuler
               </button>
               <button
+                type="button"
                 onClick={() => {
                   onReportTrashFull(pendingLateSignalType);
                   setPendingLateSignalType(null);
                 }}
-                className="flex-1 py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow-lg shadow-amber-900/30 transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
+                className="flex-1 py-2 px-3 rounded-xl bg-primary hover:opacity-90 text-on-primary font-black text-xs shadow-md transition-all cursor-pointer"
               >
-                <span>Compris, Valider</span>
+                Valider l'alerte
               </button>
             </div>
           </div>
