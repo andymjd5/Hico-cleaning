@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { Agent, AgentRole, Screen, Commune } from '../types';
 
+import { HICO_COMPLETE_SUPABASE_SQL } from '../utils/supabaseSql';
+
 interface AdminSettingsViewProps {
   agents: Agent[];
   onAddAgent: (newAgent: Agent) => void;
@@ -168,103 +170,7 @@ export default function AdminSettingsView({
   const [tempPasswordShow, setTempPasswordShow] = useState<{ userId: string; pass: string } | null>(null);
   const [sqlCopied, setSqlCopied] = useState(false);
 
-  const SUPABASE_ISOLATION_SQL = `-- =========================================================================
--- HICO-CLEANING : SCRIPT SQL D'ISOLATION ET D'AUTONOMIE PAR COMMUNE
--- À exécuter dans l'éditeur SQL de votre projet Supabase (Dashboard -> SQL Editor)
--- =========================================================================
-
--- 1. Table AGENTS : Rattachement communal et capacité
-ALTER TABLE IF EXISTS agents 
-ADD COLUMN IF NOT EXISTS commune_id TEXT,
-ADD COLUMN IF NOT EXISTS commune_nom TEXT,
-ADD COLUMN IF NOT EXISTS capacite_camion INTEGER DEFAULT 6,
-ADD COLUMN IF NOT EXISTS charge_actuelle INTEGER DEFAULT 0;
-
--- 2. Table SIGNAUX_POUBELLES : Rattachement communal & Statuts
-ALTER TABLE IF EXISTS signaux_poubelles 
-ADD COLUMN IF NOT EXISTS commune_id TEXT,
-ADD COLUMN IF NOT EXISTS commune_nom TEXT,
-ADD COLUMN IF NOT EXISTS avenue_id TEXT,
-ADD COLUMN IF NOT EXISTS avenue_nom TEXT,
-ADD COLUMN IF NOT EXISTS parcelle_id TEXT,
-ADD COLUMN IF NOT EXISTS numero_parcelle TEXT,
-ADD COLUMN IF NOT EXISTS bailleur_nom TEXT,
-ADD COLUMN IF NOT EXISTS bailleur_telephone TEXT,
-ADD COLUMN IF NOT EXISTS statut TEXT DEFAULT 'pending',
-ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
-ADD COLUMN IF NOT EXISTS assigned_eboueur_id TEXT,
-ADD COLUMN IF NOT EXISTS eboueur_assigne_id TEXT,
-ADD COLUMN IF NOT EXISTS type_poubelle TEXT DEFAULT 'biodegradable',
-ADD COLUMN IF NOT EXISTS is_hors_delai BOOLEAN DEFAULT false,
-ADD COLUMN IF NOT EXISTS is_partiel BOOLEAN DEFAULT false,
-ADD COLUMN IF NOT EXISTS partiel_note TEXT,
-ADD COLUMN IF NOT EXISTS estimated_arrival_minutes INTEGER,
-ADD COLUMN IF NOT EXISTS eta_appointment_time TEXT,
-ADD COLUMN IF NOT EXISTS confirmation_abonne TEXT DEFAULT 'en_attente',
-ADD COLUMN IF NOT EXISTS confirmation_date TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS litige_abonne BOOLEAN DEFAULT false,
-ADD COLUMN IF NOT EXISTS litige_raison TEXT,
-ADD COLUMN IF NOT EXISTS litige_date TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS photo_preuve_url TEXT,
-ADD COLUMN IF NOT EXISTS gps_validation JSONB,
-ADD COLUMN IF NOT EXISTS sachets_remis_bio INTEGER,
-ADD COLUMN IF NOT EXISTS sachets_remis_non_bio INTEGER;
-
--- 3. Table SUBSCRIPTION_PAYMENTS (Paiements Redevance / Factures)
-ALTER TABLE IF EXISTS subscription_payments 
-ADD COLUMN IF NOT EXISTS commune_id TEXT,
-ADD COLUMN IF NOT EXISTS commune_nom TEXT,
-ADD COLUMN IF NOT EXISTS parcelle_id TEXT,
-ADD COLUMN IF NOT EXISTS abonne_id TEXT,
-ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'success';
-
--- 4. Table SACHET_STOCKS & DISTRIBUTIONS (Gestion des sachets)
-ALTER TABLE IF EXISTS sachet_stocks 
-ADD COLUMN IF NOT EXISTS commune_id TEXT,
-ADD COLUMN IF NOT EXISTS commune_nom TEXT;
-
-ALTER TABLE IF EXISTS sachet_distributions 
-ADD COLUMN IF NOT EXISTS commune_id TEXT,
-ADD COLUMN IF NOT EXISTS commune_nom TEXT;
-
-ALTER TABLE IF EXISTS agent_dotations 
-ADD COLUMN IF NOT EXISTS commune_id TEXT;
-
--- 5. Table DISPUTE_SIGNALS (Contentieux & Litiges)
-ALTER TABLE IF EXISTS dispute_signals 
-ADD COLUMN IF NOT EXISTS commune_id TEXT,
-ADD COLUMN IF NOT EXISTS commune_nom TEXT;
-
-ALTER TABLE IF EXISTS dis_signals 
-ADD COLUMN IF NOT EXISTS commune_id TEXT,
-ADD COLUMN IF NOT EXISTS commune_nom TEXT;
-
--- 6. Table INCIVISME_INCIDENTS & CONVOCATIONS (Bourgmestre & Police d'assainissement)
-ALTER TABLE IF EXISTS incivisme_incidents 
-ADD COLUMN IF NOT EXISTS commune_id TEXT,
-ADD COLUMN IF NOT EXISTS commune_nom TEXT;
-
-ALTER TABLE IF EXISTS convocations_communales 
-ADD COLUMN IF NOT EXISTS commune_id TEXT,
-ADD COLUMN IF NOT EXISTS commune_nom TEXT;
-
--- 7. Table SYSTEM_SETTINGS (Paramètres de tarification et permissions de rôles)
-CREATE TABLE IF NOT EXISTS system_settings (
-  id TEXT PRIMARY KEY,
-  value JSONB,
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 8. Index pour optimiser les requêtes temps réel filtrées par commune
-CREATE INDEX IF NOT EXISTS idx_agents_commune_id ON agents(commune_id);
-CREATE INDEX IF NOT EXISTS idx_signaux_commune_id ON signaux_poubelles(commune_id);
-CREATE INDEX IF NOT EXISTS idx_payments_commune_id ON subscription_payments(commune_id);
-CREATE INDEX IF NOT EXISTS idx_sachets_commune_id ON sachet_stocks(commune_id);
-
--- 9. Activer les publications Realtime pour signaux et agents
-ALTER PUBLICATION supabase_realtime ADD TABLE signaux_poubelles;
-ALTER PUBLICATION supabase_realtime ADD TABLE agents;
-`;
+  const SUPABASE_ISOLATION_SQL = HICO_COMPLETE_SUPABASE_SQL;
 
   const copySqlToClipboard = () => {
     navigator.clipboard.writeText(SUPABASE_ISOLATION_SQL);
