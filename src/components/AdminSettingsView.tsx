@@ -11,7 +11,14 @@ import {
   Check, 
   UserPlus, 
   Trash2, 
-  Unlock 
+  Unlock,
+  Database,
+  Copy,
+  CheckCheck,
+  Building2,
+  MapPin,
+  Globe,
+  Info
 } from 'lucide-react';
 import { Agent, AgentRole, Screen, Commune } from '../types';
 
@@ -20,8 +27,8 @@ interface AdminSettingsViewProps {
   onAddAgent: (newAgent: Agent) => void;
   onUpdateAgent: (updatedAgent: Agent) => void;
   onDeleteAgent: (agentId: string) => void;
-  defaultTab?: 'screens' | 'pricing' | 'accounts' | 'passwords';
-  onTabChange?: (tab: 'screens' | 'pricing' | 'accounts' | 'passwords') => void;
+  defaultTab?: 'screens' | 'pricing' | 'accounts' | 'passwords' | 'supabase_sql';
+  onTabChange?: (tab: 'screens' | 'pricing' | 'accounts' | 'passwords' | 'supabase_sql') => void;
   communes?: Commune[];
   isSupabaseConfigured?: boolean;
   dbStatus?: string;
@@ -41,7 +48,7 @@ export default function AdminSettingsView({
   supabase = null
 }: AdminSettingsViewProps) {
   // 1. Tab State
-  const [activeTab, setActiveTab] = useState<'screens' | 'pricing' | 'accounts' | 'passwords'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'screens' | 'pricing' | 'accounts' | 'passwords' | 'supabase_sql'>(defaultTab);
 
   React.useEffect(() => {
     if (defaultTab) {
@@ -49,7 +56,7 @@ export default function AdminSettingsView({
     }
   }, [defaultTab]);
 
-  const handleTabClick = (tab: 'screens' | 'pricing' | 'accounts' | 'passwords') => {
+  const handleTabClick = (tab: 'screens' | 'pricing' | 'accounts' | 'passwords' | 'supabase_sql') => {
     setActiveTab(tab);
     if (onTabChange) {
       onTabChange(tab);
@@ -150,14 +157,120 @@ export default function AdminSettingsView({
   const [newAgentNom, setNewAgentNom] = useState('');
   const [newAgentPhone, setNewAgentPhone] = useState('');
   const [newAgentRole, setNewAgentRole] = useState<AgentRole>('agent');
+  const [newAgentCommuneId, setNewAgentCommuneId] = useState<string>('all');
   const [newAgentPassword, setNewAgentPassword] = useState('password');
   const [newAgentCapacite, setNewAgentCapacite] = useState<number>(6);
   const [accountSuccess, setAccountSuccess] = useState<string | null>(null);
   const [accountError, setAccountError] = useState<string | null>(null);
 
-  // 5. Password Reset / Search State
+  // 5. Password Reset / Search State & SQL Copy
   const [searchTerm, setSearchTerm] = useState('');
   const [tempPasswordShow, setTempPasswordShow] = useState<{ userId: string; pass: string } | null>(null);
+  const [sqlCopied, setSqlCopied] = useState(false);
+
+  const SUPABASE_ISOLATION_SQL = `-- =========================================================================
+-- HICO-CLEANING : SCRIPT SQL D'ISOLATION ET D'AUTONOMIE PAR COMMUNE
+-- À exécuter dans l'éditeur SQL de votre projet Supabase (Dashboard -> SQL Editor)
+-- =========================================================================
+
+-- 1. Table AGENTS : Rattachement communal et capacité
+ALTER TABLE IF EXISTS agents 
+ADD COLUMN IF NOT EXISTS commune_id TEXT,
+ADD COLUMN IF NOT EXISTS commune_nom TEXT,
+ADD COLUMN IF NOT EXISTS capacite_camion INTEGER DEFAULT 6,
+ADD COLUMN IF NOT EXISTS charge_actuelle INTEGER DEFAULT 0;
+
+-- 2. Table SIGNAUX_POUBELLES : Rattachement communal & Statuts
+ALTER TABLE IF EXISTS signaux_poubelles 
+ADD COLUMN IF NOT EXISTS commune_id TEXT,
+ADD COLUMN IF NOT EXISTS commune_nom TEXT,
+ADD COLUMN IF NOT EXISTS avenue_id TEXT,
+ADD COLUMN IF NOT EXISTS avenue_nom TEXT,
+ADD COLUMN IF NOT EXISTS parcelle_id TEXT,
+ADD COLUMN IF NOT EXISTS numero_parcelle TEXT,
+ADD COLUMN IF NOT EXISTS bailleur_nom TEXT,
+ADD COLUMN IF NOT EXISTS bailleur_telephone TEXT,
+ADD COLUMN IF NOT EXISTS statut TEXT DEFAULT 'pending',
+ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
+ADD COLUMN IF NOT EXISTS assigned_eboueur_id TEXT,
+ADD COLUMN IF NOT EXISTS eboueur_assigne_id TEXT,
+ADD COLUMN IF NOT EXISTS type_poubelle TEXT DEFAULT 'biodegradable',
+ADD COLUMN IF NOT EXISTS is_hors_delai BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS is_partiel BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS partiel_note TEXT,
+ADD COLUMN IF NOT EXISTS estimated_arrival_minutes INTEGER,
+ADD COLUMN IF NOT EXISTS eta_appointment_time TEXT,
+ADD COLUMN IF NOT EXISTS confirmation_abonne TEXT DEFAULT 'en_attente',
+ADD COLUMN IF NOT EXISTS confirmation_date TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS litige_abonne BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS litige_raison TEXT,
+ADD COLUMN IF NOT EXISTS litige_date TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS photo_preuve_url TEXT,
+ADD COLUMN IF NOT EXISTS gps_validation JSONB,
+ADD COLUMN IF NOT EXISTS sachets_remis_bio INTEGER,
+ADD COLUMN IF NOT EXISTS sachets_remis_non_bio INTEGER;
+
+-- 3. Table SUBSCRIPTION_PAYMENTS (Paiements Redevance / Factures)
+ALTER TABLE IF EXISTS subscription_payments 
+ADD COLUMN IF NOT EXISTS commune_id TEXT,
+ADD COLUMN IF NOT EXISTS commune_nom TEXT,
+ADD COLUMN IF NOT EXISTS parcelle_id TEXT,
+ADD COLUMN IF NOT EXISTS abonne_id TEXT,
+ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'success';
+
+-- 4. Table SACHET_STOCKS & DISTRIBUTIONS (Gestion des sachets)
+ALTER TABLE IF EXISTS sachet_stocks 
+ADD COLUMN IF NOT EXISTS commune_id TEXT,
+ADD COLUMN IF NOT EXISTS commune_nom TEXT;
+
+ALTER TABLE IF EXISTS sachet_distributions 
+ADD COLUMN IF NOT EXISTS commune_id TEXT,
+ADD COLUMN IF NOT EXISTS commune_nom TEXT;
+
+ALTER TABLE IF EXISTS agent_dotations 
+ADD COLUMN IF NOT EXISTS commune_id TEXT;
+
+-- 5. Table DISPUTE_SIGNALS (Contentieux & Litiges)
+ALTER TABLE IF EXISTS dispute_signals 
+ADD COLUMN IF NOT EXISTS commune_id TEXT,
+ADD COLUMN IF NOT EXISTS commune_nom TEXT;
+
+ALTER TABLE IF EXISTS dis_signals 
+ADD COLUMN IF NOT EXISTS commune_id TEXT,
+ADD COLUMN IF NOT EXISTS commune_nom TEXT;
+
+-- 6. Table INCIVISME_INCIDENTS & CONVOCATIONS (Bourgmestre & Police d'assainissement)
+ALTER TABLE IF EXISTS incivisme_incidents 
+ADD COLUMN IF NOT EXISTS commune_id TEXT,
+ADD COLUMN IF NOT EXISTS commune_nom TEXT;
+
+ALTER TABLE IF EXISTS convocations_communales 
+ADD COLUMN IF NOT EXISTS commune_id TEXT,
+ADD COLUMN IF NOT EXISTS commune_nom TEXT;
+
+-- 7. Table SYSTEM_SETTINGS (Paramètres de tarification et permissions de rôles)
+CREATE TABLE IF NOT EXISTS system_settings (
+  id TEXT PRIMARY KEY,
+  value JSONB,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 8. Index pour optimiser les requêtes temps réel filtrées par commune
+CREATE INDEX IF NOT EXISTS idx_agents_commune_id ON agents(commune_id);
+CREATE INDEX IF NOT EXISTS idx_signaux_commune_id ON signaux_poubelles(commune_id);
+CREATE INDEX IF NOT EXISTS idx_payments_commune_id ON subscription_payments(commune_id);
+CREATE INDEX IF NOT EXISTS idx_sachets_commune_id ON sachet_stocks(commune_id);
+
+-- 9. Activer les publications Realtime pour signaux et agents
+ALTER PUBLICATION supabase_realtime ADD TABLE signaux_poubelles;
+ALTER PUBLICATION supabase_realtime ADD TABLE agents;
+`;
+
+  const copySqlToClipboard = () => {
+    navigator.clipboard.writeText(SUPABASE_ISOLATION_SQL);
+    setSqlCopied(true);
+    setTimeout(() => setSqlCopied(false), 3000);
+  };
 
   // Effect to load system settings from Supabase if connected
   React.useEffect(() => {
@@ -281,6 +394,9 @@ export default function AdminSettingsView({
       return;
     }
 
+    const isGlobal = newAgentCommuneId === 'all' || !newAgentCommuneId;
+    const selectedCommObj = communes.find(c => c.id === newAgentCommuneId);
+
     const newAgent: Agent = {
       id: 'agent-' + Math.random().toString(36).substring(2, 11),
       nom: newAgentNom.trim(),
@@ -290,16 +406,36 @@ export default function AdminSettingsView({
       password: newAgentPassword || 'password',
       isTempPassword: false,
       capacite_camion: newAgentRole === 'eboueur' ? newAgentCapacite : undefined,
-      charge_actuelle: 0
+      charge_actuelle: 0,
+      commune_id: isGlobal ? 'all' : newAgentCommuneId,
+      commune_nom: isGlobal ? 'Toutes les communes (Kinshasa)' : (selectedCommObj ? selectedCommObj.nom : newAgentCommuneId)
     };
 
     onAddAgent(newAgent);
-    setAccountSuccess(`Le compte de ${newAgent.nom} (${newAgent.role}) a été créé avec succès !`);
+    setAccountSuccess(`Le compte de ${newAgent.nom} (${newAgent.role} - ${newAgent.commune_nom}) a été créé avec succès !`);
     
     // Clear fields
     setNewAgentNom('');
     setNewAgentPhone('');
     setNewAgentPassword('password');
+    setNewAgentCommuneId('all');
+  };
+
+  // Reassign agent to a specific commune or global
+  const handleUpdateAgentCommune = (agentId: string, commId: string) => {
+    const targetAgent = agents.find(a => a.id === agentId);
+    if (!targetAgent) return;
+
+    const isGlobal = commId === 'all' || !commId;
+    const selectedCommObj = communes.find(c => c.id === commId);
+
+    const updatedAgent: Agent = {
+      ...targetAgent,
+      commune_id: isGlobal ? 'all' : commId,
+      commune_nom: isGlobal ? 'Toutes les communes (Kinshasa)' : (selectedCommObj ? selectedCommObj.nom : commId)
+    };
+
+    onUpdateAgent(updatedAgent);
   };
 
   // Reset password to a temporary password
@@ -397,7 +533,7 @@ export default function AdminSettingsView({
           }`}
         >
           <UserPlus size={14} />
-          Création de Comptes Agents
+          Création de Comptes
         </button>
         <button
           id="tab_btn_passwords"
@@ -409,7 +545,19 @@ export default function AdminSettingsView({
           }`}
         >
           <Key size={14} />
-          Mot de Passe Temporaire
+          Mots de Passe & Communes
+        </button>
+        <button
+          id="tab_btn_supabase_sql"
+          onClick={() => handleTabClick('supabase_sql')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-sans text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'supabase_sql'
+              ? 'bg-primary text-on-primary shadow-md'
+              : 'text-emerald-400 hover:bg-background hover:text-emerald-300'
+          }`}
+        >
+          <Database size={14} />
+          Script SQL Supabase ⚡
         </button>
       </div>
 
@@ -741,16 +889,40 @@ export default function AdminSettingsView({
                   onChange={(e) => setNewAgentRole(e.target.value as any)}
                   className="w-full h-11 px-3 bg-background border border-outline-variant rounded-xl text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-bold"
                 >
+                  <option value="admin">Administrateur Système 👑</option>
+                  <option value="bourgmestre">Bourgmestre / Autorité Communale 🏛️</option>
                   <option value="agent">Agent Recenseur 📋</option>
                   <option value="eboueur">Agent Éboueur (Chauffeur) 🚚</option>
                   <option value="finance_manager">Responsable Gestion Financière 💰</option>
                   <option value="sachets_manager">Responsable Gestion de Sachets 🛍️</option>
                   <option value="poubelles_manager">Responsable Poubelles & Éboueurs 🗑️</option>
                   <option value="support">Agent Support & Assistance 🎧</option>
-                  <option value="bourgmestre">Bourgmestre / Autorité Communale 🏛️</option>
                   <option value="abonne">Abonné (Bailleur) 👤</option>
-                  <option value="admin">Administrateur Système 👑</option>
                 </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="acc_commune">
+                  Territoire de Gestion (Commune Assignée)
+                </label>
+                <select
+                  id="acc_commune"
+                  value={newAgentCommuneId}
+                  onChange={(e) => setNewAgentCommuneId(e.target.value)}
+                  className="w-full h-11 px-3 bg-background border border-outline-variant rounded-xl text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-bold"
+                >
+                  <option value="all">🌐 Toutes les communes (Global Admin / Superviseur Kinshasa)</option>
+                  {communes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      🏛️ Commune de {c.nom}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-on-surface-variant">
+                  {newAgentCommuneId === 'all' 
+                    ? "Cet utilisateur aura accès à toutes les données des 24 communes de Kinshasa."
+                    : `Cet utilisateur sera strictement isolé sur la commune sélectionnée.`}
+                </p>
               </div>
 
               {newAgentRole === 'eboueur' && (
@@ -813,12 +985,12 @@ export default function AdminSettingsView({
         </div>
       )}
 
-      {/* TAB CONTENT 4: Passwords Reset */}
+      {/* TAB CONTENT 4: Passwords Reset & Commune Assignment */}
       {activeTab === 'passwords' && (
         <div className="bg-surface border border-outline-variant rounded-3xl p-6 shadow-xl flex flex-col gap-4 animate-fade-in" id="passwords_settings_card">
           <div className="flex flex-col gap-1" id="passwords_settings_header">
-            <h3 className="text-base font-black text-on-surface tracking-tight">Gestion des réinitialisations de mot de passe temporaire</h3>
-            <p className="text-xs text-on-surface-variant">Si un agent ou un abonné a oublié son mot de passe, générez-lui instantanément un mot de passe temporaire à usage unique pour se reconnecter.</p>
+            <h3 className="text-base font-black text-on-surface tracking-tight">Gestion des Mots de Passe & Territoires Communaux</h3>
+            <p className="text-xs text-on-surface-variant">Générez des mots de passe temporaires ou réassignez la commune de gestion de chaque administrateur ou agent.</p>
           </div>
 
           {/* Search Box */}
@@ -828,7 +1000,7 @@ export default function AdminSettingsView({
             </span>
             <input 
               type="text"
-              placeholder="Rechercher par nom, téléphone ou rôle..."
+              placeholder="Rechercher par nom, téléphone, commune ou rôle..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full h-11 pl-11 pr-4 bg-background border border-outline-variant rounded-xl text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-sans"
@@ -857,60 +1029,180 @@ export default function AdminSettingsView({
           )}
 
           {/* User list */}
-          <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pr-1 mt-2 border border-outline-variant rounded-2xl p-2 bg-background/20" id="users_pass_list">
+          <div className="flex flex-col gap-2 max-h-[30rem] overflow-y-auto pr-1 mt-2 border border-outline-variant rounded-2xl p-2 bg-background/20" id="users_pass_list">
             {filteredAgents.length === 0 ? (
               <p className="text-center text-xs text-on-surface-variant py-8">Aucun compte trouvé correspondant à votre recherche.</p>
             ) : (
-              filteredAgents.map((agent) => (
-                <div 
-                  key={agent.id}
-                  className="bg-surface border border-outline-variant/60 rounded-xl p-3.5 flex items-center justify-between gap-4 hover:border-outline transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center text-primary font-bold text-sm border border-outline-variant">
-                      {agent.nom.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-on-surface">{agent.nom}</span>
-                      <span className="text-[10px] text-gray-500 font-mono font-medium">
-                        Tél : {agent.telephone} • Rôle : <span className="font-bold capitalize">{agent.role}</span>
-                      </span>
-                      {agent.isTempPassword && (
-                        <span className="text-[9px] bg-amber-500/15 text-amber-500 border border-amber-500/25 px-1.5 py-0.5 rounded w-max font-bold mt-1 uppercase tracking-wide">
-                          ⚠️ MDP Temporaire Actif
+              filteredAgents.map((agent) => {
+                const isGlobal = agent.commune_id === 'all' || !agent.commune_id;
+                return (
+                  <div 
+                    key={agent.id}
+                    className="bg-surface border border-outline-variant/60 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-outline transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center text-primary font-bold text-sm border border-outline-variant shrink-0">
+                        {agent.nom.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-on-surface">{agent.nom}</span>
+                          <span className="text-[9px] bg-primary/15 text-primary border border-primary/25 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider font-mono">
+                            {agent.role}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-gray-500 font-mono font-medium">
+                          Tél : {agent.telephone}
                         </span>
+                        
+                        {/* Commune tag & switcher */}
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1 border ${
+                            isGlobal 
+                              ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' 
+                              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          }`}>
+                            {isGlobal ? <Globe size={11} /> : <Building2 size={11} />}
+                            {isGlobal ? 'Global (24 communes)' : `Commune de ${agent.commune_nom || agent.commune_id}`}
+                          </span>
+
+                          <select
+                            value={agent.commune_id || 'all'}
+                            onChange={(e) => handleUpdateAgentCommune(agent.id, e.target.value)}
+                            className="text-[10px] bg-background border border-outline-variant rounded-lg px-2 py-1 text-on-surface font-semibold focus:outline-none focus:border-primary cursor-pointer hover:border-primary/50 transition-colors"
+                            title="Modifier le rattachement communal de cet utilisateur"
+                          >
+                            <option value="all">🌐 Toutes les communes (Global)</option>
+                            {communes.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                🏛️ {c.nom}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {agent.isTempPassword && (
+                          <span className="text-[9px] bg-amber-500/15 text-amber-500 border border-amber-500/25 px-1.5 py-0.5 rounded w-max font-bold mt-1 uppercase tracking-wide">
+                            ⚠️ MDP Temporaire Actif
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                      <button
+                        id={`btn_reset_pass_${agent.id}`}
+                        onClick={() => handleResetPassword(agent.id)}
+                        className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 rounded-xl font-bold text-[11px] transition-all flex items-center gap-1 cursor-pointer"
+                        title="Réinitialiser le mot de passe"
+                      >
+                        <Unlock size={12} />
+                        Générer MDP Temp
+                      </button>
+                      {agent.id !== 'admin-1' && (
+                        <button
+                          id={`btn_delete_agent_${agent.id}`}
+                          onClick={() => {
+                            if (window.confirm(`Êtes-vous sûr de vouloir supprimer le compte de ${agent.nom} ?`)) {
+                              onDeleteAgent(agent.id);
+                            }
+                          }}
+                          className="p-1.5 text-error hover:bg-error-container/10 rounded-lg transition-all cursor-pointer"
+                          title="Supprimer ce compte"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       )}
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      id={`btn_reset_pass_${agent.id}`}
-                      onClick={() => handleResetPassword(agent.id)}
-                      className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 rounded-xl font-bold text-[11px] transition-all flex items-center gap-1 cursor-pointer"
-                      title="Réinitialiser le mot de passe"
-                    >
-                      <Unlock size={12} />
-                      Générer MDP Temp
-                    </button>
-                    {agent.id !== 'admin-1' && (
-                      <button
-                        id={`btn_delete_agent_${agent.id}`}
-                        onClick={() => {
-                          if (window.confirm(`Êtes-vous sûr de vouloir supprimer le compte de ${agent.nom} ?`)) {
-                            onDeleteAgent(agent.id);
-                          }
-                        }}
-                        className="p-1.5 text-error hover:bg-error-container/10 rounded-lg transition-all cursor-pointer"
-                        title="Supprimer ce compte"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT 5: Supabase SQL Script & Isolation Setup */}
+      {activeTab === 'supabase_sql' && (
+        <div className="bg-surface border border-outline-variant rounded-3xl p-6 shadow-xl flex flex-col gap-5 animate-fade-in" id="supabase_sql_settings_card">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-outline-variant/60 pb-4">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center font-bold">
+                  <Database size={16} />
+                </div>
+                <h3 className="text-base font-black text-on-surface tracking-tight">Script SQL d'Isolation & d'Autonomie par Commune (Supabase)</h3>
+              </div>
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Ce script SQL ajoute les colonnes <code className="text-primary font-mono font-bold">commune_id</code> et <code className="text-primary font-mono font-bold">commune_nom</code> à toutes les tables, garantissant que chaque administrateur communal ou bourgmestre ne gère que sa commune avec des données 100% étanches.
+              </p>
+            </div>
+
+            <button
+              id="btn_copy_sql"
+              onClick={copySqlToClipboard}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer transition-all shadow-md shrink-0 active:scale-95 ${
+                sqlCopied 
+                  ? 'bg-emerald-600 text-white' 
+                  : 'bg-primary text-on-primary hover:opacity-90'
+              }`}
+            >
+              {sqlCopied ? <CheckCheck size={16} /> : <Copy size={16} />}
+              <span>{sqlCopied ? 'Script SQL Copié !' : 'Copier le Script SQL'}</span>
+            </button>
+          </div>
+
+          {/* Guide d'utilisation en 3 étapes */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-background/40 border border-outline-variant rounded-2xl p-3.5 flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[11px] font-black flex items-center justify-center font-mono">1</span>
+                <span className="text-xs font-bold text-on-surface">Ouvrir Supabase</span>
+              </div>
+              <p className="text-[11px] text-on-surface-variant leading-normal">
+                Connectez-vous sur votre tableau de bord <strong className="text-on-surface">Supabase</strong> et cliquez sur <strong className="text-primary font-mono">SQL Editor</strong> dans le menu latéral gauche.
+              </p>
+            </div>
+
+            <div className="bg-background/40 border border-outline-variant rounded-2xl p-3.5 flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[11px] font-black flex items-center justify-center font-mono">2</span>
+                <span className="text-xs font-bold text-on-surface">Coller le Code</span>
+              </div>
+              <p className="text-[11px] text-on-surface-variant leading-normal">
+                Créez une <strong className="text-on-surface">New Query</strong>, collez l'intégralité du script SQL ci-dessous dans l'éditeur.
+              </p>
+            </div>
+
+            <div className="bg-background/40 border border-outline-variant rounded-2xl p-3.5 flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-black flex items-center justify-center font-mono">3</span>
+                <span className="text-xs font-bold text-on-surface">Exécuter (Run)</span>
+              </div>
+              <p className="text-[11px] text-on-surface-variant leading-normal">
+                Cliquez sur le bouton vert <strong className="text-emerald-400 font-mono">Run (▶)</strong>. Toutes les tables, index et publications Realtime seront configurés instantanément.
+              </p>
+            </div>
+          </div>
+
+          {/* Bloc SQL Affiché */}
+          <div className="relative border border-outline-variant rounded-2xl overflow-hidden bg-[#0d1117]">
+            <div className="flex items-center justify-between px-4 py-2 bg-[#161b22] border-b border-[#30363d] text-xs text-gray-400 font-mono">
+              <span className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+                supabase_communal_isolation.sql
+              </span>
+              <button
+                onClick={copySqlToClipboard}
+                className="text-gray-300 hover:text-white flex items-center gap-1.5 text-[11px] font-bold bg-[#21262d] px-2.5 py-1 rounded-md border border-[#30363d] transition-all cursor-pointer"
+              >
+                {sqlCopied ? <CheckCheck size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                {sqlCopied ? 'Copié' : 'Copier'}
+              </button>
+            </div>
+            <pre className="p-4 text-xs font-mono text-[#58a6ff] overflow-x-auto max-h-96 leading-relaxed select-all">
+              <code>{SUPABASE_ISOLATION_SQL}</code>
+            </pre>
           </div>
         </div>
       )}

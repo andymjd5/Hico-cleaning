@@ -2,25 +2,58 @@ import { Commune, Avenue, Parcelle, Abonne, Agent } from './types';
 
 export const INITIAL_AGENTS: Agent[] = [
   {
-    id: 'agent-1',
-    nom: 'Jean Malonga',
-    telephone: '0612345678', // can be written as 0612345678 or formatted
-    role: 'agent',
-    created_at: new Date('2026-05-01').toISOString()
-  },
-  {
     id: 'admin-1',
-    nom: 'Hico Admin',
+    nom: 'Super Admin Hico (Global)',
     telephone: '0600000000',
     role: 'admin',
-    created_at: new Date('2026-05-01').toISOString()
+    created_at: new Date('2026-05-01').toISOString(),
+    commune_id: 'all',
+    commune_nom: 'Toutes les communes (Kinshasa)'
+  },
+  {
+    id: 'admin-gombe',
+    nom: 'Admin Commune Gombe',
+    telephone: '0810000001',
+    role: 'admin',
+    created_at: new Date('2026-05-01').toISOString(),
+    commune_id: 'c-gombe',
+    commune_nom: 'Gombe'
+  },
+  {
+    id: 'admin-barumbu',
+    nom: 'Admin Commune Barumbu',
+    telephone: '0810000002',
+    role: 'admin',
+    created_at: new Date('2026-05-01').toISOString(),
+    commune_id: 'c-barumbu',
+    commune_nom: 'Barumbu'
+  },
+  {
+    id: 'admin-kinshasa',
+    nom: 'Admin Commune Kinshasa',
+    telephone: '0810000003',
+    role: 'admin',
+    created_at: new Date('2026-05-01').toISOString(),
+    commune_id: 'c-kinshasa',
+    commune_nom: 'Kinshasa'
+  },
+  {
+    id: 'agent-1',
+    nom: 'Jean Malonga',
+    telephone: '0612345678',
+    role: 'agent',
+    created_at: new Date('2026-05-01').toISOString(),
+    commune_id: 'c-gombe',
+    commune_nom: 'Gombe'
   },
   {
     id: 'bourgmestre-1',
     nom: 'Honoré Bourgmestre Gombe',
     telephone: '0833333333',
     role: 'bourgmestre',
-    created_at: new Date('2026-05-01').toISOString()
+    created_at: new Date('2026-05-01').toISOString(),
+    commune_id: 'c-gombe',
+    commune_nom: 'Gombe'
   }
 ];
 

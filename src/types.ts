@@ -59,7 +59,8 @@ export interface Agent {
   isTempPassword?: boolean;
   capacite_camion?: number; // Capacité max du camion en sachets (par défaut 6)
   charge_actuelle?: number;  // Nombre de sachets actuellement dans le camion
-  commune_id?: string; // For Bourgmestre or localized authority
+  commune_id?: string; // For Bourgmestre or localized authority / Admin communal
+  commune_nom?: string; // Nom lisible de la commune assignée
 }
 
 export type Screen = 
